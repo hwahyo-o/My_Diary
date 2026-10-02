@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { AutoLockController } from './runtime/auto-lock';
 import { BrowserRuntime } from './runtime/browser-runtime';
+import { PwaUpdateBoundary } from '../features/pwa/PwaUpdateBoundary';
 import '../styles/tokens.css';
 import '../styles/global.css';
 
@@ -34,7 +35,9 @@ async function bootstrap() {
 
   createRoot(root).render(
     <StrictMode>
-      <App runtime={runtime} />
+      <PwaUpdateBoundary>
+        <App runtime={runtime} />
+      </PwaUpdateBoundary>
     </StrictMode>,
   );
 }
