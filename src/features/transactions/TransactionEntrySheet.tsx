@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
 import type { TransactionSubmission } from '../../app/ui-types';
 
 interface TransactionEntrySheetProps {
@@ -56,9 +57,9 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, retu
           <button type="button" className="icon-button" onClick={onClose} aria-label="닫기">×</button>
         </div>
 
-        <div className="entry-tabs" role="tablist" aria-label="거래 입력 방식">
-          <button type="button" role="tab" aria-selected={tab === 'quick'} onClick={() => setTab('quick')}>빠른 입력</button>
-          <button type="button" role="tab" aria-selected={tab === 'direct'} onClick={() => setTab('direct')}>직접 입력</button>
+        <div className="entry-tabs" aria-label="거래 입력 방식">
+          <button type="button" aria-pressed={tab === 'quick'} onClick={() => setTab('quick')}>빠른 입력</button>
+          <button type="button" aria-pressed={tab === 'direct'} onClick={() => setTab('direct')}>직접 입력</button>
         </div>
 
         {tab === 'quick' ? (
