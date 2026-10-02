@@ -1,9 +1,10 @@
+import type { Ref } from 'react';
 import type { DashboardViewModel } from '../app/ui-types';
 
 interface HomePageProps {
   readonly dashboard: DashboardViewModel;
   readonly onQuickAdd: () => void;
-  readonly quickAddButtonRef?: React.Ref<HTMLButtonElement>;
+  readonly quickAddButtonRef?: Ref<HTMLButtonElement>;
 }
 
 const won = new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 });
