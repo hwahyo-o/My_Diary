@@ -7,5 +7,6 @@ export interface Account extends EntityMeta {
   readonly name: string;
   readonly kind: AccountKind;
   readonly purpose?: AccountPurpose;
+  readonly openingBalanceMinor?: number;
   readonly includeNetWorth: boolean;
 }
