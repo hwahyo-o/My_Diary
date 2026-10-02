@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 
 interface AccessGateProps {
   readonly mode: 'onboarding' | 'locked';
-  readonly onCreateProfile: (input: { readonly nickname: string; readonly pin: string }) => Promise<void>;
+  readonly onCreateProfile: (input: { readonly nickname: string; readonly pin: string }) => Promise<void | { readonly recoveryKey: string }>;
   readonly onUnlock: (pin: string) => Promise<void>;
   readonly onAccessGranted: () => void;
 }
@@ -15,6 +15,7 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onAccessGranted }:
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -33,17 +34,36 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onAccessGranted }:
     setBusy(true);
     try {
       if (mode === 'onboarding') {
-        await onCreateProfile({ nickname: nickname.trim(), pin });
+        const result = await onCreateProfile({ nickname: nickname.trim(), pin });
+        if (result && 'recoveryKey' in result) {
+          setRecoveryKey(result.recoveryKey);
+        } else {
+          onAccessGranted();
+        }
       } else {
         await onUnlock(pin);
+        onAccessGranted();
       }
-      onAccessGranted();
     } catch {
       setError(mode === 'locked' ? 'PIN을 확인해주세요.' : '설정을 완료하지 못했습니다. 다시 시도해주세요.');
     } finally {
       setPin('');
       setBusy(false);
     }
+  }
+
+  if (recoveryKey) {
+    return (
+      <main className="access-shell">
+        <section className="access-card" aria-labelledby="recovery-title">
+          <p className="eyebrow">RECOVERY KEY</p>
+          <h1 id="recovery-title">복구 키를 안전하게 보관하세요</h1>
+          <p className="access-copy">이 키는 새 기기에서 Vault를 복구할 때 필요합니다. 앱에는 이 원문을 저장하지 않습니다.</p>
+          <output className="recovery-key" aria-label="복구 키">{recoveryKey}</output>
+          <button className="primary-button" type="button" onClick={onAccessGranted}>복구 키를 저장했어요</button>
+        </section>
+      </main>
+    );
   }
 
   return (
