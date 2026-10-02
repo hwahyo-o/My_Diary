@@ -12,7 +12,10 @@
     "lint": "eslint .",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "verify:dist-security": "node scripts/verify-dist-security.mjs dist",
+    "verify:sw-release": "node scripts/verify-sw-release.mjs public/sw.js",
+    "release:gate": "node scripts/release-gate.mjs"
   },
   "dependencies": {
     "hash-wasm": "4.12.0",
