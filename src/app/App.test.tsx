@@ -4,12 +4,15 @@ import { App } from './App';
 import { emptyDashboard, type RuntimeSnapshot } from './ui-types';
 
 const dashboard = {
+  ...emptyDashboard,
   nickname: '예현',
   periodLabel: '2026년 10월',
   balanceMinor: 1_250_000,
   incomeMinor: 3_000_000,
   expenseMinor: 1_750_000,
-  budget: { usagePercent: 58, remainingMinor: 420_000, status: 'warning' as const },
+  fixedMinor: 700_000,
+  variableMinor: 1_050_000,
+  budget: { ...emptyDashboard.budget, usagePercent: 58, remainingMinor: 420_000, status: 'warning' as const },
   report: { label: '10월 월간 리포트', status: 'ready' as const },
   topMerchant: { name: '카페 봄', amountMinor: 84_000 },
   todayReceipt: { transactionCount: 3, expenseMinor: 42_000 },
