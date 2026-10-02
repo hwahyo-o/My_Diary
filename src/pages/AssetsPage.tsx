@@ -5,22 +5,22 @@ import type { AccountKind, AccountPurpose } from '../domain/accounts/types';
 interface AssetsPageProps {
   readonly assets?: AssetsSummaryViewModel;
   readonly budget?: BudgetSummaryViewModel;
-  readonly onSaveAccount?: (input: {
+  readonly onSaveAccount?: ((input: {
     readonly name: string;
     readonly kind: AccountKind;
     readonly purpose: AccountPurpose;
     readonly openingBalanceMinor: number;
     readonly includeNetWorth: boolean;
-  }) => Promise<string>;
-  readonly onSaveHolding?: (input: {
+  }) => Promise<string>) | undefined;
+  readonly onSaveHolding?: ((input: {
     readonly accountId: string;
     readonly ticker: string;
     readonly quantity: string;
     readonly avgCostMinor: number;
     readonly marketValueMinor: number;
     readonly priceAsOf: string;
-  }) => Promise<string>;
-  readonly onSetMonthlyBudget?: (limitMinor: number) => Promise<void>;
+  }) => Promise<string>) | undefined;
+  readonly onSetMonthlyBudget?: ((limitMinor: number) => Promise<void>) | undefined;
 }
 
 const won = new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 });
