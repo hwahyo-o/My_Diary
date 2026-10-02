@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AppShell } from '../components/AppShell';
 import { AccessGate } from '../features/access/AccessGate';
 import type { AccessState, AppRuntimePorts, DashboardViewModel } from './ui-types';
-import { emptyDashboard } from './ui-types';
+import { defaultBackupStatus, emptyDashboard } from './ui-types';
 
 const failClosedRuntime: AppRuntimePorts = {
   async createProfile() {
@@ -36,11 +36,15 @@ export function App({ initialAccess, dashboard, runtime = failClosedRuntime }: A
   }, [runtime]);
 
   if (access !== 'unlocked') {
+    const recoveryProps = runtime.recoverFromVault
+      ? { onRecover: (input: { readonly packageBytes: Uint8Array; readonly recoveryKey: string; readonly pin: string }) => runtime.recoverFromVault!(input) }
+      : {};
     return (
       <AccessGate
         mode={access}
         onCreateProfile={(input) => runtime.createProfile(input)}
         onUnlock={(pin) => runtime.unlock(pin)}
+        {...recoveryProps}
         onAccessGranted={() => {
           const next = runtime.getSnapshot?.();
           if (next) {
@@ -57,7 +61,20 @@ export function App({ initialAccess, dashboard, runtime = failClosedRuntime }: A
   return (
     <AppShell
       dashboard={dashboardState}
+      backup={defaultBackupStatus}
       onSubmitTransaction={(input) => runtime.submitTransaction(input)}
+      onExportVault={(input) => {
+        if (!runtime.exportVault) return Promise.reject(new Error('Backup export is not connected.'));
+        return runtime.exportVault(input);
+      }}
+      onInspectVaultImport={(bytes, input) => {
+        if (!runtime.inspectVaultImport) return Promise.reject(new Error('Backup import inspection is not connected.'));
+        return runtime.inspectVaultImport(bytes, input);
+      }}
+      onApplyVaultImport={(bytes, input) => {
+        if (!runtime.applyVaultImport) return Promise.reject(new Error('Backup import is not connected.'));
+        return runtime.applyVaultImport(bytes, input);
+      }}
       onLock={() => runtime.lock?.()}
     />
   );

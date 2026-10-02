@@ -1,25 +1,29 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
+import { RecoveryFlow } from './RecoveryFlow';
 
 interface AccessGateProps {
   readonly mode: 'onboarding' | 'locked';
   readonly onCreateProfile: (input: { readonly nickname: string; readonly pin: string }) => Promise<void | { readonly recoveryKey: string }>;
   readonly onUnlock: (pin: string) => Promise<void>;
+  readonly onRecover?: (input: { readonly packageBytes: Uint8Array; readonly recoveryKey: string; readonly pin: string }) => Promise<void>;
   readonly onAccessGranted: () => void;
 }
 
 const sixDigitPin = /^\d{6}$/;
 
-export function AccessGate({ mode, onCreateProfile, onUnlock, onAccessGranted }: AccessGateProps) {
+export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onAccessGranted }: AccessGateProps) {
   const [nickname, setNickname] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
+  const [recovering, setRecovering] = useState(false);
 
   useEffect(() => {
     if (mode !== 'locked') return;
     setRecoveryKey(null);
+    setRecovering(false);
     setPin('');
     setError(null);
   }, [mode]);
@@ -57,6 +61,21 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onAccessGranted }:
       setPin('');
       setBusy(false);
     }
+  }
+
+  if (recovering && onRecover) {
+    return (
+      <main className="access-shell">
+        <RecoveryFlow
+          onRecover={async (input) => {
+            await onRecover(input);
+            setRecovering(false);
+            onAccessGranted();
+          }}
+          onCancel={() => setRecovering(false)}
+        />
+      </main>
+    );
   }
 
   if (recoveryKey) {
@@ -100,6 +119,10 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onAccessGranted }:
           {error ? <p role="alert" className="form-error">{error}</p> : null}
           <button className="primary-button" type="submit" disabled={busy}>{mode === 'onboarding' ? '시작하기' : '잠금 해제'}</button>
         </form>
+
+        {mode === 'onboarding' && onRecover ? (
+          <button type="button" className="text-button" onClick={() => setRecovering(true)}>기존 Vault 백업에서 복구</button>
+        ) : null}
       </section>
     </main>
   );
