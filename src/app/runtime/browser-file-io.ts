@@ -1,5 +1,9 @@
 export const MAX_VAULT_FILE_BYTES = 50 * 1024 * 1024;
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
 export function makeVaultFilename(randomBytes = crypto.getRandomValues(new Uint8Array(6))): string {
   const token = [...randomBytes].map((value) => value.toString(16).padStart(2, '0')).join('').toUpperCase();
   return `vault-${token}.vault`;
@@ -13,7 +17,7 @@ export async function readVaultFile(file: File): Promise<Uint8Array> {
 }
 
 export function downloadVaultBytes(bytes: Uint8Array, filename = makeVaultFilename()): void {
-  const blob = new Blob([bytes], { type: 'application/octet-stream' });
+  const blob = new Blob([toArrayBuffer(bytes)], { type: 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
   try {
     const anchor = document.createElement('a');
