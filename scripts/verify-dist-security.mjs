@@ -41,8 +41,8 @@ function extractMetaCsp(html) {
   const tags = html.match(/<meta\b[^>]*>/gi) ?? [];
   for (const tag of tags) {
     if (!/http-equiv\s*=\s*["']Content-Security-Policy["']/i.test(tag)) continue;
-    const match = tag.match(/content\s*=\s*["']([^"']+)["']/i);
-    if (match?.[1]) return match[1].trim();
+    const match = tag.match(/content\s*=\s*(["'])(.*?)\1/i);
+    if (match?.[2]) return match[2].trim();
   }
   return null;
 }
