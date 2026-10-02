@@ -39,7 +39,7 @@ describe('record AES-GCM crypto', () => {
     const encrypted = await encryptRecord(key, aad, { memo: 'private' });
     const wrongAad = { ...aad, recordVersion: aad.recordVersion + 1 };
     const tampered = { ...encrypted, ciphertext: encrypted.ciphertext.slice() };
-    tampered.ciphertext[0] ^= 0xff;
+    tampered.ciphertext[0] = (tampered.ciphertext[0] ?? 0) ^ 0xff;
 
     await expect(decryptRecord(key, wrongAad, encrypted)).rejects.toThrow();
     await expect(decryptRecord(key, aad, tampered)).rejects.toThrow();
