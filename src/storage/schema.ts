@@ -6,3 +6,19 @@ export function assertSupportedSchemaVersion(found: number, supported: number): 
     throw new Error(`Vault schema ${found} is newer than supported schema ${supported}`);
   }
 }
+
+export function assertRollbackCompatible(input: {
+  readonly vaultSchemaVersion: number;
+  readonly runtimeSchemaVersion: number;
+}): void {
+  try {
+    assertSupportedSchemaVersion(input.vaultSchemaVersion, input.runtimeSchemaVersion);
+  } catch (error) {
+    if (error instanceof Error && /newer than supported/i.test(error.message)) {
+      throw new Error(
+        `Rollback blocked: Vault schema ${input.vaultSchemaVersion} requires runtime schema ${input.vaultSchemaVersion} or newer`,
+      );
+    }
+    throw error;
+  }
+}
