@@ -1,31 +1,56 @@
 # My Diary
 
-Local-first 개인 금융 기록 PWA의 기반 저장소입니다.
+Local-first encrypted personal finance PWA.
 
-## Current tranche
+## Current release state
 
-`feat/t01-foundation`은 MVP 체크리스트의 T01–T04만 구현합니다.
+The active release candidate is `release/mvp-v0.1.0`.
 
-- React + TypeScript + Vite 기반
-- TypeScript strict mode
-- Vitest + Testing Library smoke test
-- app / pages / features / domain / vault / storage / workers 경계
-- 공통 디자인 토큰
-- GitHub Actions 검증 골격
+Implemented foundations include:
 
-금융 도메인, 암호화 Vault, IndexedDB, 거래·예산·리포트 기능은 아직 구현하지 않습니다.
+- React 19 + TypeScript 6 + Vite 8
+- strict TypeScript, ESLint, Vitest, Testing Library
+- local-first encrypted Vault with PIN unlock and separate RecoveryKey
+- Argon2id-derived device KEK and AES-256-GCM record encryption
+- IndexedDB ciphertext persistence and encrypted `.vault` backup / recovery
+- transaction accounting rules and encrypted transaction storage
+- budget analytics and month-start / month-end report generation
+- mandatory half-year / year-end report generation
+- account-purpose analysis and per-holding investment insight services
+- onboarding / unlock, Home, Calendar, Stats, Assets, Settings UI surfaces
+- PWA manifest, offline service worker, update lifecycle, auto-lock
+- production security scanning and deterministic `release:gate`
+- GitHub Pages project-site base-path support (`/My_Diary/`)
+- main-only GitHub Pages deployment workflow
 
-## Commands
+## Release gate
 
 ```bash
-npm install
-npm run dev
-npm run lint
-npm run typecheck
-npm test
-npm run build
+npm install --no-audit --no-fund
+npm run release:gate
 ```
+
+The release gate runs, in order:
+
+1. ESLint
+2. strict TypeScript typecheck
+3. full Vitest suite
+4. production Vite build
+5. production `dist/` security scan
+6. service-worker release verification
+
+## Important release status
+
+Do not treat the existence of the release workflow as proof that the MVP is ready to deploy. The release audit in `docs/releases/MVP_V0.1.0_RELEASE_AUDIT.md` records remaining product-level blockers and the exact stop conditions for merging to `main`.
+
+## Security boundaries
+
+- finance plaintext is not stored in `localStorage`
+- PIN is not the Vault encryption key
+- `.vault`, finance, backup, import/export, and runtime-sensitive paths are bypassed by the service-worker cache
+- no analytics, ads, remote fonts, or remote JavaScript are required by the app
+- response-header-only protections must still be verified on the final hosting platform
 
 ## Dependency direction
 
-`app/pages/features -> domain -> vault/storage`를 기본 방향으로 두며, `domain`, `vault`, `storage`는 React UI에 의존하지 않습니다.
+`app/pages/features -> domain -> vault/storage` is the intended dependency direction. Domain, Vault, and storage modules must not depend on React UI.
