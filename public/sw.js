@@ -1,6 +1,7 @@
 /* global self, caches, fetch, Response, URL */
+const RELEASE_ID = '2026.10.02.1';
 const CACHE_PREFIX = 'my-diary-shell-';
-const CACHE_NAME = `${CACHE_PREFIX}v1`;
+const CACHE_NAME = `${CACHE_PREFIX}${RELEASE_ID}`;
 const APP_SHELL = ['/', '/index.html'];
 const SAFE_STATIC_EXTENSION = /\.(?:js|css|png|jpg|jpeg|webp|svg|ico|woff2?|json|webmanifest)$/i;
 const SENSITIVE_PATH_PREFIXES = ['/api/', '/runtime/', '/finance/', '/vault/', '/backup/', '/import/', '/export/'];
