@@ -24,12 +24,12 @@ describe('BackupPanel', () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText('RecoveryKey', { exact: true }), { target: { value: 'recover-secret' } });
+    fireEvent.change(screen.getByLabelText('내보내기 RecoveryKey'), { target: { value: 'recover-secret' } });
     fireEvent.click(screen.getByRole('button', { name: '백업 내보내기' }));
 
     await waitFor(() => expect(onExport).toHaveBeenCalledWith({ recoveryKey: 'recover-secret' }));
     expect(onDownload).toHaveBeenCalledWith(expect.any(Uint8Array), expect.stringMatching(/^vault-[A-F0-9]{12}\.vault$/));
-    expect(screen.getByLabelText('RecoveryKey', { exact: true })).toHaveValue('');
+    expect(screen.getByLabelText('내보내기 RecoveryKey')).toHaveValue('');
     expect(screen.getByText(/최근 내보내기/)).toBeInTheDocument();
   });
 
@@ -71,10 +71,10 @@ describe('BackupPanel', () => {
         onDownload={vi.fn()}
       />,
     );
-    fireEvent.change(screen.getByLabelText('RecoveryKey', { exact: true }), { target: { value: 'secret' } });
+    fireEvent.change(screen.getByLabelText('내보내기 RecoveryKey'), { target: { value: 'secret' } });
     fireEvent.change(screen.getByLabelText('가져오기 RecoveryKey'), { target: { value: 'secret2' } });
     fireEvent.click(screen.getByRole('button', { name: '백업 작업 취소' }));
-    expect(screen.getByLabelText('RecoveryKey', { exact: true })).toHaveValue('');
+    expect(screen.getByLabelText('내보내기 RecoveryKey')).toHaveValue('');
     expect(screen.getByLabelText('가져오기 RecoveryKey')).toHaveValue('');
   });
 });
