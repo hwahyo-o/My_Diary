@@ -27,7 +27,7 @@ describe('AccessGate', () => {
 
     await waitFor(() => expect(onCreateProfile).toHaveBeenCalledWith({ nickname: '예현', pin: '482951' }));
     expect(screen.getByText('RECOVERY_KEY_SAMPLE')).toBeInTheDocument();
-    expect(screen.getByLabelText('PIN')).toHaveValue('');
+    expect(screen.queryByLabelText('PIN')).not.toBeInTheDocument();
     expect(onAccessGranted).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: '복구 키를 저장했어요' }));
