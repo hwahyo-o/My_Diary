@@ -1,6 +1,14 @@
+import type { FixedVariable } from '../../domain/transactions/types';
 import type { DirectTransactionInput, TransactionDraft } from './types';
 
-export function validateTransactionDraft(draft: TransactionDraft): TransactionDraft {
+type DraftInput = Omit<TransactionDraft, 'fixedVariable'> & { readonly fixedVariable?: FixedVariable };
+
+export function validateTransactionDraft(input: DraftInput): TransactionDraft {
+  const draft: TransactionDraft = {
+    ...input,
+    fixedVariable: input.fixedVariable ?? 'variable',
+  };
+
   if (!Number.isSafeInteger(draft.amountMinor) || draft.amountMinor <= 0) {
     throw new TypeError('Transaction amountMinor must be a positive safe integer.');
   }
@@ -26,6 +34,5 @@ export function createDirectDraft(input: DirectTransactionInput): TransactionDra
   return validateTransactionDraft({
     ...input,
     source: 'manual',
-    fixedVariable: input.fixedVariable ?? 'variable',
   });
 }
