@@ -1,18 +1,7 @@
 import { useEffect, useState } from 'react';
 import { makeVaultFilename, readVaultFile } from '../../app/runtime/browser-file-io';
-
-export interface BackupStatusViewModel {
-  readonly lastExportedAt: string | null;
-  readonly reminderDue: boolean;
-}
-
-export interface VaultImportInspectionViewModel {
-  readonly newRecords: number;
-  readonly updatedRecords: number;
-  readonly sameRecords: number;
-  readonly localOnlyRecords: number;
-  readonly conflicts: number;
-}
+import type { BackupStatusViewModel, VaultImportInspectionViewModel } from '../../app/ui-types';
+import { deriveBackupStatus, readBackupStatus, writeBackupExportedAt } from './backup-status';
 
 interface BackupPanelProps {
   readonly backup: BackupStatusViewModel;
@@ -23,6 +12,7 @@ interface BackupPanelProps {
 }
 
 export function BackupPanel({ backup, onExport, onInspectImport, onApplyImport, onDownload }: BackupPanelProps) {
+  const [status, setStatus] = useState<BackupStatusViewModel>(() => backup.lastExportedAt ? backup : readBackupStatus());
   const [exportKey, setExportKey] = useState('');
   const [importKey, setImportKey] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -54,6 +44,9 @@ export function BackupPanel({ backup, onExport, onInspectImport, onApplyImport, 
     try {
       const bytes = await onExport({ recoveryKey: exportKey.trim() });
       onDownload(bytes, makeVaultFilename());
+      const exportedAt = new Date().toISOString();
+      writeBackupExportedAt(exportedAt);
+      setStatus(deriveBackupStatus(exportedAt));
       setMessage('최근 내보내기: 방금 생성됨');
       setExportKey('');
     } catch {
@@ -108,12 +101,12 @@ export function BackupPanel({ backup, onExport, onInspectImport, onApplyImport, 
           <p className="eyebrow">ENCRYPTED VAULT</p>
           <h2 id="backup-title">백업 및 복구</h2>
         </div>
-        <span className={backup.reminderDue ? 'status-chip warning' : 'status-chip'}>
-          {backup.reminderDue ? '백업 권장' : '백업 양호'}
+        <span className={status.reminderDue ? 'status-chip warning' : 'status-chip'}>
+          {status.reminderDue ? '백업 권장' : '백업 양호'}
         </span>
       </div>
       <p className="settings-help">
-        {backup.lastExportedAt ? `마지막 내보내기 ${backup.lastExportedAt}` : '아직 내보낸 백업이 없습니다.'}
+        {status.lastExportedAt ? `마지막 내보내기 ${status.lastExportedAt}` : '아직 내보낸 백업이 없습니다.'}
       </p>
 
       <div className="backup-grid">
