@@ -56,7 +56,7 @@ h2 { margin-bottom: 0; }
 .icon-button { width: 44px; border: 1px solid var(--color-border); border-radius: 50%; background: var(--color-surface-soft); font-size: 1.5rem; }
 .entry-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); margin-bottom: var(--space-4); padding: .25rem; border-radius: var(--radius-md); background: var(--color-surface-soft); }
 .entry-tabs button { border: 0; border-radius: .75rem; background: transparent; font-weight: 800; }
-.entry-tabs button[aria-selected="true"] { color: var(--color-periwinkle-strong); background: white; box-shadow: 0 .25rem .8rem rgba(65,70,120,.08); }
+.entry-tabs button[aria-pressed="true"] { color: var(--color-periwinkle-strong); background: white; box-shadow: 0 .25rem .8rem rgba(65,70,120,.08); }
 
 @media (max-width: 640px) {
   .dashboard-grid { grid-template-columns: 1fr; }
