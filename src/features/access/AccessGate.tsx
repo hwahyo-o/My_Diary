@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 
 interface AccessGateProps {
@@ -16,6 +16,13 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onAccessGranted }:
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (mode !== 'locked') return;
+    setRecoveryKey(null);
+    setPin('');
+    setError(null);
+  }, [mode]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
