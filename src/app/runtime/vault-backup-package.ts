@@ -201,23 +201,28 @@ export async function createVaultPackage(input: {
   readonly records: readonly StoredEncryptedRecord[];
   readonly events: readonly StoredEvent[];
 }): Promise<Uint8Array> {
-  const encryptedManifest = await encryptRecord(input.vaultKey, manifestAad(input.vaultId, input.schemaVersion), input.manifest);
-  const unsigned: UnsignedVaultPackage = {
-    magic: MAGIC,
-    formatVersion: FORMAT_VERSION,
-    schemaVersion: input.schemaVersion,
-    vaultId: input.vaultId,
-    createdAt: input.createdAt,
-    recoveryWrap: encodeWrappedKey(input.recoveryWrap),
-    encryptedManifest: encodeEnvelope(encryptedManifest),
-    records: input.records.map(encodeRecord),
-    events: input.events.map(encodeEvent),
-  };
-  const unsignedBytes = textEncoder.encode(JSON.stringify(unsigned));
-  const macKey = await deriveMacKey(input.recoveryKey, input.vaultId);
-  const hmac = new Uint8Array(await crypto.subtle.sign('HMAC', macKey, toArrayBuffer(unsignedBytes)));
-  const integrity = { sha256: await digest(unsignedBytes), hmacSha256: bytesToBase64Url(hmac) };
-  return textEncoder.encode(JSON.stringify({ ...unsigned, integrity } satisfies SignedVaultPackage));
+  const recoveryKey = input.recoveryKey.slice();
+  try {
+    const encryptedManifest = await encryptRecord(input.vaultKey, manifestAad(input.vaultId, input.schemaVersion), input.manifest);
+    const unsigned: UnsignedVaultPackage = {
+      magic: MAGIC,
+      formatVersion: FORMAT_VERSION,
+      schemaVersion: input.schemaVersion,
+      vaultId: input.vaultId,
+      createdAt: input.createdAt,
+      recoveryWrap: encodeWrappedKey(input.recoveryWrap),
+      encryptedManifest: encodeEnvelope(encryptedManifest),
+      records: input.records.map(encodeRecord),
+      events: input.events.map(encodeEvent),
+    };
+    const unsignedBytes = textEncoder.encode(JSON.stringify(unsigned));
+    const macKey = await deriveMacKey(recoveryKey, input.vaultId);
+    const hmac = new Uint8Array(await crypto.subtle.sign('HMAC', macKey, toArrayBuffer(unsignedBytes)));
+    const integrity = { sha256: await digest(unsignedBytes), hmacSha256: bytesToBase64Url(hmac) };
+    return textEncoder.encode(JSON.stringify({ ...unsigned, integrity } satisfies SignedVaultPackage));
+  } finally {
+    recoveryKey.fill(0);
+  }
 }
 
 export async function verifyVaultPackage(bytes: Uint8Array, recoveryKeyText: string): Promise<VerifiedVaultPackage> {
