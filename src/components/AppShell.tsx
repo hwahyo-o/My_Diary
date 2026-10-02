@@ -1,5 +1,12 @@
 import { useRef, useState } from 'react';
-import type { AppPage, DashboardViewModel, TransactionSubmission } from '../app/ui-types';
+import type {
+  AppPage,
+  BackupStatusViewModel,
+  DashboardViewModel,
+  TransactionSubmission,
+  VaultImportInspectionViewModel,
+} from '../app/ui-types';
+import { downloadVaultBytes } from '../app/runtime/browser-file-io';
 import { TransactionEntrySheet } from '../features/transactions/TransactionEntrySheet';
 import { AssetsPage } from '../pages/AssetsPage';
 import { CalendarPage } from '../pages/CalendarPage';
@@ -10,11 +17,23 @@ import { BottomNavigation } from './BottomNavigation';
 
 interface AppShellProps {
   readonly dashboard: DashboardViewModel;
+  readonly backup: BackupStatusViewModel;
   readonly onSubmitTransaction: (input: TransactionSubmission) => Promise<void>;
+  readonly onExportVault: (input: { readonly recoveryKey: string }) => Promise<Uint8Array>;
+  readonly onInspectVaultImport: (bytes: Uint8Array, input: { readonly recoveryKey: string }) => Promise<VaultImportInspectionViewModel>;
+  readonly onApplyVaultImport: (bytes: Uint8Array, input: { readonly recoveryKey: string }) => Promise<void>;
   readonly onLock: () => void;
 }
 
-export function AppShell({ dashboard, onSubmitTransaction, onLock }: AppShellProps) {
+export function AppShell({
+  dashboard,
+  backup,
+  onSubmitTransaction,
+  onExportVault,
+  onInspectVaultImport,
+  onApplyVaultImport,
+  onLock,
+}: AppShellProps) {
   const [page, setPage] = useState<AppPage>('home');
   const [entryOpen, setEntryOpen] = useState(false);
   const quickAddButtonRef = useRef<HTMLButtonElement>(null);
@@ -34,7 +53,16 @@ export function AppShell({ dashboard, onSubmitTransaction, onLock }: AppShellPro
       content = <AssetsPage />;
       break;
     case 'settings':
-      content = <SettingsPage onLock={onLock} />;
+      content = (
+        <SettingsPage
+          onLock={onLock}
+          backup={backup}
+          onExportVault={onExportVault}
+          onInspectVaultImport={onInspectVaultImport}
+          onApplyVaultImport={onApplyVaultImport}
+          onDownloadVault={downloadVaultBytes}
+        />
+      );
       break;
   }
 
