@@ -1,10 +1,17 @@
 /* global self, caches, fetch, Response, URL */
-const RELEASE_ID = '2026.10.02.1';
+const RELEASE_ID = '2026.10.02.2';
 const CACHE_PREFIX = 'my-diary-shell-';
 const CACHE_NAME = `${CACHE_PREFIX}${RELEASE_ID}`;
-const APP_SHELL = ['/', '/index.html'];
+const APP_SCOPE = new URL(self.registration.scope).pathname;
+const APP_INDEX = `${APP_SCOPE}index.html`;
+const APP_SHELL = [APP_SCOPE, APP_INDEX];
 const SAFE_STATIC_EXTENSION = /\.(?:js|css|png|jpg|jpeg|webp|svg|ico|woff2?|json|webmanifest)$/i;
 const SENSITIVE_PATH_PREFIXES = ['/api/', '/runtime/', '/finance/', '/vault/', '/backup/', '/import/', '/export/'];
+
+function scopedPath(pathname) {
+  if (!pathname.startsWith(APP_SCOPE)) return pathname;
+  return `/${pathname.slice(APP_SCOPE.length)}`;
+}
 
 function classifyRequest(request) {
   if (request.method !== 'GET') return 'bypass';
@@ -18,10 +25,11 @@ function classifyRequest(request) {
 
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return 'bypass';
   if (url.origin !== self.location.origin) return 'bypass';
-  if (url.pathname.toLowerCase().endsWith('.vault')) return 'bypass';
-  if (SENSITIVE_PATH_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) return 'bypass';
+  const path = scopedPath(url.pathname);
+  if (path.toLowerCase().endsWith('.vault')) return 'bypass';
+  if (SENSITIVE_PATH_PREFIXES.some((prefix) => path.startsWith(prefix))) return 'bypass';
   if (request.mode === 'navigate' || request.destination === 'document') return 'navigation';
-  if (SAFE_STATIC_EXTENSION.test(url.pathname)) return 'static';
+  if (SAFE_STATIC_EXTENSION.test(path)) return 'static';
   return 'bypass';
 }
 
@@ -35,11 +43,11 @@ async function cacheSafeResponse(request, response) {
 async function navigationResponse(request) {
   try {
     const network = await fetch(request);
-    await cacheSafeResponse('/index.html', network.clone());
+    await cacheSafeResponse(APP_INDEX, network.clone());
     return network;
   } catch {
     const cache = await caches.open(CACHE_NAME);
-    return (await cache.match(request)) || (await cache.match('/index.html')) || Response.error();
+    return (await cache.match(request)) || (await cache.match(APP_INDEX)) || Response.error();
   }
 }
 
