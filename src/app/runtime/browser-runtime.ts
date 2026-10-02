@@ -6,7 +6,7 @@ import { quickCandidateToDraft, parseQuickInput } from '../../features/transacti
 import { TransactionLedgerService } from '../../features/transactions/transaction-service';
 import { createDirectDraft } from '../../features/transactions/validation';
 import { openVaultDatabase } from '../../storage/database';
-import { EncryptedRepository, type StoredEvent } from '../../storage/repository';
+import { EncryptedRepository, type StoredEncryptedRecord, type StoredEvent } from '../../storage/repository';
 import { generateDeviceSecret, generateRecoveryKey, generateVaultKey } from '../../vault/key-material';
 import { wrapVaultKey, unwrapVaultKey, type WrappedKeyEnvelope } from '../../vault/key-wrap';
 import { deriveDeviceKek, DEFAULT_ARGON2_PARAMS, TEST_ARGON2_PARAMS, type Argon2Params } from '../../vault/pin-kdf';
@@ -15,6 +15,13 @@ import { decryptRecord, encryptRecord, type EncryptedRecordEnvelope, type Record
 import { VaultSession } from '../../vault/session';
 import type { AccessState, DashboardViewModel, TransactionSubmission } from '../ui-types';
 import { emptyDashboard } from '../ui-types';
+import {
+  base64UrlToBytes,
+  createVaultPackage,
+  verifyVaultPackage,
+  type VerifiedVaultPackage,
+  type VaultBackupManifest,
+} from './vault-backup-package';
 
 interface RuntimeProfile {
   readonly id: UUID;
@@ -40,6 +47,15 @@ interface BootstrapMeta {
 export interface RuntimeSnapshot {
   readonly access: AccessState;
   readonly dashboard: DashboardViewModel;
+}
+
+export interface VaultImportInspection {
+  readonly vaultId: string;
+  readonly newRecords: number;
+  readonly updatedRecords: number;
+  readonly localOnlyRecords: number;
+  readonly sameRecords: number;
+  readonly conflicts: number;
 }
 
 export interface BrowserRuntimeOptions {
@@ -113,6 +129,21 @@ function transactionAad(vaultId: string, recordId: string, recordVersion: number
 
 function periodLabel(now: Date): string {
   return `${now.getFullYear()}년 ${now.getMonth() + 1}월`;
+}
+
+function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.byteLength !== b.byteLength) return false;
+  let diff = 0;
+  for (let index = 0; index < a.byteLength; index += 1) diff |= a[index]! ^ b[index]!;
+  return diff === 0;
+}
+
+function recordsEqual(a: StoredEncryptedRecord, b: StoredEncryptedRecord): boolean {
+  return a.recordId === b.recordId
+    && a.recordType === b.recordType
+    && a.updatedAt === b.updatedAt
+    && a.recordVersion === b.recordVersion
+    && equalBytes(a.encryptedPayload, b.encryptedPayload);
 }
 
 export class BrowserRuntime {
@@ -270,6 +301,159 @@ export class BrowserRuntime {
     await this.hydrate();
   }
 
+  async exportVault(input: { readonly recoveryKey: string }): Promise<Uint8Array> {
+    const session = this.session;
+    const bootstrap = this.bootstrap;
+    if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
+    const recoveryKey = base64UrlToBytes(input.recoveryKey);
+    if (recoveryKey.length !== 32) throw new Error('RecoveryKey has an invalid length.');
+    const recoveryKek = await deriveRecoveryKek(recoveryKey, bootstrap.vaultId);
+    let recoveryUnwrapped: Uint8Array | null = null;
+    try {
+      recoveryUnwrapped = await unwrapVaultKey(
+        bootstrap.wrappedRecoveryVaultKey,
+        recoveryKek,
+        wrapAad(bootstrap.vaultId, 'recovery'),
+      );
+      const profileRecord = await this.repository.getRecord(bootstrap.profileRecordId);
+      if (!profileRecord) throw new Error('Encrypted profile record is missing.');
+      await decryptRecord<RuntimeProfile>(
+        recoveryUnwrapped,
+        profileAad(bootstrap.vaultId, { id: bootstrap.profileRecordId, version: profileRecord.recordVersion }),
+        decodeEnvelope(profileRecord.encryptedPayload),
+      );
+
+      const [records, events, revision] = await Promise.all([
+        this.repository.listAllRecords(),
+        this.repository.listAllEvents(),
+        this.repository.getRevision(bootstrap.vaultId),
+      ]);
+      const manifest: VaultBackupManifest = {
+        profileRecordId: bootstrap.profileRecordId,
+        defaultAccountId: bootstrap.defaultAccountId,
+        revision,
+      };
+      return session.withVaultKey((vaultKey) => createVaultPackage({
+        schemaVersion: SCHEMA_VERSION,
+        vaultId: bootstrap.vaultId,
+        createdAt: toIso(this.options.now()),
+        recoveryKey,
+        recoveryWrap: bootstrap.wrappedRecoveryVaultKey,
+        vaultKey,
+        manifest,
+        records,
+        events,
+      }));
+    } finally {
+      recoveryUnwrapped?.fill(0);
+      recoveryKek.fill(0);
+      recoveryKey.fill(0);
+    }
+  }
+
+  async inspectVaultImport(packageBytes: Uint8Array, input: { readonly recoveryKey: string }): Promise<VaultImportInspection> {
+    const verified = await verifyVaultPackage(packageBytes, input.recoveryKey);
+    try {
+      if (verified.schemaVersion > SCHEMA_VERSION) throw new Error('Vault package uses a future schema version.');
+      const localRecords = await this.repository.listAllRecords();
+      return this.diffRecords(verified, localRecords);
+    } finally {
+      verified.vaultKey.fill(0);
+    }
+  }
+
+  async applyVaultImport(packageBytes: Uint8Array, input: { readonly recoveryKey: string }): Promise<void> {
+    const bootstrap = this.bootstrap;
+    const session = this.session;
+    if (!bootstrap || !session?.isUnlocked) throw new Error('Vault session is locked.');
+    const verified = await verifyVaultPackage(packageBytes, input.recoveryKey);
+    try {
+      if (verified.schemaVersion > SCHEMA_VERSION) throw new Error('Vault package uses a future schema version.');
+      if (verified.vaultId !== bootstrap.vaultId) throw new Error('Vault package belongs to a different Vault.');
+      const localRecords = await this.repository.listAllRecords();
+      const inspection = this.diffRecords(verified, localRecords);
+      if (inspection.conflicts > 0 || inspection.localOnlyRecords > 0) {
+        throw new Error('Vault import requires explicit conflict resolution.');
+      }
+
+      const currentBackup = await this.exportVault(input);
+      await this.repository.putSnapshot({
+        snapshotId: newUuid(),
+        vaultId: bootstrap.vaultId,
+        createdAt: toIso(this.options.now()),
+        reason: 'pre-import',
+        schemaVersion: SCHEMA_VERSION,
+        encryptedPayload: currentBackup,
+      });
+      const nextBootstrap: BootstrapMeta = {
+        ...bootstrap,
+        profileRecordId: parseUUID(verified.manifest.profileRecordId),
+        defaultAccountId: parseUUID(verified.manifest.defaultAccountId),
+        wrappedRecoveryVaultKey: verified.recoveryWrap,
+      };
+      await this.repository.replaceVaultData({
+        vaultId: verified.vaultId,
+        schemaVersion: verified.schemaVersion,
+        revision: verified.manifest.revision,
+        records: verified.records,
+        events: verified.events,
+        securityMeta: { key: BOOTSTRAP_KEY, value: nextBootstrap },
+      });
+      this.bootstrap = nextBootstrap;
+      await this.hydrate();
+    } finally {
+      verified.vaultKey.fill(0);
+    }
+  }
+
+  async recoverFromVault(input: {
+    readonly packageBytes: Uint8Array;
+    readonly recoveryKey: string;
+    readonly pin: string;
+  }): Promise<void> {
+    if (this.bootstrap) throw new Error('Recovery requires a fresh local device profile.');
+    const verified = await verifyVaultPackage(input.packageBytes, input.recoveryKey);
+    const deviceSecret = generateDeviceSecret();
+    const pinSalt = crypto.getRandomValues(new Uint8Array(16));
+    const deviceId = newUuid();
+    const params = this.options.argon2Profile === 'test' ? TEST_ARGON2_PARAMS : DEFAULT_ARGON2_PARAMS;
+    const deviceKek = await deriveDeviceKek(input.pin, deviceSecret, pinSalt, params);
+    try {
+      if (verified.schemaVersion > SCHEMA_VERSION) throw new Error('Vault package uses a future schema version.');
+      const wrappedDeviceVaultKey = await wrapVaultKey(
+        verified.vaultKey,
+        deviceKek,
+        wrapAad(verified.vaultId, 'device'),
+      );
+      const bootstrap: BootstrapMeta = {
+        vaultId: verified.vaultId,
+        profileRecordId: parseUUID(verified.manifest.profileRecordId),
+        defaultAccountId: parseUUID(verified.manifest.defaultAccountId),
+        deviceId,
+        deviceSecret,
+        pinSalt,
+        argon2Params: params,
+        wrappedDeviceVaultKey,
+        wrappedRecoveryVaultKey: verified.recoveryWrap,
+        failedAttempts: 0,
+      };
+      await this.repository.replaceVaultData({
+        vaultId: verified.vaultId,
+        schemaVersion: verified.schemaVersion,
+        revision: verified.manifest.revision,
+        records: verified.records,
+        events: verified.events,
+        securityMeta: { key: BOOTSTRAP_KEY, value: bootstrap },
+      });
+      this.bootstrap = bootstrap;
+      this.session = await VaultSession.unlock(verified.vaultKey.slice());
+      await this.hydrate();
+    } finally {
+      verified.vaultKey.fill(0);
+      deviceKek.fill(0);
+    }
+  }
+
   lock(): void {
     this.session?.lock();
     this.session = null;
@@ -283,6 +467,37 @@ export class BrowserRuntime {
     this.lock();
     this.listeners.clear();
     this.db.close();
+  }
+
+  private diffRecords(verified: VerifiedVaultPackage, localRecords: readonly StoredEncryptedRecord[]): VaultImportInspection {
+    const local = new Map(localRecords.map((record) => [record.recordId, record]));
+    let newRecords = 0;
+    let updatedRecords = 0;
+    let sameRecords = 0;
+    let conflicts = 0;
+    for (const incoming of verified.records) {
+      const existing = local.get(incoming.recordId);
+      if (!existing) {
+        newRecords += 1;
+        continue;
+      }
+      local.delete(incoming.recordId);
+      if (recordsEqual(existing, incoming)) {
+        sameRecords += 1;
+      } else if (incoming.recordVersion > existing.recordVersion) {
+        updatedRecords += 1;
+      } else {
+        conflicts += 1;
+      }
+    }
+    return {
+      vaultId: verified.vaultId,
+      newRecords,
+      updatedRecords,
+      localOnlyRecords: local.size,
+      sameRecords,
+      conflicts,
+    };
   }
 
   private async persistProfile(session: VaultSession, vaultId: string, deviceId: UUID, profile: RuntimeProfile): Promise<void> {
