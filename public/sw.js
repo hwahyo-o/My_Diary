@@ -1,3 +1,4 @@
+/* global self, caches, fetch, Response, URL */
 const CACHE_PREFIX = 'my-diary-shell-';
 const CACHE_NAME = `${CACHE_PREFIX}v1`;
 const APP_SHELL = ['/', '/index.html'];
