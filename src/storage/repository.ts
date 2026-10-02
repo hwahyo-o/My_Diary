@@ -150,7 +150,7 @@ export class EncryptedRepository {
     readonly events: readonly StoredEvent[];
     readonly securityMeta?: { readonly key: string; readonly value: unknown };
   }): Promise<void> {
-    const stores = [STORE_NAMES.records, STORE_NAMES.events, STORE_NAMES.vaultMeta];
+    const stores: string[] = [STORE_NAMES.records, STORE_NAMES.events, STORE_NAMES.vaultMeta];
     if (input.securityMeta) stores.push(STORE_NAMES.securityMeta);
     const tx = this.db.transaction(stores, 'readwrite');
     const recordsStore = tx.objectStore(STORE_NAMES.records);
