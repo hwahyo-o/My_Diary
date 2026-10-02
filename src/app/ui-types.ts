@@ -28,6 +28,19 @@ export interface DashboardViewModel {
   };
 }
 
+export interface BackupStatusViewModel {
+  readonly lastExportedAt: string | null;
+  readonly reminderDue: boolean;
+}
+
+export interface VaultImportInspectionViewModel {
+  readonly newRecords: number;
+  readonly updatedRecords: number;
+  readonly localOnlyRecords: number;
+  readonly sameRecords: number;
+  readonly conflicts: number;
+}
+
 export type TransactionSubmission =
   | { readonly mode: 'quick'; readonly text: string }
   | { readonly mode: 'direct'; readonly amountMinor: number; readonly memo: string };
@@ -41,6 +54,10 @@ export interface AppRuntimePorts {
   createProfile(input: { readonly nickname: string; readonly pin: string }): Promise<void | { readonly recoveryKey: string }>;
   unlock(pin: string): Promise<void>;
   submitTransaction(input: TransactionSubmission): Promise<void>;
+  exportVault?(input: { readonly recoveryKey: string }): Promise<Uint8Array>;
+  inspectVaultImport?(bytes: Uint8Array, input: { readonly recoveryKey: string }): Promise<VaultImportInspectionViewModel>;
+  applyVaultImport?(bytes: Uint8Array, input: { readonly recoveryKey: string }): Promise<void>;
+  recoverFromVault?(input: { readonly packageBytes: Uint8Array; readonly recoveryKey: string; readonly pin: string }): Promise<void>;
   lock?(): void;
   getSnapshot?(): RuntimeSnapshot;
   subscribe?(listener: (snapshot: RuntimeSnapshot) => void): () => void;
@@ -56,4 +73,9 @@ export const emptyDashboard: DashboardViewModel = {
   report: { label: '월간 리포트', status: 'pending' },
   topMerchant: null,
   todayReceipt: { transactionCount: 0, expenseMinor: 0 },
+};
+
+export const defaultBackupStatus: BackupStatusViewModel = {
+  lastExportedAt: null,
+  reminderDue: true,
 };
