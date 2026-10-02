@@ -80,4 +80,37 @@ describe('App protected shell', () => {
     act(() => listener?.({ access: 'locked', dashboard: emptyDashboard }));
     expect(screen.getByRole('heading', { name: 'My Diary 잠금 해제' })).toBeInTheDocument();
   });
+
+  it('does not let recovery confirmation bypass a runtime lock', async () => {
+    let listener: ((snapshot: RuntimeSnapshot) => void) | undefined;
+    let current: RuntimeSnapshot = { access: 'onboarding', dashboard: emptyDashboard };
+    const runtime = {
+      createProfile: vi.fn().mockImplementation(async () => {
+        current = { access: 'unlocked', dashboard };
+        listener?.(current);
+        return { recoveryKey: 'RECOVERY_KEY_SAMPLE' };
+      }),
+      unlock: vi.fn().mockResolvedValue(undefined),
+      submitTransaction: vi.fn().mockResolvedValue(undefined),
+      getSnapshot: () => current,
+      subscribe: (next: (snapshot: RuntimeSnapshot) => void) => {
+        listener = next;
+        return () => { listener = undefined; };
+      },
+    };
+
+    render(<App runtime={runtime} />);
+    fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: '예현' } });
+    fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '482951' } });
+    fireEvent.click(screen.getByRole('button', { name: '시작하기' }));
+    await screen.findByText('RECOVERY_KEY_SAMPLE');
+
+    act(() => {
+      current = { access: 'locked', dashboard: emptyDashboard };
+      listener?.(current);
+    });
+    fireEvent.click(screen.getByRole('button', { name: '복구 키를 저장했어요' }));
+
+    expect(screen.getByRole('heading', { name: 'My Diary 잠금 해제' })).toBeInTheDocument();
+  });
 });
