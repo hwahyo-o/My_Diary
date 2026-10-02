@@ -12,7 +12,6 @@ import { TransactionLedgerService } from './transaction-service';
 import { createDirectDraft, validateTransactionDraft } from './validation';
 
 const accountId = parseUUID('11111111-1111-4111-8111-111111111111');
-const otherAccountId = parseUUID('22222222-2222-4222-8222-222222222222');
 const transactionId = parseUUID('33333333-3333-4333-8333-333333333333');
 const deviceId = parseUUID('44444444-4444-4444-8444-444444444444');
 const eventIds = [
@@ -177,8 +176,10 @@ describe('T19/T21 encrypted common save path', () => {
 
       const rawStored = await repo.getRecord(transactionId);
       const rawEvent = await repo.getEvent(eventIds[0]!);
-      const storedText = new TextDecoder().decode(rawStored?.encryptedPayload);
-      const eventText = new TextDecoder().decode(rawEvent?.encryptedPatch);
+      expect(rawStored).toBeDefined();
+      expect(rawEvent).toBeDefined();
+      const storedText = new TextDecoder().decode(rawStored!.encryptedPayload);
+      const eventText = new TextDecoder().decode(rawEvent!.encryptedPatch);
       expect(storedText).not.toContain('카페 봄');
       expect(storedText).not.toContain('비밀 점심');
       expect(eventText).not.toContain('비밀 점심');
