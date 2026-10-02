@@ -13,7 +13,23 @@ export async function readVaultFile(file: File): Promise<Uint8Array> {
   if (file.size > MAX_VAULT_FILE_BYTES) {
     throw new Error('Vault 파일은 50 MiB 이하여야 합니다.');
   }
-  return new Uint8Array(await file.arrayBuffer());
+
+  if (typeof file.arrayBuffer === 'function') {
+    return new Uint8Array(await file.arrayBuffer());
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error ?? new Error('Vault 파일을 읽지 못했습니다.'));
+    reader.onload = () => {
+      if (!(reader.result instanceof ArrayBuffer)) {
+        reject(new Error('Vault 파일을 바이너리 데이터로 읽지 못했습니다.'));
+        return;
+      }
+      resolve(new Uint8Array(reader.result));
+    };
+    reader.readAsArrayBuffer(file);
+  });
 }
 
 export function downloadVaultBytes(bytes: Uint8Array, filename = makeVaultFilename()): void {
