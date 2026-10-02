@@ -46,7 +46,7 @@ describe('device VaultKey wrapping', () => {
     const kek = new Uint8Array(32).fill(22);
     const wrapped = await wrapVaultKey(vaultKey, kek);
     const tampered = { ...wrapped, ciphertext: wrapped.ciphertext.slice() };
-    tampered.ciphertext[0] ^= 0xff;
+    tampered.ciphertext[0] = (tampered.ciphertext[0] ?? 0) ^ 0xff;
 
     await expect(unwrapVaultKey(tampered, kek)).rejects.toThrow();
   });
