@@ -15,7 +15,9 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DATE_TIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
 
 export function createMoney(amountMinor: number): Money {
-  if (!Number.isSafeInteger(amountMinor)) throw new TypeError('Money amountMinor must be a safe integer.');
+  if (!Number.isSafeInteger(amountMinor)) {
+    throw new TypeError('Money amountMinor must be a safe integer.');
+  }
   return { amountMinor, currency: 'KRW' };
 }
 
@@ -26,16 +28,35 @@ export function parseUUID(value: string): UUID {
 
 export function parseISODate(value: string): ISODate {
   if (!DATE_RE.test(value)) throw new TypeError('Invalid ISO date.');
-  const [year, month, day] = value.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+
+  const parts = value.split('-');
+  const yearPart = parts[0];
+  const monthPart = parts[1];
+  const dayPart = parts[2];
+  if (yearPart === undefined || monthPart === undefined || dayPart === undefined) {
     throw new TypeError('Invalid ISO date.');
   }
+
+  const year = Number(yearPart);
+  const month = Number(monthPart);
+  const day = Number(dayPart);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    throw new TypeError('Invalid ISO date.');
+  }
+
   return value as ISODate;
 }
 
 export function parseISODateTime(value: string): ISODateTime {
-  if (!DATE_TIME_RE.test(value) || Number.isNaN(Date.parse(value))) throw new TypeError('Invalid ISO date-time.');
+  if (!DATE_TIME_RE.test(value) || Number.isNaN(Date.parse(value))) {
+    throw new TypeError('Invalid ISO date-time.');
+  }
   return value as ISODateTime;
 }
 
