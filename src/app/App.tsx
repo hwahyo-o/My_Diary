@@ -63,6 +63,9 @@ export function App({ initialAccess, dashboard, runtime = failClosedRuntime }: A
       dashboard={dashboardState}
       backup={defaultBackupStatus}
       onSubmitTransaction={(input) => runtime.submitTransaction(input)}
+      onSaveAccount={runtime.saveAccount ? (input) => runtime.saveAccount!(input) : undefined}
+      onSaveHolding={runtime.saveHolding ? (input) => runtime.saveHolding!(input) : undefined}
+      onSetMonthlyBudget={runtime.setMonthlyBudget ? (limit) => runtime.setMonthlyBudget!(limit) : undefined}
       onExportVault={(input) => {
         if (!runtime.exportVault) return Promise.reject(new Error('Backup export is not connected.'));
         return runtime.exportVault(input);
