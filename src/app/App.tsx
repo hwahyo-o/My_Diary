@@ -43,7 +43,11 @@ export function App({ initialAccess, dashboard, runtime = failClosedRuntime }: A
         onUnlock={(pin) => runtime.unlock(pin)}
         onAccessGranted={() => {
           const next = runtime.getSnapshot?.();
-          if (next) setDashboardState(next.dashboard);
+          if (next) {
+            setDashboardState(next.dashboard);
+            setAccess(next.access);
+            return;
+          }
           setAccess('unlocked');
         }}
       />
