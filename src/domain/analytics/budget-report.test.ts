@@ -57,7 +57,7 @@ describe('T22 budget usage and time progress', () => {
     expect(usage.status).toBe('ok');
 
     const custom = selectBudgetUsage({ ...budget, limitMinor: 500_000, alertPercents: [40, 70, 90] }, transactions);
-    expect(custom.status).toBe('warning');
+    expect(custom.status).toBe('danger');
   });
 
   it('calculates inclusive local-calendar progress and early depletion gap', () => {
