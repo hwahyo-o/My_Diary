@@ -106,7 +106,7 @@ export type TransactionSubmission =
   | { readonly mode: 'quick'; readonly text: string }
   | {
       readonly mode: 'direct';
-      readonly type: TransactionType;
+      readonly type?: TransactionType;
       readonly accountId?: string;
       readonly counterAccountId?: string;
       readonly amountMinor: number;
