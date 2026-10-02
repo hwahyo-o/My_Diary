@@ -20,9 +20,9 @@ interface AppShellProps {
   readonly dashboard: DashboardViewModel;
   readonly backup: BackupStatusViewModel;
   readonly onSubmitTransaction: (input: TransactionSubmission) => Promise<void>;
-  readonly onSaveAccount?: NonNullable<AppRuntimePorts['saveAccount']>;
-  readonly onSaveHolding?: NonNullable<AppRuntimePorts['saveHolding']>;
-  readonly onSetMonthlyBudget?: NonNullable<AppRuntimePorts['setMonthlyBudget']>;
+  readonly onSaveAccount?: NonNullable<AppRuntimePorts['saveAccount']> | undefined;
+  readonly onSaveHolding?: NonNullable<AppRuntimePorts['saveHolding']> | undefined;
+  readonly onSetMonthlyBudget?: NonNullable<AppRuntimePorts['setMonthlyBudget']> | undefined;
   readonly onExportVault: (input: { readonly recoveryKey: string }) => Promise<Uint8Array>;
   readonly onInspectVaultImport: (bytes: Uint8Array, input: { readonly recoveryKey: string }) => Promise<VaultImportInspectionViewModel>;
   readonly onApplyVaultImport: (bytes: Uint8Array, input: { readonly recoveryKey: string }) => Promise<void>;
