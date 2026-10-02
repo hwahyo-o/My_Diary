@@ -36,12 +36,15 @@ export function App({ initialAccess, dashboard, runtime = failClosedRuntime }: A
   }, [runtime]);
 
   if (access !== 'unlocked') {
+    const recoveryProps = runtime.recoverFromVault
+      ? { onRecover: (input: { readonly packageBytes: Uint8Array; readonly recoveryKey: string; readonly pin: string }) => runtime.recoverFromVault!(input) }
+      : {};
     return (
       <AccessGate
         mode={access}
         onCreateProfile={(input) => runtime.createProfile(input)}
         onUnlock={(pin) => runtime.unlock(pin)}
-        onRecover={runtime.recoverFromVault ? (input) => runtime.recoverFromVault!(input) : undefined}
+        {...recoveryProps}
         onAccessGranted={() => {
           const next = runtime.getSnapshot?.();
           if (next) {
