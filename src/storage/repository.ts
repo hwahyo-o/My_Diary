@@ -98,6 +98,14 @@ export class EncryptedRepository {
     return requestValue(tx.objectStore(STORE_NAMES.events).get(eventId));
   }
 
+  async listEventsByRecord(recordId: string): Promise<StoredEvent[]> {
+    const tx = this.db.transaction(STORE_NAMES.events, 'readonly');
+    const events = await requestValue<StoredEvent[]>(
+      tx.objectStore(STORE_NAMES.events).index('recordId').getAll(recordId),
+    );
+    return events.sort((a, b) => a.deviceSeq - b.deviceSeq || a.createdAt.localeCompare(b.createdAt));
+  }
+
   async getRevision(vaultId: string): Promise<number> {
     const tx = this.db.transaction(STORE_NAMES.vaultMeta, 'readonly');
     const meta = await requestValue<VaultMeta | undefined>(tx.objectStore(STORE_NAMES.vaultMeta).get(vaultId));
