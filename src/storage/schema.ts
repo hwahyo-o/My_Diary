@@ -17,6 +17,7 @@ export function assertRollbackCompatible(input: {
     if (error instanceof Error && /newer than supported/i.test(error.message)) {
       throw new Error(
         `Rollback blocked: Vault schema ${input.vaultSchemaVersion} requires runtime schema ${input.vaultSchemaVersion} or newer`,
+        { cause: error },
       );
     }
     throw error;
