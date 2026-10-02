@@ -3,8 +3,8 @@ import { vi } from 'vitest';
 import { AccessGate } from './AccessGate';
 
 describe('AccessGate', () => {
-  it('requires nickname and a six-digit numeric PIN before creating a profile', async () => {
-    const onCreateProfile = vi.fn().mockResolvedValue(undefined);
+  it('requires nickname/PIN, then shows RecoveryKey before granting access', async () => {
+    const onCreateProfile = vi.fn().mockResolvedValue({ recoveryKey: 'RECOVERY_KEY_SAMPLE' });
     const onAccessGranted = vi.fn();
     render(
       <AccessGate
@@ -26,8 +26,12 @@ describe('AccessGate', () => {
     fireEvent.click(screen.getByRole('button', { name: '시작하기' }));
 
     await waitFor(() => expect(onCreateProfile).toHaveBeenCalledWith({ nickname: '예현', pin: '482951' }));
-    expect(onAccessGranted).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('RECOVERY_KEY_SAMPLE')).toBeInTheDocument();
     expect(screen.getByLabelText('PIN')).toHaveValue('');
+    expect(onAccessGranted).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: '복구 키를 저장했어요' }));
+    expect(onAccessGranted).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the user locked and shows a neutral error when unlock fails', async () => {
