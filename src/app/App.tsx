@@ -1,16 +1,40 @@
-export function App() {
-  return (
-    <main className="app-shell">
-      <section className="foundation-card" aria-labelledby="foundation-title">
-        <p className="eyebrow">LOCAL-FIRST FINANCE PWA</p>
-        <h1 id="foundation-title">My Diary</h1>
-        <p className="foundation-copy">
-          안전한 개인 금융 기록을 위한 기반을 준비하고 있습니다.
-        </p>
-        <p className="foundation-status" role="status">
-          Foundation · T01–T04
-        </p>
-      </section>
-    </main>
-  );
+import { useState } from 'react';
+import { AppShell } from '../components/AppShell';
+import { AccessGate } from '../features/access/AccessGate';
+import type { AccessState, AppRuntimePorts, DashboardViewModel } from './ui-types';
+import { emptyDashboard } from './ui-types';
+
+const failClosedRuntime: AppRuntimePorts = {
+  async createProfile() {
+    throw new Error('Vault runtime is not connected.');
+  },
+  async unlock() {
+    throw new Error('Vault runtime is not connected.');
+  },
+  async submitTransaction() {
+    throw new Error('Transaction runtime is not connected.');
+  },
+};
+
+interface AppProps {
+  readonly initialAccess?: AccessState;
+  readonly dashboard?: DashboardViewModel;
+  readonly runtime?: AppRuntimePorts;
+}
+
+export function App({ initialAccess = 'onboarding', dashboard = emptyDashboard, runtime = failClosedRuntime }: AppProps) {
+  const [access, setAccess] = useState<AccessState>(initialAccess);
+
+  if (access !== 'unlocked') {
+    return (
+      <AccessGate
+        mode={access}
+        onCreateProfile={runtime.createProfile}
+        onUnlock={runtime.unlock}
+        onAccessGranted={() => setAccess('unlocked')}
+      />
+    );
+  }
+
+  return <AppShell dashboard={dashboard} onSubmitTransaction={runtime.submitTransaction} />;
 }
