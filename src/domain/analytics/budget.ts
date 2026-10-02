@@ -34,17 +34,24 @@ export function selectBudgetUsage(
     .reduce((sum, transaction) => sum + getIncomeExpenseImpact(transaction).expenseMinor, 0);
 
   const usagePercent = budget.limitMinor > 0 ? (eligibleExpenseMinor / budget.limitMinor) * 100 : 0;
-  const paceGap = timeProgress === undefined ? undefined : usagePercent - timeProgress;
-  const earlyDepletion = timeProgress !== undefined && usagePercent >= 50 && (paceGap ?? 0) >= 15;
-
-  return {
+  const base = {
     eligibleExpenseMinor,
     limitMinor: budget.limitMinor,
     usagePercent,
     remainingMinor: budget.limitMinor - eligibleExpenseMinor,
     status: statusFor(usagePercent, budget.alertPercents),
-    ...(timeProgress === undefined ? {} : { timeProgress, paceGap }),
-    earlyDepletion,
+  } as const;
+
+  if (timeProgress === undefined) {
+    return { ...base, earlyDepletion: false };
+  }
+
+  const paceGap = usagePercent - timeProgress;
+  return {
+    ...base,
+    timeProgress,
+    paceGap,
+    earlyDepletion: usagePercent >= 50 && paceGap >= 15,
   };
 }
 
