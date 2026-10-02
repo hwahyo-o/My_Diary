@@ -27,9 +27,11 @@ export function selectCoreAnalytics(transactions: readonly Transaction[]): CoreA
 
     if (impact.expenseMinor <= 0) continue;
 
-    if (transaction.fixedVariable === 'fixed') fixedMinor += impact.expenseMinor;
-    else if (transaction.fixedVariable === 'mixed') mixedMinor += impact.expenseMinor;
-    else variableMinor += impact.expenseMinor;
+    if (transaction.type === 'expense') {
+      if (transaction.fixedVariable === 'fixed') fixedMinor += impact.expenseMinor;
+      else if (transaction.fixedVariable === 'mixed') mixedMinor += impact.expenseMinor;
+      else variableMinor += impact.expenseMinor;
+    }
 
     if (transaction.categoryId) {
       categoryTotals[transaction.categoryId] = (categoryTotals[transaction.categoryId] ?? 0) + impact.expenseMinor;
