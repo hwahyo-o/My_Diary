@@ -67,7 +67,7 @@ describe('MVP production runtime data flow', () => {
       expect(snapshot.dashboard.assets.holdings[0]?.returnPercent).toBeCloseTo(20);
       expect(snapshot.dashboard.assets.holdings[0]?.reason).toMatch(/20\.0%/);
       expect(snapshot.dashboard.assets.netWorthMinor).toBe(1_780_000);
-      expect(snapshot.dashboard.reports.map((report) => report.type)).toEqual(['month_end', 'half_year', 'year_end']);
+      expect(snapshot.dashboard.reports.map((report) => report.type)).toEqual(['month_start', 'month_end', 'half_year', 'year_end']);
       expect(snapshot.dashboard.reports.every((report) => report.status === 'ready')).toBe(true);
 
       const serialized = JSON.stringify(await allRecords(dbName));
