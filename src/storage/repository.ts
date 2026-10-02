@@ -34,6 +34,11 @@ interface VaultMeta {
   readonly schemaVersion: number;
 }
 
+interface SecurityMetaEntry<T> {
+  readonly key: string;
+  readonly value: T;
+}
+
 function requestValue<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
@@ -93,6 +98,13 @@ export class EncryptedRepository {
     return requestValue(tx.objectStore(STORE_NAMES.records).get(recordId));
   }
 
+  async listRecordsByType(recordType: string): Promise<StoredEncryptedRecord[]> {
+    const tx = this.db.transaction(STORE_NAMES.records, 'readonly');
+    return requestValue<StoredEncryptedRecord[]>(
+      tx.objectStore(STORE_NAMES.records).index('recordType').getAll(recordType),
+    );
+  }
+
   async getEvent(eventId: string): Promise<StoredEvent | undefined> {
     const tx = this.db.transaction(STORE_NAMES.events, 'readonly');
     return requestValue(tx.objectStore(STORE_NAMES.events).get(eventId));
@@ -120,5 +132,16 @@ export class EncryptedRepository {
   async getSnapshot(snapshotId: string): Promise<StoredSnapshot | undefined> {
     const tx = this.db.transaction(STORE_NAMES.snapshots, 'readonly');
     return requestValue(tx.objectStore(STORE_NAMES.snapshots).get(snapshotId));
+  }
+
+  async putSecurityMeta<T>(key: string, value: T): Promise<void> {
+    const tx = this.db.transaction(STORE_NAMES.securityMeta, 'readwrite');
+    await requestValue(tx.objectStore(STORE_NAMES.securityMeta).put({ key, value } satisfies SecurityMetaEntry<T>));
+  }
+
+  async getSecurityMeta<T>(key: string): Promise<T | undefined> {
+    const tx = this.db.transaction(STORE_NAMES.securityMeta, 'readonly');
+    const entry = await requestValue<SecurityMetaEntry<T> | undefined>(tx.objectStore(STORE_NAMES.securityMeta).get(key));
+    return entry?.value;
   }
 }
