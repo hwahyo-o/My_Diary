@@ -1,4 +1,5 @@
-import { FormEvent, useState } from 'react';
+import { useState } from 'react';
+import type { FormEvent } from 'react';
 
 interface AccessGateProps {
   readonly mode: 'onboarding' | 'locked';
@@ -60,33 +61,17 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onAccessGranted }:
           {mode === 'onboarding' ? (
             <label>
               <span>닉네임</span>
-              <input
-                aria-label="닉네임"
-                autoComplete="nickname"
-                value={nickname}
-                onChange={(event) => setNickname(event.currentTarget.value)}
-              />
+              <input aria-label="닉네임" autoComplete="nickname" value={nickname} onChange={(event) => setNickname(event.currentTarget.value)} />
             </label>
           ) : null}
 
           <label>
             <span>PIN</span>
-            <input
-              aria-label="PIN"
-              inputMode="numeric"
-              autoComplete="off"
-              maxLength={6}
-              type="password"
-              value={pin}
-              onChange={(event) => setPin(event.currentTarget.value.replace(/\D/g, '').slice(0, 6))}
-            />
+            <input aria-label="PIN" inputMode="numeric" autoComplete="off" maxLength={6} type="password" value={pin} onChange={(event) => setPin(event.currentTarget.value.replace(/\D/g, '').slice(0, 6))} />
           </label>
 
           {error ? <p role="alert" className="form-error">{error}</p> : null}
-
-          <button className="primary-button" type="submit" disabled={busy}>
-            {mode === 'onboarding' ? '시작하기' : '잠금 해제'}
-          </button>
+          <button className="primary-button" type="submit" disabled={busy}>{mode === 'onboarding' ? '시작하기' : '잠금 해제'}</button>
         </form>
       </section>
     </main>
