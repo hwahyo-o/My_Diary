@@ -41,8 +41,16 @@ export function createServiceWorkerUpdateController({
   };
 }
 
+interface ServiceWorkerRegistrationPort {
+  register(scriptURL: string | URL, options?: RegistrationOptions): Promise<ServiceWorkerRegistration>;
+}
+
+interface NavigatorRegistrationPort {
+  readonly serviceWorker?: ServiceWorkerRegistrationPort;
+}
+
 interface RegisterServiceWorkerSafelyOptions {
-  readonly navigatorLike?: Partial<Navigator>;
+  readonly navigatorLike?: NavigatorRegistrationPort;
   readonly scriptUrl?: string;
 }
 
@@ -51,7 +59,7 @@ export async function registerServiceWorkerSafely({
   scriptUrl = '/sw.js',
 }: RegisterServiceWorkerSafelyOptions = {}): Promise<ServiceWorkerRegistration | null> {
   const container = navigatorLike.serviceWorker;
-  if (!container?.register) return null;
+  if (!container) return null;
 
   try {
     return await container.register(scriptUrl, { scope: '/' });
