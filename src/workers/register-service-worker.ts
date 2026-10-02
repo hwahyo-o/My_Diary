@@ -13,7 +13,7 @@ export interface ServiceWorkerUpdateController {
 
 export function createServiceWorkerUpdateController({
   registration,
-  serviceWorker = navigator.serviceWorker,
+  serviceWorker,
   onUpdateAvailable,
   reload,
 }: ServiceWorkerUpdateControllerOptions): ServiceWorkerUpdateController {
@@ -24,7 +24,7 @@ export function createServiceWorkerUpdateController({
     reload();
   };
 
-  serviceWorker.addEventListener('controllerchange', onControllerChange);
+  serviceWorker?.addEventListener('controllerchange', onControllerChange);
 
   return {
     checkWaiting() {
@@ -36,7 +36,7 @@ export function createServiceWorkerUpdateController({
       registration.waiting.postMessage({ type: 'SKIP_WAITING' });
     },
     dispose() {
-      serviceWorker.removeEventListener('controllerchange', onControllerChange);
+      serviceWorker?.removeEventListener('controllerchange', onControllerChange);
     },
   };
 }
