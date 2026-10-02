@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import { App } from './App';
+import { emptyDashboard, type RuntimeSnapshot } from './ui-types';
 
 const dashboard = {
   nickname: '예현',
@@ -54,5 +55,62 @@ describe('App protected shell', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '설정' }));
     expect(screen.getByRole('heading', { name: '설정' })).toBeInTheDocument();
+  });
+
+  it('subscribes to runtime snapshots and explicit lock returns to the unlock screen', () => {
+    let listener: ((snapshot: RuntimeSnapshot) => void) | undefined;
+    const lock = vi.fn();
+    const runtime = {
+      createProfile: vi.fn().mockResolvedValue(undefined),
+      unlock: vi.fn().mockResolvedValue(undefined),
+      submitTransaction: vi.fn().mockResolvedValue(undefined),
+      lock,
+      getSnapshot: () => ({ access: 'unlocked' as const, dashboard }),
+      subscribe: (next: (snapshot: RuntimeSnapshot) => void) => {
+        listener = next;
+        return () => { listener = undefined; };
+      },
+    };
+
+    render(<App runtime={runtime} />);
+    fireEvent.click(screen.getByRole('button', { name: '설정' }));
+    fireEvent.click(screen.getByRole('button', { name: '지금 잠그기' }));
+    expect(lock).toHaveBeenCalledTimes(1);
+
+    act(() => listener?.({ access: 'locked', dashboard: emptyDashboard }));
+    expect(screen.getByRole('heading', { name: 'My Diary 잠금 해제' })).toBeInTheDocument();
+  });
+
+  it('removes recovery confirmation when runtime locks so it cannot bypass the lock', async () => {
+    let listener: ((snapshot: RuntimeSnapshot) => void) | undefined;
+    let current: RuntimeSnapshot = { access: 'onboarding', dashboard: emptyDashboard };
+    const runtime = {
+      createProfile: vi.fn().mockImplementation(async () => {
+        current = { access: 'unlocked', dashboard };
+        listener?.(current);
+        return { recoveryKey: 'RECOVERY_KEY_SAMPLE' };
+      }),
+      unlock: vi.fn().mockResolvedValue(undefined),
+      submitTransaction: vi.fn().mockResolvedValue(undefined),
+      getSnapshot: () => current,
+      subscribe: (next: (snapshot: RuntimeSnapshot) => void) => {
+        listener = next;
+        return () => { listener = undefined; };
+      },
+    };
+
+    render(<App runtime={runtime} />);
+    fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: '예현' } });
+    fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '482951' } });
+    fireEvent.click(screen.getByRole('button', { name: '시작하기' }));
+    await screen.findByText('RECOVERY_KEY_SAMPLE');
+
+    act(() => {
+      current = { access: 'locked', dashboard: emptyDashboard };
+      listener?.(current);
+    });
+
+    expect(screen.queryByRole('button', { name: '복구 키를 저장했어요' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'My Diary 잠금 해제' })).toBeInTheDocument();
   });
 });

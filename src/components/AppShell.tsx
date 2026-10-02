@@ -11,9 +11,10 @@ import { BottomNavigation } from './BottomNavigation';
 interface AppShellProps {
   readonly dashboard: DashboardViewModel;
   readonly onSubmitTransaction: (input: TransactionSubmission) => Promise<void>;
+  readonly onLock: () => void;
 }
 
-export function AppShell({ dashboard, onSubmitTransaction }: AppShellProps) {
+export function AppShell({ dashboard, onSubmitTransaction, onLock }: AppShellProps) {
   const [page, setPage] = useState<AppPage>('home');
   const [entryOpen, setEntryOpen] = useState(false);
   const quickAddButtonRef = useRef<HTMLButtonElement>(null);
@@ -33,7 +34,7 @@ export function AppShell({ dashboard, onSubmitTransaction }: AppShellProps) {
       content = <AssetsPage />;
       break;
     case 'settings':
-      content = <SettingsPage />;
+      content = <SettingsPage onLock={onLock} />;
       break;
   }
 
