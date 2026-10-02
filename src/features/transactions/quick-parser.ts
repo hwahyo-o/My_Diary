@@ -80,19 +80,19 @@ export function parseQuickInput(rawText: string, now: ISODateTime): QuickInputCa
     if (token.includes('택시') || token.includes('버스') || token.includes('지하철')) categoryHint = 'transport';
   }
 
-  const merchantTokens = tokens.filter((token) => {
+  const merchantText = tokens.filter((token) => {
     if (token === '오늘' || token === '어제') return false;
     if (parseKoreanAmount(token) !== undefined) return false;
     return true;
-  });
+  }).join(' ');
 
   return {
     rawText,
-    amountMinor,
     occurredAt,
-    merchantText: merchantTokens.join(' ') || undefined,
-    categoryHint,
     unresolved: amountMinor === undefined ? ['amount'] : [],
+    ...(amountMinor === undefined ? {} : { amountMinor }),
+    ...(merchantText ? { merchantText } : {}),
+    ...(categoryHint ? { categoryHint } : {}),
   };
 }
 
@@ -106,9 +106,8 @@ export function quickCandidateToDraft(
     accountId: options.accountId,
     amountMinor: candidate.amountMinor,
     occurredAt: candidate.occurredAt,
-    merchant: candidate.merchantText,
-    categoryId: candidate.categoryHint,
     source: 'quick',
-    fixedVariable: 'variable',
+    ...(candidate.merchantText ? { merchant: candidate.merchantText } : {}),
+    ...(candidate.categoryHint ? { categoryId: candidate.categoryHint } : {}),
   });
 }
