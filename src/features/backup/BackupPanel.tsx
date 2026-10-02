@@ -114,8 +114,8 @@ export function BackupPanel({ backup, onExport, onInspectImport, onApplyImport, 
           <h3>암호화 백업 내보내기</h3>
           <p>RecoveryKey로 인증한 뒤 암호화된 .vault 파일을 생성합니다.</p>
           <label>
-            <span>RecoveryKey</span>
-            <input aria-label="RecoveryKey" type="password" autoComplete="off" value={exportKey} onChange={(event) => setExportKey(event.currentTarget.value)} />
+            <span>내보내기 RecoveryKey</span>
+            <input aria-label="내보내기 RecoveryKey" type="password" autoComplete="off" value={exportKey} onChange={(event) => setExportKey(event.currentTarget.value)} />
           </label>
           <button type="button" className="primary-button" disabled={busy} onClick={handleExport}>백업 내보내기</button>
         </div>
@@ -128,7 +128,7 @@ export function BackupPanel({ backup, onExport, onInspectImport, onApplyImport, 
             <input aria-label="Vault 파일" type="file" accept=".vault,application/octet-stream" onChange={(event) => setFile(event.currentTarget.files?.[0] ?? null)} />
           </label>
           <label>
-            <span>RecoveryKey</span>
+            <span>가져오기 RecoveryKey</span>
             <input aria-label="가져오기 RecoveryKey" type="password" autoComplete="off" value={importKey} onChange={(event) => setImportKey(event.currentTarget.value)} />
           </label>
           <button type="button" className="secondary-button" disabled={busy} onClick={handleInspect}>가져오기 검사</button>
