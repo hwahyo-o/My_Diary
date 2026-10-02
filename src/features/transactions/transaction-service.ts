@@ -96,9 +96,10 @@ export class TransactionLedgerService {
     const current = await this.loadTransaction(recordId);
     if (!current.deletedAt) return { transaction: current, revision: expectedRevision };
     const timestamp = this.deps.now();
+    const { deletedAt, ...rest } = current;
+    void deletedAt;
     const next: Transaction = {
-      ...current,
-      deletedAt: undefined,
+      ...rest,
       updatedAt: timestamp,
       version: current.version + 1,
     };
