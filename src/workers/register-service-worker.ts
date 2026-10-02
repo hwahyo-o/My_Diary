@@ -56,13 +56,13 @@ interface RegisterServiceWorkerSafelyOptions {
 
 export async function registerServiceWorkerSafely({
   navigatorLike = navigator,
-  scriptUrl = '/sw.js',
+  scriptUrl = `${import.meta.env.BASE_URL}sw.js`,
 }: RegisterServiceWorkerSafelyOptions = {}): Promise<ServiceWorkerRegistration | null> {
   const container = navigatorLike.serviceWorker;
   if (!container) return null;
 
   try {
-    return await container.register(scriptUrl, { scope: '/' });
+    return await container.register(scriptUrl);
   } catch {
     return null;
   }
