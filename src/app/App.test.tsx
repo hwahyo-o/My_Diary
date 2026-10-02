@@ -81,7 +81,7 @@ describe('App protected shell', () => {
     expect(screen.getByRole('heading', { name: 'My Diary 잠금 해제' })).toBeInTheDocument();
   });
 
-  it('does not let recovery confirmation bypass a runtime lock', async () => {
+  it('removes recovery confirmation when runtime locks so it cannot bypass the lock', async () => {
     let listener: ((snapshot: RuntimeSnapshot) => void) | undefined;
     let current: RuntimeSnapshot = { access: 'onboarding', dashboard: emptyDashboard };
     const runtime = {
@@ -109,8 +109,8 @@ describe('App protected shell', () => {
       current = { access: 'locked', dashboard: emptyDashboard };
       listener?.(current);
     });
-    fireEvent.click(screen.getByRole('button', { name: '복구 키를 저장했어요' }));
 
+    expect(screen.queryByRole('button', { name: '복구 키를 저장했어요' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'My Diary 잠금 해제' })).toBeInTheDocument();
   });
 });
