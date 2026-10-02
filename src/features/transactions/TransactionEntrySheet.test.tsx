@@ -25,6 +25,18 @@ describe('TransactionEntrySheet', () => {
     expect(onSubmitTransaction).toHaveBeenLastCalledWith({ mode: 'direct', amountMinor: 13000, memo: '점심' });
   });
 
+  it('submits a selected non-expense transaction type', () => {
+    const onSubmitTransaction = vi.fn();
+    render(<TransactionEntrySheet {...baseProps} onSubmitTransaction={onSubmitTransaction} />);
+    fireEvent.click(screen.getByRole('button', { name: '직접 입력' }));
+    fireEvent.change(screen.getByLabelText('거래 유형'), { target: { value: 'income' } });
+    fireEvent.change(screen.getByLabelText('금액'), { target: { value: '1000000' } });
+    fireEvent.change(screen.getByLabelText('메모'), { target: { value: '급여' } });
+    fireEvent.click(screen.getByRole('button', { name: '직접 입력 저장' }));
+
+    expect(onSubmitTransaction).toHaveBeenCalledWith({ mode: 'direct', type: 'income', amountMinor: 1000000, memo: '급여' });
+  });
+
   it('closes on Escape', () => {
     const onClose = vi.fn();
     render(<TransactionEntrySheet {...baseProps} onClose={onClose} />);
