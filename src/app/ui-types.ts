@@ -32,10 +32,18 @@ export type TransactionSubmission =
   | { readonly mode: 'quick'; readonly text: string }
   | { readonly mode: 'direct'; readonly amountMinor: number; readonly memo: string };
 
+export interface RuntimeSnapshot {
+  readonly access: AccessState;
+  readonly dashboard: DashboardViewModel;
+}
+
 export interface AppRuntimePorts {
-  createProfile(input: { readonly nickname: string; readonly pin: string }): Promise<void>;
+  createProfile(input: { readonly nickname: string; readonly pin: string }): Promise<void | { readonly recoveryKey: string }>;
   unlock(pin: string): Promise<void>;
   submitTransaction(input: TransactionSubmission): Promise<void>;
+  lock?(): void;
+  getSnapshot?(): RuntimeSnapshot;
+  subscribe?(listener: (snapshot: RuntimeSnapshot) => void): () => void;
 }
 
 export const emptyDashboard: DashboardViewModel = {
