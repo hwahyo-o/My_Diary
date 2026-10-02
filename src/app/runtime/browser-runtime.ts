@@ -1,5 +1,15 @@
+import type { Account, AccountKind, AccountPurpose } from '../../domain/accounts/types';
+import { analyzeAccountPurposes } from '../../domain/accounts/purpose-analysis';
+import { selectBudgetUsage } from '../../domain/analytics/budget';
 import { selectCoreAnalytics } from '../../domain/analytics/core';
-import { parseISODateTime, parseUUID, type ISODateTime, type UUID } from '../../domain/shared/types';
+import type { Budget } from '../../domain/budgets/types';
+import { buildHoldingInsight } from '../../domain/holdings/insights';
+import type { Holding } from '../../domain/holdings/types';
+import type { Loan } from '../../domain/loans/types';
+import { selectNetWorth } from '../../domain/net-worth/selectors';
+import { generateMonthlyReport } from '../../domain/reports/generator';
+import { generatePeriodReport } from '../../domain/reports/period-generator';
+import { parseISODate, parseISODateTime, parseUUID, type ISODate, type ISODateTime, type UUID } from '../../domain/shared/types';
 import { getIncomeExpenseImpact } from '../../domain/transactions/accounting';
 import type { Transaction } from '../../domain/transactions/types';
 import { quickCandidateToDraft, parseQuickInput } from '../../features/transactions/quick-parser';
@@ -13,7 +23,7 @@ import { deriveDeviceKek, DEFAULT_ARGON2_PARAMS, TEST_ARGON2_PARAMS, type Argon2
 import { deriveRecoveryKek } from '../../vault/recovery';
 import { decryptRecord, encryptRecord, type EncryptedRecordEnvelope, type RecordAad } from '../../vault/record-crypto';
 import { VaultSession } from '../../vault/session';
-import type { AccessState, DashboardViewModel, TransactionSubmission } from '../ui-types';
+import type { AccessState, DashboardViewModel, ReportSummaryViewModel, TransactionSubmission } from '../ui-types';
 import { emptyDashboard } from '../ui-types';
 import {
   base64UrlToBytes,
@@ -42,6 +52,13 @@ interface BootstrapMeta {
   readonly wrappedDeviceVaultKey: WrappedKeyEnvelope;
   readonly wrappedRecoveryVaultKey: WrappedKeyEnvelope;
   readonly failedAttempts: number;
+}
+
+interface RuntimeEntity {
+  readonly id: UUID;
+  readonly createdAt: ISODateTime;
+  readonly updatedAt: ISODateTime;
+  readonly version: number;
 }
 
 export interface RuntimeSnapshot {
@@ -76,6 +93,15 @@ function newUuid(): UUID {
   return parseUUID(crypto.randomUUID());
 }
 
+function currentDate(now: Date): ISODate {
+  return parseISODate(now.toISOString().slice(0, 10));
+}
+
+function currentMonthStart(now: Date): ISODate {
+  const date = now.toISOString().slice(0, 7);
+  return parseISODate(`${date}-01`);
+}
+
 function encodeEnvelope(envelope: EncryptedRecordEnvelope): Uint8Array {
   return new TextEncoder().encode(JSON.stringify({
     algorithm: envelope.algorithm,
@@ -107,24 +133,16 @@ function toBase64Url(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
+function entityAad(vaultId: string, recordId: string, recordType: string, recordVersion: number): RecordAad {
+  return { vaultId, recordId, recordType, schemaVersion: SCHEMA_VERSION, recordVersion };
+}
+
 function profileAad(vaultId: string, profile: Pick<RuntimeProfile, 'id' | 'version'>): RecordAad {
-  return {
-    vaultId,
-    recordId: profile.id,
-    recordType: 'profile',
-    schemaVersion: SCHEMA_VERSION,
-    recordVersion: profile.version,
-  };
+  return entityAad(vaultId, profile.id, 'profile', profile.version);
 }
 
 function transactionAad(vaultId: string, recordId: string, recordVersion: number): RecordAad {
-  return {
-    vaultId,
-    recordId,
-    recordType: 'transaction',
-    schemaVersion: SCHEMA_VERSION,
-    recordVersion,
-  };
+  return entityAad(vaultId, recordId, 'transaction', recordVersion);
 }
 
 function periodLabel(now: Date): string {
@@ -144,6 +162,60 @@ function recordsEqual(a: StoredEncryptedRecord, b: StoredEncryptedRecord): boole
     && a.updatedAt === b.updatedAt
     && a.recordVersion === b.recordVersion
     && equalBytes(a.encryptedPayload, b.encryptedPayload);
+}
+
+function balanceAccounts(accounts: readonly Account[], transactions: readonly Transaction[]): Map<UUID, number> {
+  const result = new Map<UUID, number>();
+  for (const account of accounts) {
+    const opening = account.openingBalanceMinor ?? 0;
+    result.set(account.id, account.kind === 'credit' ? -opening : opening);
+  }
+
+  const add = (id: UUID | undefined, delta: number) => {
+    if (!id || !result.has(id)) return;
+    result.set(id, (result.get(id) ?? 0) + delta);
+  };
+
+  for (const transaction of transactions) {
+    if (transaction.deletedAt) continue;
+    const fee = transaction.feeMinor ?? 0;
+    switch (transaction.type) {
+      case 'income':
+        add(transaction.accountId, transaction.amountMinor);
+        break;
+      case 'expense':
+        add(transaction.accountId, -transaction.amountMinor);
+        break;
+      case 'transfer':
+      case 'saving':
+        add(transaction.accountId, -transaction.amountMinor);
+        add(transaction.counterAccountId, transaction.amountMinor);
+        break;
+      case 'loan_payment':
+        add(transaction.accountId, -transaction.amountMinor);
+        break;
+      case 'investment_buy':
+        add(transaction.accountId, -(transaction.amountMinor + fee));
+        break;
+      case 'investment_sell':
+        add(transaction.accountId, transaction.amountMinor - fee);
+        break;
+      case 'adjustment':
+        add(transaction.accountId, transaction.amountMinor);
+        break;
+    }
+  }
+  return result;
+}
+
+function loanPrincipalFor(account: Account, transactions: readonly Transaction[]): number {
+  const opening = Math.max(0, account.openingBalanceMinor ?? 0);
+  const paid = transactions.reduce((sum, transaction) => {
+    if (transaction.deletedAt || transaction.type !== 'loan_payment') return sum;
+    if (transaction.counterAccountId !== account.id && transaction.accountId !== account.id) return sum;
+    return sum + (transaction.principalMinor ?? 0);
+  }, 0);
+  return Math.max(0, opening - paid);
 }
 
 export class BrowserRuntime {
@@ -279,11 +351,15 @@ export class BrowserRuntime {
     const draft = input.mode === 'quick'
       ? quickCandidateToDraft(parseQuickInput(input.text, now), { accountId: bootstrap.defaultAccountId, type: 'expense' })
       : createDirectDraft({
-          type: 'expense',
-          accountId: bootstrap.defaultAccountId,
+          type: input.type ?? 'expense',
+          accountId: input.accountId ? parseUUID(input.accountId) : bootstrap.defaultAccountId,
+          ...(input.counterAccountId ? { counterAccountId: parseUUID(input.counterAccountId) } : {}),
           amountMinor: input.amountMinor,
           occurredAt: now,
           memo: input.memo,
+          ...(input.principalMinor === undefined ? {} : { principalMinor: input.principalMinor }),
+          ...(input.interestMinor === undefined ? {} : { interestMinor: input.interestMinor }),
+          ...(input.feeMinor === undefined ? {} : { feeMinor: input.feeMinor }),
         });
 
     const service = new TransactionLedgerService({
@@ -298,6 +374,86 @@ export class BrowserRuntime {
     });
     const revision = await this.repository.getRevision(bootstrap.vaultId);
     await service.saveDraft(draft, { expectedRevision: revision });
+    await this.hydrate();
+  }
+
+  async saveAccount(input: {
+    readonly name: string;
+    readonly kind: AccountKind;
+    readonly purpose: AccountPurpose;
+    readonly openingBalanceMinor: number;
+    readonly includeNetWorth: boolean;
+  }): Promise<UUID> {
+    const { session, bootstrap } = this.requireUnlocked();
+    const name = input.name.trim();
+    if (!name) throw new TypeError('Account name is required.');
+    if (!Number.isSafeInteger(input.openingBalanceMinor) || input.openingBalanceMinor < 0) {
+      throw new TypeError('Opening balance must be a non-negative safe integer.');
+    }
+    const now = toIso(this.options.now());
+    const account: Account = {
+      id: newUuid(),
+      createdAt: now,
+      updatedAt: now,
+      version: 1,
+      name,
+      kind: input.kind,
+      purpose: input.purpose,
+      openingBalanceMinor: input.openingBalanceMinor,
+      includeNetWorth: input.includeNetWorth,
+    };
+    await this.persistEntity(session, bootstrap, 'account', account);
+    await this.hydrate();
+    return account.id;
+  }
+
+  async saveHolding(input: {
+    readonly accountId: string;
+    readonly ticker: string;
+    readonly quantity: string;
+    readonly avgCostMinor: number;
+    readonly marketValueMinor: number;
+    readonly priceAsOf: string;
+  }): Promise<UUID> {
+    const { session, bootstrap } = this.requireUnlocked();
+    const ticker = input.ticker.trim().toUpperCase();
+    const quantity = Number(input.quantity);
+    if (!ticker) throw new TypeError('Ticker is required.');
+    if (!Number.isFinite(quantity) || quantity <= 0) throw new TypeError('Quantity must be positive.');
+    if (!Number.isSafeInteger(input.avgCostMinor) || input.avgCostMinor < 0) throw new TypeError('Average cost is invalid.');
+    if (!Number.isSafeInteger(input.marketValueMinor) || input.marketValueMinor < 0) throw new TypeError('Market value is invalid.');
+    const now = toIso(this.options.now());
+    const holding: Holding = {
+      id: newUuid(),
+      createdAt: now,
+      updatedAt: now,
+      version: 1,
+      accountId: parseUUID(input.accountId),
+      ticker,
+      quantity: input.quantity,
+      avgCostMinor: input.avgCostMinor,
+      marketValueMinor: input.marketValueMinor,
+      priceAsOf: parseISODate(input.priceAsOf),
+    };
+    await this.persistEntity(session, bootstrap, 'holding', holding);
+    await this.hydrate();
+    return holding.id;
+  }
+
+  async setMonthlyBudget(limitMinor: number): Promise<void> {
+    const { session, bootstrap } = this.requireUnlocked();
+    if (!Number.isSafeInteger(limitMinor) || limitMinor < 0) throw new TypeError('Budget limit must be a non-negative safe integer.');
+    const now = toIso(this.options.now());
+    const budget: Budget = {
+      id: newUuid(),
+      createdAt: now,
+      updatedAt: now,
+      version: 1,
+      month: currentMonthStart(this.options.now()),
+      limitMinor,
+      alertPercents: [50, 80, 100],
+    };
+    await this.persistEntity(session, bootstrap, 'budget', budget);
     await this.hydrate();
   }
 
@@ -469,6 +625,13 @@ export class BrowserRuntime {
     this.db.close();
   }
 
+  private requireUnlocked(): { session: VaultSession; bootstrap: BootstrapMeta } {
+    const session = this.session;
+    const bootstrap = this.bootstrap;
+    if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
+    return { session, bootstrap };
+  }
+
   private diffRecords(verified: VerifiedVaultPackage, localRecords: readonly StoredEncryptedRecord[]): VaultImportInspection {
     const local = new Map(localRecords.map((record) => [record.recordId, record]));
     let newRecords = 0;
@@ -534,6 +697,55 @@ export class BrowserRuntime {
     );
   }
 
+  private async persistEntity<T extends RuntimeEntity>(
+    session: VaultSession,
+    bootstrap: BootstrapMeta,
+    recordType: 'account' | 'holding' | 'budget',
+    entity: T,
+  ): Promise<void> {
+    const revision = await this.repository.getRevision(bootstrap.vaultId);
+    const recordEnvelope = await session.withVaultKey((key) => encryptRecord(
+      key,
+      entityAad(bootstrap.vaultId, entity.id, recordType, entity.version),
+      entity,
+    ));
+    const eventId = newUuid();
+    const eventEnvelope = await session.withVaultKey((key) => encryptRecord(
+      key,
+      entityAad(bootstrap.vaultId, eventId, `${recordType}-event`, 1),
+      { before: null, after: entity },
+    ));
+    await this.repository.commitRecordEvent(
+      bootstrap.vaultId,
+      {
+        recordId: entity.id,
+        recordType,
+        updatedAt: entity.updatedAt,
+        recordVersion: entity.version,
+        encryptedPayload: encodeEnvelope(recordEnvelope),
+      },
+      {
+        eventId,
+        recordId: entity.id,
+        recordType,
+        action: 'create',
+        deviceId: bootstrap.deviceId,
+        deviceSeq: revision + 1,
+        createdAt: entity.updatedAt,
+        encryptedPatch: encodeEnvelope(eventEnvelope),
+      },
+      revision,
+    );
+  }
+
+  private async decryptEntity<T>(session: VaultSession, vaultId: string, recordType: string, stored: StoredEncryptedRecord): Promise<T> {
+    return session.withVaultKey((key) => decryptRecord<T>(
+      key,
+      entityAad(vaultId, stored.recordId, recordType, stored.recordVersion),
+      decodeEnvelope(stored.encryptedPayload),
+    ));
+  }
+
   private async hydrate(): Promise<void> {
     const session = this.session;
     const bootstrap = this.bootstrap;
@@ -547,15 +759,112 @@ export class BrowserRuntime {
       decodeEnvelope(profileRecord.encryptedPayload),
     ));
 
-    const storedTransactions = await this.repository.listRecordsByType('transaction');
+    const [storedTransactions, storedAccounts, storedHoldings, storedBudgets] = await Promise.all([
+      this.repository.listRecordsByType('transaction'),
+      this.repository.listRecordsByType('account'),
+      this.repository.listRecordsByType('holding'),
+      this.repository.listRecordsByType('budget'),
+    ]);
     const transactions = await Promise.all(storedTransactions.map((stored) => session.withVaultKey((key) => decryptRecord<Transaction>(
       key,
       transactionAad(bootstrap.vaultId, stored.recordId, stored.recordVersion),
       decodeEnvelope(stored.encryptedPayload),
     ))));
+    const storedAccountEntities = await Promise.all(storedAccounts.map((stored) => this.decryptEntity<Account>(session, bootstrap.vaultId, 'account', stored)));
+    const holdings = await Promise.all(storedHoldings.map((stored) => this.decryptEntity<Holding>(session, bootstrap.vaultId, 'holding', stored)));
+    const budgets = await Promise.all(storedBudgets.map((stored) => this.decryptEntity<Budget>(session, bootstrap.vaultId, 'budget', stored)));
+    const defaultAccount: Account = {
+      id: bootstrap.defaultAccountId,
+      createdAt: profile.createdAt,
+      updatedAt: profile.updatedAt,
+      version: 1,
+      name: '기본 계좌',
+      kind: 'checking',
+      purpose: 'daily',
+      openingBalanceMinor: 0,
+      includeNetWorth: true,
+    };
+    const accounts = [defaultAccount, ...storedAccountEntities.filter((account) => account.id !== bootstrap.defaultAccountId)];
     const activeTransactions = transactions.filter((transaction) => !transaction.deletedAt);
     const analytics = selectCoreAnalytics(activeTransactions);
-    const today = toIso(this.options.now()).slice(0, 10);
+    const balances = balanceAccounts(accounts, activeTransactions);
+    const loanAccounts = accounts.filter((account) => account.kind === 'loan');
+    const loans: Loan[] = loanAccounts.map((account) => ({
+      id: account.id,
+      accountId: account.id,
+      createdAt: account.createdAt,
+      updatedAt: account.updatedAt,
+      version: account.version,
+      remainingPrincipalMinor: loanPrincipalFor(account, activeTransactions),
+      annualInterestRate: 0,
+    }));
+    const netWorth = selectNetWorth({
+      accounts,
+      balances: accounts.map((account) => ({ accountId: account.id, balanceMinor: balances.get(account.id) ?? 0 })),
+      holdings,
+      loans,
+      creditLiabilities: accounts
+        .filter((account) => account.kind === 'credit')
+        .map((account) => ({ accountId: account.id, outstandingMinor: Math.max(0, -(balances.get(account.id) ?? 0)) })),
+    });
+    const purposeAnalysis = analyzeAccountPurposes(
+      accounts.filter((account) => account.kind !== 'loan' && account.kind !== 'credit'),
+      accounts.map((account) => ({ accountId: account.id, balanceMinor: balances.get(account.id) ?? 0 })),
+    );
+    const holdingInsights = holdings.map(buildHoldingInsight);
+
+    const nowDate = currentDate(this.options.now());
+    const month = currentMonthStart(this.options.now());
+    const monthBudget = budgets
+      .filter((budget) => budget.month === month)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+    const budgetUsage = monthBudget
+      ? selectBudgetUsage(monthBudget, activeTransactions.filter((transaction) => transaction.occurredAt.slice(0, 7) === month.slice(0, 7)))
+      : { limitMinor: 0, usagePercent: 0, remainingMinor: 0, status: 'ok' as const };
+
+    const createdAt = toIso(this.options.now());
+    const sourceRevision = await this.repository.getRevision(bootstrap.vaultId);
+    const monthReport = generateMonthlyReport({
+      id: newUuid(),
+      type: 'month_end',
+      targetMonth: month,
+      transactions: activeTransactions,
+      sourceRevision,
+      createdAt,
+      comparisonMonths: 1,
+      accountCoverage: accounts.length > 0 ? 1 : 0,
+      staleValuationCount: 0,
+    });
+    const halfReport = generatePeriodReport({
+      id: newUuid(),
+      type: 'half_year',
+      targetDate: nowDate,
+      transactions: activeTransactions,
+      sourceRevision,
+      createdAt,
+      comparisonMonths: 6,
+      accountCoverage: accounts.length > 0 ? 1 : 0,
+      staleValuationCount: 0,
+    });
+    const yearReport = generatePeriodReport({
+      id: newUuid(),
+      type: 'year_end',
+      targetDate: nowDate,
+      transactions: activeTransactions,
+      sourceRevision,
+      createdAt,
+      comparisonMonths: 12,
+      accountCoverage: accounts.length > 0 ? 1 : 0,
+      staleValuationCount: 0,
+    });
+    const reportStatus = activeTransactions.length > 0 ? 'ready' as const : 'pending' as const;
+    const reports: readonly ReportSummaryViewModel[] = [
+      { type: 'month_end', label: '월말 리포트', periodStart: monthReport.periodStart, periodEnd: monthReport.periodEnd, netCashflowMinor: monthReport.snapshot.cashFlow.netCashflowMinor, confidence: monthReport.confidence, status: reportStatus },
+      { type: 'half_year', label: '반기 리포트', periodStart: halfReport.periodStart, periodEnd: halfReport.periodEnd, netCashflowMinor: halfReport.snapshot.cashFlow.netCashflowMinor, confidence: halfReport.confidence, status: reportStatus },
+      { type: 'year_end', label: '연말 리포트', periodStart: yearReport.periodStart, periodEnd: yearReport.periodEnd, netCashflowMinor: yearReport.snapshot.cashFlow.netCashflowMinor, confidence: yearReport.confidence, status: reportStatus },
+    ];
+
+    const today = nowDate;
     const todayTransactions = activeTransactions.filter((transaction) => transaction.occurredAt.slice(0, 10) === today);
     const todayExpenseMinor = todayTransactions.reduce(
       (sum, transaction) => sum + getIncomeExpenseImpact(transaction).expenseMinor,
@@ -569,6 +878,7 @@ export class BrowserRuntime {
       merchantTotals.set(transaction.merchant, (merchantTotals.get(transaction.merchant) ?? 0) + expense);
     }
     const topMerchant = [...merchantTotals.entries()].sort((a, b) => b[1] - a[1])[0];
+    const newestValuation = holdings.map((holding) => holding.priceAsOf).sort().at(-1);
 
     this.setSnapshot({
       access: 'unlocked',
@@ -578,8 +888,55 @@ export class BrowserRuntime {
         balanceMinor: analytics.netCashflowMinor,
         incomeMinor: analytics.incomeMinor,
         expenseMinor: analytics.expenseMinor,
-        budget: { usagePercent: 0, remainingMinor: 0, status: 'ok' },
-        report: { label: '월간 리포트', status: 'pending' },
+        fixedMinor: analytics.fixedMinor,
+        variableMinor: analytics.variableMinor,
+        budget: {
+          limitMinor: budgetUsage.limitMinor,
+          usagePercent: budgetUsage.usagePercent,
+          remainingMinor: budgetUsage.remainingMinor,
+          status: budgetUsage.status,
+        },
+        report: { label: '월간 리포트', status: reportStatus },
+        reports,
+        transactions: activeTransactions
+          .slice()
+          .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+          .map((transaction) => ({
+            id: transaction.id,
+            type: transaction.type,
+            amountMinor: transaction.amountMinor,
+            occurredAt: transaction.occurredAt,
+            memo: transaction.memo ?? '',
+            merchant: transaction.merchant ?? '',
+          })),
+        assets: {
+          netWorthMinor: netWorth.netWorthMinor,
+          valuationLabel: newestValuation ? `투자 평가 기준 ${newestValuation}` : '현재 계좌 잔액 기준',
+          accounts: accounts.map((account) => ({
+            id: account.id,
+            name: account.name,
+            kind: account.kind,
+            purpose: account.purpose ?? 'other',
+            balanceMinor: account.kind === 'loan'
+              ? -loanPrincipalFor(account, activeTransactions)
+              : balances.get(account.id) ?? 0,
+          })),
+          holdings: holdings.map((holding, index) => ({
+            id: holding.id,
+            accountId: holding.accountId,
+            ticker: holding.ticker,
+            marketValueMinor: holding.marketValueMinor,
+            unrealizedGainMinor: holdingInsights[index]!.unrealizedGainMinor,
+            returnPercent: holdingInsights[index]!.returnPercent,
+            reason: holdingInsights[index]!.reason,
+            priceAsOf: holding.priceAsOf,
+          })),
+          purposes: Object.entries(purposeAnalysis.byPurpose).map(([purpose, bucket]) => ({
+            purpose: purpose as AccountPurpose,
+            balanceMinor: bucket.balanceMinor,
+            sharePercent: bucket.sharePercent,
+          })),
+        },
         topMerchant: topMerchant ? { name: topMerchant[0], amountMinor: topMerchant[1] } : null,
         todayReceipt: {
           transactionCount: todayTransactions.length,
