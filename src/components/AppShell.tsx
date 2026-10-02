@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import type {
   AppPage,
+  AppRuntimePorts,
   BackupStatusViewModel,
   DashboardViewModel,
   TransactionSubmission,
@@ -19,6 +20,9 @@ interface AppShellProps {
   readonly dashboard: DashboardViewModel;
   readonly backup: BackupStatusViewModel;
   readonly onSubmitTransaction: (input: TransactionSubmission) => Promise<void>;
+  readonly onSaveAccount?: NonNullable<AppRuntimePorts['saveAccount']>;
+  readonly onSaveHolding?: NonNullable<AppRuntimePorts['saveHolding']>;
+  readonly onSetMonthlyBudget?: NonNullable<AppRuntimePorts['setMonthlyBudget']>;
   readonly onExportVault: (input: { readonly recoveryKey: string }) => Promise<Uint8Array>;
   readonly onInspectVaultImport: (bytes: Uint8Array, input: { readonly recoveryKey: string }) => Promise<VaultImportInspectionViewModel>;
   readonly onApplyVaultImport: (bytes: Uint8Array, input: { readonly recoveryKey: string }) => Promise<void>;
@@ -29,6 +33,9 @@ export function AppShell({
   dashboard,
   backup,
   onSubmitTransaction,
+  onSaveAccount,
+  onSaveHolding,
+  onSetMonthlyBudget,
   onExportVault,
   onInspectVaultImport,
   onApplyVaultImport,
@@ -44,13 +51,13 @@ export function AppShell({
       content = <HomePage dashboard={dashboard} onQuickAdd={() => setEntryOpen(true)} quickAddButtonRef={quickAddButtonRef} />;
       break;
     case 'calendar':
-      content = <CalendarPage />;
+      content = <CalendarPage transactions={dashboard.transactions} />;
       break;
     case 'stats':
-      content = <StatsPage incomeMinor={dashboard.incomeMinor} expenseMinor={dashboard.expenseMinor} />;
+      content = <StatsPage incomeMinor={dashboard.incomeMinor} expenseMinor={dashboard.expenseMinor} fixedMinor={dashboard.fixedMinor} variableMinor={dashboard.variableMinor} reports={dashboard.reports} />;
       break;
     case 'assets':
-      content = <AssetsPage />;
+      content = <AssetsPage assets={dashboard.assets} budget={dashboard.budget} onSaveAccount={onSaveAccount} onSaveHolding={onSaveHolding} onSetMonthlyBudget={onSetMonthlyBudget} />;
       break;
     case 'settings':
       content = (
@@ -74,6 +81,7 @@ export function AppShell({
         open={entryOpen}
         onClose={() => setEntryOpen(false)}
         onSubmitTransaction={onSubmitTransaction}
+        accounts={dashboard.assets.accounts}
         returnFocusTo={quickAddButtonRef.current}
       />
     </main>
