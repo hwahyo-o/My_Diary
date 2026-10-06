@@ -14,3 +14,6 @@ export * from './net-worth/selectors';
 export * from './analytics/budget';
 export * from './analytics/budget-draft';
 export * from './analytics/core';
+
+export * from './analytics/account-purpose';
+export * from './analytics/holding-insights';
