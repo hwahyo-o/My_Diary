@@ -1,0 +1,90 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: npm install --no-audit --no-fund
+      - run: npm run release:gate
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy exact verified artifact
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+  smoke:
+    runs-on: ubuntu-latest
+    needs: deploy
+    env:
+      SITE_URL: ${{ needs.deploy.outputs.page_url }}
+      EXPECTED_SHA: ${{ github.sha }}
+    steps:
+      - name: Verify deployed application and release identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          site="${SITE_URL%/}/"
+          for attempt in 1 2 3 4 5 6; do
+            if curl --fail --silent --show-error --location "${site}" -o index.html; then
+              break
+            fi
+            if [ "${attempt}" -eq 6 ]; then
+              exit 1
+            fi
+            sleep 10
+          done
+          grep -F '<title>My Diary</title>' index.html
+          curl --fail --silent --show-error --location "${site}manifest.webmanifest" -o manifest.webmanifest
+          curl --fail --silent --show-error --location "${site}sw.js" -o sw.js
+          curl --fail --silent --show-error --location "${site}release-manifest.json" -o release-manifest.json
+          node --input-type=module - <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const manifest = JSON.parse(readFileSync('release-manifest.json', 'utf8'));
+          if (manifest.commitSha !== process.env.EXPECTED_SHA) {
+            throw new Error(`Deployed SHA mismatch: expected ${process.env.EXPECTED_SHA}, found ${manifest.commitSha}`);
+          }
+          if (manifest.format !== 'my-diary-release-manifest' || manifest.version !== 1) {
+            throw new Error('Unexpected release manifest format.');
+          }
+          const pwa = JSON.parse(readFileSync('manifest.webmanifest', 'utf8'));
+          if (pwa.start_url !== './' || pwa.scope !== './') {
+            throw new Error('Deployed PWA manifest is not project-path safe.');
+          }
+          const sw = readFileSync('sw.js', 'utf8');
+          if (!sw.includes("const RELEASE_ID = '2026.10.06.1'")) {
+            throw new Error('Unexpected service worker release.');
+          }
+          console.log(`deployed release verified at ${process.env.SITE_URL} for ${manifest.commitSha}`);
+          NODE
