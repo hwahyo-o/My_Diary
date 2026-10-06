@@ -1,5 +1,5 @@
 const SUPPORTED_PIN = /^\d{6,12}$/;
-const STRONG_PIN = /^\d{8,12}$/;
+const STRONG_PIN = /^\d{10,12}$/;
 const COMMON_WEAK = new Set([
   '00000000', '11111111', '22222222', '33333333', '44444444',
   '55555555', '66666666', '77777777', '88888888', '99999999',
@@ -36,7 +36,7 @@ export function assertSupportedPin(pin: string): void {
 
 export function assertStrongPin(pin: string): void {
   if (!STRONG_PIN.test(pin)) {
-    throw new TypeError('New PIN must be 8 to 12 numeric digits.');
+    throw new TypeError('New PIN must be 10 to 12 numeric digits.');
   }
   assertNotWeak(pin);
 }
