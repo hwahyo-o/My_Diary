@@ -20,12 +20,12 @@ describe('AccessGate', () => {
     fireEvent.click(screen.getByRole('button', { name: '시작하기' }));
 
     expect(onCreateProfile).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('6자리 숫자');
+    expect(screen.getByRole('alert')).toHaveTextContent('10~12자리 숫자');
 
-    fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '482951' } });
+    fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '4829517304' } });
     fireEvent.click(screen.getByRole('button', { name: '시작하기' }));
 
-    await waitFor(() => expect(onCreateProfile).toHaveBeenCalledWith({ nickname: '예현', pin: '482951' }));
+    await waitFor(() => expect(onCreateProfile).toHaveBeenCalledWith({ nickname: '예현', pin: '4829517304' }));
     expect(screen.getByText('RECOVERY_KEY_SAMPLE')).toBeInTheDocument();
     expect(screen.queryByLabelText('PIN')).not.toBeInTheDocument();
     expect(onAccessGranted).not.toHaveBeenCalled();
@@ -46,7 +46,7 @@ describe('AccessGate', () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '482951' } });
+    fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '4829517304' } });
     fireEvent.click(screen.getByRole('button', { name: '잠금 해제' }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('PIN을 확인해주세요'));
