@@ -1,5 +1,14 @@
+import { selectAccountPurposeAnalysis } from '../../domain/analytics/account-purpose';
+import { selectBudgetUsage } from '../../domain/analytics/budget';
 import { selectCoreAnalytics } from '../../domain/analytics/core';
-import { parseISODateTime, parseUUID, type ISODateTime, type UUID } from '../../domain/shared/types';
+import { selectHoldingInsights } from '../../domain/analytics/holding-insights';
+import type { Account } from '../../domain/accounts/types';
+import type { Budget } from '../../domain/budgets/types';
+import type { Holding } from '../../domain/holdings/types';
+import type { Loan } from '../../domain/loans/types';
+import { selectNetWorth } from '../../domain/net-worth/selectors';
+import { generateMonthlyReport, generatePeriodReport } from '../../domain/reports/generator';
+import { parseISODate, parseISODateTime, parseUUID, type ISODate, type ISODateTime, type UUID } from '../../domain/shared/types';
 import { getIncomeExpenseImpact } from '../../domain/transactions/accounting';
 import type { Transaction } from '../../domain/transactions/types';
 import { quickCandidateToDraft, parseQuickInput } from '../../features/transactions/quick-parser';
@@ -13,8 +22,14 @@ import { deriveDeviceKek, DEFAULT_ARGON2_PARAMS, TEST_ARGON2_PARAMS, type Argon2
 import { deriveRecoveryKek } from '../../vault/recovery';
 import { decryptRecord, encryptRecord, type EncryptedRecordEnvelope, type RecordAad } from '../../vault/record-crypto';
 import { VaultSession } from '../../vault/session';
-import type { AccessState, DashboardViewModel, TransactionSubmission } from '../ui-types';
-import { emptyDashboard } from '../ui-types';
+import type {
+  RuntimeSnapshot,
+  SaveAccountInput,
+  SaveHoldingInput,
+  SaveLoanInput,
+  TransactionSubmission,
+} from '../ui-types';
+import { emptyAnalytics, emptyAssets, emptyDashboard } from '../ui-types';
 import {
   base64UrlToBytes,
   createVaultPackage,
@@ -44,9 +59,9 @@ interface BootstrapMeta {
   readonly failedAttempts: number;
 }
 
-export interface RuntimeSnapshot {
-  readonly access: AccessState;
-  readonly dashboard: DashboardViewModel;
+interface StoredAccountPayload {
+  readonly account: Account;
+  readonly balanceMinor: number;
 }
 
 export interface VaultImportInspection {
@@ -127,6 +142,34 @@ function transactionAad(vaultId: string, recordId: string, recordVersion: number
   };
 }
 
+function financeAad(
+  vaultId: string,
+  recordId: string,
+  recordType: 'account' | 'budget' | 'holding' | 'loan',
+  recordVersion: number,
+): RecordAad {
+  return {
+    vaultId,
+    recordId,
+    recordType,
+    schemaVersion: SCHEMA_VERSION,
+    recordVersion,
+  };
+}
+
+function currentMonthStart(now: Date): ISODate {
+  return parseISODate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`);
+}
+
+function currentHalfStart(now: Date): ISODate {
+  const month = now.getMonth() + 1;
+  return parseISODate(`${now.getFullYear()}-${month <= 6 ? '01' : '07'}-01`);
+}
+
+function currentYearStart(now: Date): ISODate {
+  return parseISODate(`${now.getFullYear()}-01-01`);
+}
+
 function periodLabel(now: Date): string {
   return `${now.getFullYear()}년 ${now.getMonth() + 1}월`;
 }
@@ -149,7 +192,12 @@ function recordsEqual(a: StoredEncryptedRecord, b: StoredEncryptedRecord): boole
 export class BrowserRuntime {
   private session: VaultSession | null = null;
   private bootstrap: BootstrapMeta | null = null;
-  private snapshot: RuntimeSnapshot = { access: 'onboarding', dashboard: emptyDashboard };
+  private snapshot: RuntimeSnapshot = {
+    access: 'onboarding',
+    dashboard: emptyDashboard,
+    assets: emptyAssets,
+    analytics: emptyAnalytics,
+  };
   private readonly listeners = new Set<(snapshot: RuntimeSnapshot) => void>();
 
   private constructor(
@@ -169,6 +217,8 @@ export class BrowserRuntime {
     runtime.snapshot = {
       access: runtime.bootstrap ? 'locked' : 'onboarding',
       dashboard: emptyDashboard,
+      assets: emptyAssets,
+      analytics: emptyAnalytics,
     };
     return runtime;
   }
@@ -263,7 +313,12 @@ export class BrowserRuntime {
       const failedBootstrap = { ...bootstrap, failedAttempts: bootstrap.failedAttempts + 1 };
       await this.repository.putSecurityMeta(BOOTSTRAP_KEY, failedBootstrap);
       this.bootstrap = failedBootstrap;
-      this.setSnapshot({ access: 'locked', dashboard: emptyDashboard });
+      this.setSnapshot({
+        access: 'locked',
+        dashboard: emptyDashboard,
+        assets: emptyAssets,
+        analytics: emptyAnalytics,
+      });
       throw error;
     } finally {
       kek.fill(0);
@@ -298,6 +353,84 @@ export class BrowserRuntime {
     });
     const revision = await this.repository.getRevision(bootstrap.vaultId);
     await service.saveDraft(draft, { expectedRevision: revision });
+    await this.hydrate();
+  }
+
+  async saveBudget(input: { readonly limitMinor: number }): Promise<void> {
+    if (!Number.isSafeInteger(input.limitMinor) || input.limitMinor < 0) {
+      throw new TypeError('Budget limit must be a non-negative safe integer.');
+    }
+    const timestamp = toIso(this.options.now());
+    const budget: Budget = {
+      id: newUuid(),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      version: 1,
+      month: currentMonthStart(this.options.now()),
+      limitMinor: input.limitMinor,
+      alertPercents: [50, 80, 100],
+    };
+    await this.persistFinanceRecord('budget', budget.id, budget.version, budget.updatedAt, budget);
+    await this.hydrate();
+  }
+
+  async saveAccount(input: SaveAccountInput): Promise<string> {
+    if (!input.name.trim()) throw new TypeError('Account name is required.');
+    if (!Number.isSafeInteger(input.balanceMinor)) throw new TypeError('Account balance must be a safe integer.');
+    const timestamp = toIso(this.options.now());
+    const account: Account = {
+      id: newUuid(),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      version: 1,
+      name: input.name.trim(),
+      kind: input.kind,
+      purpose: input.purpose,
+      includeNetWorth: input.includeNetWorth,
+    };
+    const payload: StoredAccountPayload = { account, balanceMinor: input.balanceMinor };
+    await this.persistFinanceRecord('account', account.id, account.version, account.updatedAt, payload);
+    await this.hydrate();
+    return account.id;
+  }
+
+  async saveHolding(input: SaveHoldingInput): Promise<void> {
+    const timestamp = toIso(this.options.now());
+    const holding: Holding = {
+      id: newUuid(),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      version: 1,
+      accountId: parseUUID(input.accountId),
+      ticker: input.ticker.trim().toUpperCase(),
+      quantity: input.quantity,
+      avgCostMinor: input.avgCostMinor,
+      marketValueMinor: input.marketValueMinor,
+      priceAsOf: parseISODate(input.priceAsOf),
+    };
+    if (!holding.ticker) throw new TypeError('Holding ticker is required.');
+    if (!Number.isFinite(Number(holding.quantity)) || Number(holding.quantity) < 0) {
+      throw new TypeError('Holding quantity must be a non-negative number.');
+    }
+    await this.persistFinanceRecord('holding', holding.id, holding.version, holding.updatedAt, holding);
+    await this.hydrate();
+  }
+
+  async saveLoan(input: SaveLoanInput): Promise<void> {
+    if (!Number.isSafeInteger(input.remainingPrincipalMinor) || input.remainingPrincipalMinor < 0) {
+      throw new TypeError('Loan principal must be a non-negative safe integer.');
+    }
+    const timestamp = toIso(this.options.now());
+    const loan: Loan = {
+      id: newUuid(),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      version: 1,
+      accountId: parseUUID(input.accountId),
+      remainingPrincipalMinor: input.remainingPrincipalMinor,
+      annualInterestRate: input.annualInterestRate,
+    };
+    await this.persistFinanceRecord('loan', loan.id, loan.version, loan.updatedAt, loan);
     await this.hydrate();
   }
 
@@ -460,6 +593,8 @@ export class BrowserRuntime {
     this.setSnapshot({
       access: this.bootstrap ? 'locked' : 'onboarding',
       dashboard: emptyDashboard,
+      assets: emptyAssets,
+      analytics: emptyAnalytics,
     });
   }
 
@@ -531,6 +666,51 @@ export class BrowserRuntime {
         encryptedPatch: encodeEnvelope(eventEnvelope),
       },
       0,
+    );
+  }
+
+  private async persistFinanceRecord(
+    recordType: 'account' | 'budget' | 'holding' | 'loan',
+    recordId: UUID,
+    recordVersion: number,
+    updatedAt: ISODateTime,
+    payload: unknown,
+  ): Promise<void> {
+    const session = this.session;
+    const bootstrap = this.bootstrap;
+    if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
+
+    const revision = await this.repository.getRevision(bootstrap.vaultId);
+    const eventId = newUuid();
+    const envelope = await session.withVaultKey((key) =>
+      encryptRecord(key, financeAad(bootstrap.vaultId, recordId, recordType, recordVersion), payload));
+    const eventEnvelope = await session.withVaultKey((key) =>
+      encryptRecord(
+        key,
+        financeAad(bootstrap.vaultId, eventId, recordType, 1),
+        { before: null, after: payload },
+      ));
+
+    await this.repository.commitRecordEvent(
+      bootstrap.vaultId,
+      {
+        recordId,
+        recordType,
+        updatedAt,
+        recordVersion,
+        encryptedPayload: encodeEnvelope(envelope),
+      },
+      {
+        eventId,
+        recordId,
+        recordType,
+        action: 'create',
+        deviceId: bootstrap.deviceId,
+        deviceSeq: revision + 1,
+        createdAt: updatedAt,
+        encryptedPatch: encodeEnvelope(eventEnvelope),
+      },
+      revision,
     );
   }
 
