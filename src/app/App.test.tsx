@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import { App } from './App';
-import { emptyDashboard, type RuntimeSnapshot } from './ui-types';
+import { emptyAnalytics, emptyAssets, emptyDashboard, type RuntimeSnapshot } from './ui-types';
 
 const dashboard = {
   nickname: '예현',
@@ -9,7 +9,7 @@ const dashboard = {
   balanceMinor: 1_250_000,
   incomeMinor: 3_000_000,
   expenseMinor: 1_750_000,
-  budget: { usagePercent: 58, remainingMinor: 420_000, status: 'warning' as const },
+  budget: { limitMinor: 1_000_000, usagePercent: 58, remainingMinor: 420_000, status: 'warning' as const },
   report: { label: '10월 월간 리포트', status: 'ready' as const },
   topMerchant: { name: '카페 봄', amountMinor: 84_000 },
   todayReceipt: { transactionCount: 3, expenseMinor: 42_000 },
@@ -65,7 +65,7 @@ describe('App protected shell', () => {
       unlock: vi.fn().mockResolvedValue(undefined),
       submitTransaction: vi.fn().mockResolvedValue(undefined),
       lock,
-      getSnapshot: () => ({ access: 'unlocked' as const, dashboard }),
+      getSnapshot: () => ({ access: 'unlocked' as const, dashboard, assets: emptyAssets, analytics: emptyAnalytics }),
       subscribe: (next: (snapshot: RuntimeSnapshot) => void) => {
         listener = next;
         return () => { listener = undefined; };
@@ -77,16 +77,16 @@ describe('App protected shell', () => {
     fireEvent.click(screen.getByRole('button', { name: '지금 잠그기' }));
     expect(lock).toHaveBeenCalledTimes(1);
 
-    act(() => listener?.({ access: 'locked', dashboard: emptyDashboard }));
+    act(() => listener?.({ access: 'locked', dashboard: emptyDashboard, assets: emptyAssets, analytics: emptyAnalytics }));
     expect(screen.getByRole('heading', { name: 'My Diary 잠금 해제' })).toBeInTheDocument();
   });
 
   it('removes recovery confirmation when runtime locks so it cannot bypass the lock', async () => {
     let listener: ((snapshot: RuntimeSnapshot) => void) | undefined;
-    let current: RuntimeSnapshot = { access: 'onboarding', dashboard: emptyDashboard };
+    let current: RuntimeSnapshot = { access: 'onboarding', dashboard: emptyDashboard, assets: emptyAssets, analytics: emptyAnalytics };
     const runtime = {
       createProfile: vi.fn().mockImplementation(async () => {
-        current = { access: 'unlocked', dashboard };
+        current = { access: 'unlocked', dashboard, assets: emptyAssets, analytics: emptyAnalytics };
         listener?.(current);
         return { recoveryKey: 'RECOVERY_KEY_SAMPLE' };
       }),
@@ -106,7 +106,7 @@ describe('App protected shell', () => {
     await screen.findByText('RECOVERY_KEY_SAMPLE');
 
     act(() => {
-      current = { access: 'locked', dashboard: emptyDashboard };
+      current = { access: 'locked', dashboard: emptyDashboard, assets: emptyAssets, analytics: emptyAnalytics };
       listener?.(current);
     });
 
