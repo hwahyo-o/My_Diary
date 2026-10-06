@@ -11,7 +11,7 @@ const createdAt = parseISODateTime('2026-10-01T00:00:00+09:00');
 const accountId = parseUUID('11111111-1111-4111-8111-111111111111');
 
 function tx(index: number, occurredAt: string, amountMinor: number, type: Transaction['type'] = 'expense'): Transaction {
-  return {
+  const common = {
     id: parseUUID(`44444444-4444-4444-8444-${String(index).padStart(12, '0')}`),
     createdAt,
     updatedAt: createdAt,
@@ -20,10 +20,12 @@ function tx(index: number, occurredAt: string, amountMinor: number, type: Transa
     accountId,
     amountMinor,
     occurredAt: parseISODateTime(occurredAt),
-    categoryId: type === 'expense' ? 'living' : undefined,
-    fixedVariable: type === 'expense' ? 'variable' : undefined,
-    source: 'manual',
+    source: 'manual' as const,
   };
+
+  return type === 'expense'
+    ? { ...common, categoryId: 'living', fixedVariable: 'variable' }
+    : common;
 }
 
 describe('MVP period reports', () => {
