@@ -10,7 +10,8 @@ interface AccessGateProps {
   readonly onAccessGranted: () => void;
 }
 
-const sixDigitPin = /^\d{6}$/;
+const supportedPin = /^\d{6,12}$/;
+const strongPin = /^\d{10,12}$/;
 
 export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onAccessGranted }: AccessGateProps) {
   const [nickname, setNickname] = useState('');
@@ -116,7 +117,7 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onAcces
 
           <label>
             <span>PIN</span>
-            <input aria-label="PIN" inputMode="numeric" autoComplete="off" maxLength={12} type="password" value={pin} onChange={(event) => setPin(event.currentTarget.value.replace(/\D/g, '').slice(0, 6))} />
+            <input aria-label="PIN" inputMode="numeric" autoComplete="off" maxLength={12} type="password" value={pin} onChange={(event) => setPin(event.currentTarget.value.replace(/\D/g, '').slice(0, 12))} />
           </label>
 
           {error ? <p role="alert" className="form-error">{error}</p> : null}
