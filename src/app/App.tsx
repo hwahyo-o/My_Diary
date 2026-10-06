@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { AppShell } from '../components/AppShell';
 import { AccessGate } from '../features/access/AccessGate';
-import type { AccessState, AppRuntimePorts, DashboardViewModel } from './ui-types';
-import { defaultBackupStatus, emptyDashboard } from './ui-types';
+import type { AccessState, AnalyticsViewModel, AppRuntimePorts, AssetsViewModel, DashboardViewModel } from './ui-types';
+import { defaultBackupStatus, emptyAnalytics, emptyAssets, emptyDashboard } from './ui-types';
 
 const failClosedRuntime: AppRuntimePorts = {
   async createProfile() {
@@ -19,18 +19,24 @@ const failClosedRuntime: AppRuntimePorts = {
 interface AppProps {
   readonly initialAccess?: AccessState;
   readonly dashboard?: DashboardViewModel;
+  readonly assets?: AssetsViewModel;
+  readonly analytics?: AnalyticsViewModel;
   readonly runtime?: AppRuntimePorts;
 }
 
-export function App({ initialAccess, dashboard, runtime = failClosedRuntime }: AppProps) {
+export function App({ initialAccess, dashboard, assets, analytics, runtime = failClosedRuntime }: AppProps) {
   const runtimeSnapshot = runtime.getSnapshot?.();
   const [access, setAccess] = useState<AccessState>(initialAccess ?? runtimeSnapshot?.access ?? 'onboarding');
   const [dashboardState, setDashboardState] = useState<DashboardViewModel>(dashboard ?? runtimeSnapshot?.dashboard ?? emptyDashboard);
+  const [assetsState, setAssetsState] = useState<AssetsViewModel>(assets ?? runtimeSnapshot?.assets ?? emptyAssets);
+  const [analyticsState, setAnalyticsState] = useState<AnalyticsViewModel>(analytics ?? runtimeSnapshot?.analytics ?? emptyAnalytics);
 
   useEffect(() => {
     if (!runtime.subscribe) return;
     return runtime.subscribe((snapshot) => {
       setDashboardState(snapshot.dashboard);
+      setAssetsState(snapshot.assets);
+      setAnalyticsState(snapshot.analytics);
       if (snapshot.access !== 'unlocked') setAccess(snapshot.access);
     });
   }, [runtime]);
@@ -49,6 +55,8 @@ export function App({ initialAccess, dashboard, runtime = failClosedRuntime }: A
           const next = runtime.getSnapshot?.();
           if (next) {
             setDashboardState(next.dashboard);
+            setAssetsState(next.assets);
+            setAnalyticsState(next.analytics);
             setAccess(next.access);
             return;
           }
@@ -61,8 +69,26 @@ export function App({ initialAccess, dashboard, runtime = failClosedRuntime }: A
   return (
     <AppShell
       dashboard={dashboardState}
+      assets={assetsState}
+      analytics={analyticsState}
       backup={defaultBackupStatus}
       onSubmitTransaction={(input) => runtime.submitTransaction(input)}
+      onSaveBudget={(input) => {
+        if (!runtime.saveBudget) return Promise.reject(new Error('Budget runtime is not connected.'));
+        return runtime.saveBudget(input);
+      }}
+      onSaveAccount={(input) => {
+        if (!runtime.saveAccount) return Promise.reject(new Error('Account runtime is not connected.'));
+        return runtime.saveAccount(input);
+      }}
+      onSaveHolding={(input) => {
+        if (!runtime.saveHolding) return Promise.reject(new Error('Holding runtime is not connected.'));
+        return runtime.saveHolding(input);
+      }}
+      onSaveLoan={(input) => {
+        if (!runtime.saveLoan) return Promise.reject(new Error('Loan runtime is not connected.'));
+        return runtime.saveLoan(input);
+      }}
       onExportVault={(input) => {
         if (!runtime.exportVault) return Promise.reject(new Error('Backup export is not connected.'));
         return runtime.exportVault(input);
