@@ -30,7 +30,7 @@ describe('MVP encrypted finance runtime', () => {
     });
 
     try {
-      await runtime.createProfile({ nickname: '사용자', pin: '482951' });
+      await runtime.createProfile({ nickname: '사용자', pin: '4829517304' });
       await runtime.saveBudget({ limitMinor: 1_000_000 });
       const dailyAccountId = await runtime.saveAccount({
         name: '생활비 통장',
@@ -94,7 +94,7 @@ describe('MVP encrypted finance runtime', () => {
       expect(raw).not.toContain('ABC');
 
       runtime.lock();
-      await runtime.unlock('482951');
+      await runtime.unlock('4829517304');
       const restored = runtime.getSnapshot();
       expect(restored.dashboard.budget.limitMinor).toBe(1_000_000);
       expect(restored.assets.accounts.some((account) => account.id === dailyAccountId)).toBe(true);
@@ -110,7 +110,7 @@ describe('MVP encrypted finance runtime', () => {
       argon2Profile: 'test',
     });
     try {
-      await runtime.createProfile({ nickname: '사용자', pin: '482951' });
+      await runtime.createProfile({ nickname: '사용자', pin: '4829517304' });
       runtime.lock();
       await expect(runtime.saveBudget({ limitMinor: 100_000 })).rejects.toThrow(/locked/i);
       await expect(runtime.saveAccount({

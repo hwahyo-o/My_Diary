@@ -8,6 +8,7 @@ export const RELEASE_GATE_STEPS = [
   ['npm', ['test']],
   ['npm', ['run', 'build']],
   ['npm', ['run', 'verify:dist-security']],
+  ['npm', ['run', 'verify:ci-security']],
   ['npm', ['run', 'verify:sw-release']],
   ['npm', ['run', 'verify:pages']],
   ['npm', ['run', 'release:manifest']],

@@ -10,7 +10,8 @@ interface AccessGateProps {
   readonly onAccessGranted: () => void;
 }
 
-const sixDigitPin = /^\d{6}$/;
+const supportedPin = /^\d{6,12}$/;
+const strongPin = /^\d{10,12}$/;
 
 export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onAccessGranted }: AccessGateProps) {
   const [nickname, setNickname] = useState('');
@@ -32,8 +33,11 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onAcces
     event.preventDefault();
     setError(null);
 
-    if (!sixDigitPin.test(pin)) {
-      setError('PIN은 6자리 숫자로 입력해주세요.');
+    const pinPattern = mode === 'onboarding' ? strongPin : supportedPin;
+    if (!pinPattern.test(pin)) {
+      setError(mode === 'onboarding'
+        ? '새 PIN은 10~12자리 숫자로 입력해주세요.'
+        : 'PIN은 6~12자리 숫자로 입력해주세요.');
       return;
     }
 
@@ -99,7 +103,7 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onAcces
         <h1 id="access-title">{mode === 'onboarding' ? 'My Diary 시작하기' : 'My Diary 잠금 해제'}</h1>
         <p className="access-copy">
           {mode === 'onboarding'
-            ? '이 기기에서 사용할 닉네임과 PIN을 설정하세요.'
+            ? '이 기기에서 사용할 닉네임과 10~12자리 PIN을 설정하세요.'
             : '금융 기록을 보려면 이 기기의 PIN을 입력하세요.'}
         </p>
 
@@ -113,7 +117,7 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onAcces
 
           <label>
             <span>PIN</span>
-            <input aria-label="PIN" inputMode="numeric" autoComplete="off" maxLength={6} type="password" value={pin} onChange={(event) => setPin(event.currentTarget.value.replace(/\D/g, '').slice(0, 6))} />
+            <input aria-label="PIN" inputMode="numeric" autoComplete="off" maxLength={12} type="password" value={pin} onChange={(event) => setPin(event.currentTarget.value.replace(/\D/g, '').slice(0, 12))} />
           </label>
 
           {error ? <p role="alert" className="form-error">{error}</p> : null}

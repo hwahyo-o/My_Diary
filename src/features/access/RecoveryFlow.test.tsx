@@ -3,7 +3,7 @@ import { vi } from 'vitest';
 import { RecoveryFlow } from './RecoveryFlow';
 
 describe('RecoveryFlow', () => {
-  it('requires a .vault file, RecoveryKey, and new six-digit PIN before recovery', async () => {
+  it('requires a .vault file, RecoveryKey, and new 10-to-12-digit PIN before recovery', async () => {
     const onRecover = vi.fn().mockResolvedValue(undefined);
     render(<RecoveryFlow onRecover={onRecover} onCancel={vi.fn()} />);
 
@@ -14,15 +14,15 @@ describe('RecoveryFlow', () => {
     fireEvent.click(screen.getByRole('button', { name: '이 기기에서 복구' }));
 
     expect(onRecover).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('6자리 숫자');
+    expect(screen.getByRole('alert')).toHaveTextContent('10~12자리 숫자');
 
-    fireEvent.change(screen.getByLabelText('새 PIN'), { target: { value: '731905' } });
+    fireEvent.change(screen.getByLabelText('새 PIN'), { target: { value: '7319052846' } });
     fireEvent.click(screen.getByRole('button', { name: '이 기기에서 복구' }));
 
     await waitFor(() => expect(onRecover).toHaveBeenCalledWith({
       packageBytes: new Uint8Array([1,2,3]),
       recoveryKey: 'recover-secret',
-      pin: '731905',
+      pin: '7319052846',
     }));
     expect(screen.getByLabelText('복구 RecoveryKey')).toHaveValue('');
     expect(screen.getByLabelText('새 PIN')).toHaveValue('');
@@ -32,7 +32,7 @@ describe('RecoveryFlow', () => {
     const onCancel = vi.fn();
     render(<RecoveryFlow onRecover={vi.fn()} onCancel={onCancel} />);
     fireEvent.change(screen.getByLabelText('복구 RecoveryKey'), { target: { value: 'recover-secret' } });
-    fireEvent.change(screen.getByLabelText('새 PIN'), { target: { value: '731905' } });
+    fireEvent.change(screen.getByLabelText('새 PIN'), { target: { value: '7319052846' } });
     fireEvent.click(screen.getByRole('button', { name: '복구 취소' }));
     expect(screen.getByLabelText('복구 RecoveryKey')).toHaveValue('');
     expect(screen.getByLabelText('새 PIN')).toHaveValue('');

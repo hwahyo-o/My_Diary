@@ -7,7 +7,7 @@ interface RecoveryFlowProps {
   readonly onCancel: () => void;
 }
 
-const sixDigitPin = /^\d{6}$/;
+const strongPin = /^\d{10,12}$/;
 
 export function RecoveryFlow({ onRecover, onCancel }: RecoveryFlowProps) {
   const [file, setFile] = useState<File | null>(null);
@@ -33,8 +33,8 @@ export function RecoveryFlow({ onRecover, onCancel }: RecoveryFlowProps) {
       setError('Vault 파일과 RecoveryKey를 모두 입력해주세요.');
       return;
     }
-    if (!sixDigitPin.test(pin)) {
-      setError('새 PIN은 6자리 숫자로 입력해주세요.');
+    if (!strongPin.test(pin)) {
+      setError('새 PIN은 10~12자리 숫자로 입력해주세요.');
       return;
     }
 
@@ -74,7 +74,7 @@ export function RecoveryFlow({ onRecover, onCancel }: RecoveryFlowProps) {
         </label>
         <label>
           <span>새 PIN</span>
-          <input aria-label="새 PIN" inputMode="numeric" autoComplete="off" maxLength={6} type="password" value={pin} onChange={(event) => setPin(event.currentTarget.value.replace(/\D/g, '').slice(0, 6))} />
+          <input aria-label="새 PIN" inputMode="numeric" autoComplete="off" maxLength={12} type="password" value={pin} onChange={(event) => setPin(event.currentTarget.value.replace(/\D/g, '').slice(0, 12))} />
         </label>
         {error ? <p role="alert" className="form-error">{error}</p> : null}
         <div className="button-row">
