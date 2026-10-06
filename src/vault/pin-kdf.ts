@@ -23,7 +23,12 @@ export const TEST_ARGON2_PARAMS: Argon2Params = {
 };
 
 function assertArgon2Params(params: Argon2Params): void {
-  if (params === TEST_ARGON2_PARAMS) return;
+  if (
+    params.memoryKiB === TEST_ARGON2_PARAMS.memoryKiB
+    && params.iterations === TEST_ARGON2_PARAMS.iterations
+    && params.parallelism === TEST_ARGON2_PARAMS.parallelism
+    && params.hashLength === TEST_ARGON2_PARAMS.hashLength
+  ) return;
   if (!Number.isInteger(params.memoryKiB) || params.memoryKiB < 19 * 1024 || params.memoryKiB > 256 * 1024) {
     throw new TypeError('Argon2 memory cost is outside the supported security bounds.');
   }
