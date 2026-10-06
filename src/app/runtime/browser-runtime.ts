@@ -727,15 +727,100 @@ export class BrowserRuntime {
       decodeEnvelope(profileRecord.encryptedPayload),
     ));
 
-    const storedTransactions = await this.repository.listRecordsByType('transaction');
+    const decryptByType = async <T>(recordType: 'account' | 'budget' | 'holding' | 'loan'): Promise<T[]> => {
+      const stored = await this.repository.listRecordsByType(recordType);
+      return Promise.all(stored.map((record) => session.withVaultKey((key) => decryptRecord<T>(
+        key,
+        financeAad(bootstrap.vaultId, record.recordId, recordType, record.recordVersion),
+        decodeEnvelope(record.encryptedPayload),
+      ))));
+    };
+
+    const [storedTransactions, accountPayloads, budgets, holdings, loans, revision] = await Promise.all([
+      this.repository.listRecordsByType('transaction'),
+      decryptByType<StoredAccountPayload>('account'),
+      decryptByType<Budget>('budget'),
+      decryptByType<Holding>('holding'),
+      decryptByType<Loan>('loan'),
+      this.repository.getRevision(bootstrap.vaultId),
+    ]);
+
     const transactions = await Promise.all(storedTransactions.map((stored) => session.withVaultKey((key) => decryptRecord<Transaction>(
       key,
       transactionAad(bootstrap.vaultId, stored.recordId, stored.recordVersion),
       decodeEnvelope(stored.encryptedPayload),
     ))));
     const activeTransactions = transactions.filter((transaction) => !transaction.deletedAt);
-    const analytics = selectCoreAnalytics(activeTransactions);
-    const today = toIso(this.options.now()).slice(0, 10);
+    const coreAnalytics = selectCoreAnalytics(activeTransactions);
+    const now = this.options.now();
+    const today = parseISODate(toIso(now).slice(0, 10));
+    const monthStart = currentMonthStart(now);
+    const monthKey = monthStart.slice(0, 7);
+    const monthTransactions = activeTransactions.filter((transaction) => transaction.occurredAt.startsWith(monthKey));
+
+    const currentBudgets = budgets
+      .filter((budget) => budget.month === monthStart)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    const currentBudget = currentBudgets[0];
+    const budgetUsage = currentBudget
+      ? selectBudgetUsage(currentBudget, monthTransactions)
+      : { limitMinor: 0, usagePercent: 0, remainingMinor: 0, status: 'ok' as const };
+
+    const accounts = accountPayloads.map((payload) => payload.account);
+    const balances = accountPayloads.map((payload) => ({
+      accountId: payload.account.id,
+      balanceMinor: payload.balanceMinor,
+    }));
+    const creditLiabilities = accountPayloads
+      .filter((payload) => payload.account.kind === 'credit')
+      .map((payload) => ({
+        accountId: payload.account.id,
+        outstandingMinor: Math.max(0, payload.balanceMinor),
+      }));
+    const netWorth = selectNetWorth({ accounts, balances, holdings, loans, creditLiabilities });
+    const accountPurpose = selectAccountPurposeAnalysis(accounts, balances);
+    const holdingInsights = selectHoldingInsights(holdings, today);
+    const staleValuationCount = holdingInsights.filter((insight) => insight.freshness === 'stale').length;
+    const accountCoverage = accounts.length === 0 ? 0 : accountPurpose.purposeCoverage;
+
+    const reportCommon = {
+      transactions: activeTransactions,
+      sourceRevision: revision,
+      createdAt: toIso(now),
+      accountCoverage,
+      staleValuationCount,
+    };
+    const reports = [
+      generateMonthlyReport({
+        ...reportCommon,
+        id: newUuid(),
+        type: 'month_start',
+        targetMonth: monthStart,
+        comparisonMonths: 3,
+      }),
+      generateMonthlyReport({
+        ...reportCommon,
+        id: newUuid(),
+        type: 'month_end',
+        targetMonth: monthStart,
+        comparisonMonths: 3,
+      }),
+      generatePeriodReport({
+        ...reportCommon,
+        id: newUuid(),
+        type: 'half_year',
+        periodStart: currentHalfStart(now),
+        comparisonMonths: 6,
+      }),
+      generatePeriodReport({
+        ...reportCommon,
+        id: newUuid(),
+        type: 'year_end',
+        periodStart: currentYearStart(now),
+        comparisonMonths: 12,
+      }),
+    ] as const;
+
     const todayTransactions = activeTransactions.filter((transaction) => transaction.occurredAt.slice(0, 10) === today);
     const todayExpenseMinor = todayTransactions.reduce(
       (sum, transaction) => sum + getIncomeExpenseImpact(transaction).expenseMinor,
@@ -754,21 +839,73 @@ export class BrowserRuntime {
       access: 'unlocked',
       dashboard: {
         nickname: profile.nickname,
-        periodLabel: periodLabel(this.options.now()),
-        balanceMinor: analytics.netCashflowMinor,
-        incomeMinor: analytics.incomeMinor,
-        expenseMinor: analytics.expenseMinor,
-        budget: { usagePercent: 0, remainingMinor: 0, status: 'ok' },
-        report: { label: '월간 리포트', status: 'pending' },
+        periodLabel: periodLabel(now),
+        balanceMinor: coreAnalytics.netCashflowMinor,
+        incomeMinor: coreAnalytics.incomeMinor,
+        expenseMinor: coreAnalytics.expenseMinor,
+        budget: {
+          limitMinor: budgetUsage.limitMinor,
+          usagePercent: budgetUsage.usagePercent,
+          remainingMinor: budgetUsage.remainingMinor,
+          status: budgetUsage.status,
+        },
+        report: { label: '월간 리포트', status: 'ready' },
         topMerchant: topMerchant ? { name: topMerchant[0], amountMinor: topMerchant[1] } : null,
         todayReceipt: {
           transactionCount: todayTransactions.length,
           expenseMinor: todayExpenseMinor,
         },
       },
+      assets: {
+        netWorthMinor: netWorth.netWorthMinor,
+        valuationLabel: staleValuationCount > 0 ? `오래된 평가값 ${staleValuationCount}개` : '평가값 최신',
+        accounts: accountPayloads.map(({ account, balanceMinor }) => ({
+          id: account.id,
+          name: account.name,
+          kind: account.kind,
+          purpose: account.purpose ?? null,
+          balanceMinor,
+          includeNetWorth: account.includeNetWorth,
+        })),
+        loans: loans.map((loan) => ({
+          id: loan.id,
+          accountId: loan.accountId,
+          remainingPrincipalMinor: loan.remainingPrincipalMinor,
+          annualInterestRate: loan.annualInterestRate,
+        })),
+        holdings: holdings.map((holding) => {
+          const insight = holdingInsights.find((item) => item.holdingId === holding.id);
+          if (!insight) throw new Error('Holding insight is missing.');
+          return {
+            holdingId: insight.holdingId,
+            accountId: holding.accountId,
+            ticker: insight.ticker,
+            marketValueMinor: insight.marketValueMinor,
+            unrealizedChangeMinor: insight.unrealizedChangeMinor,
+            returnPercent: insight.returnPercent,
+            freshness: insight.freshness,
+            tone: insight.tone,
+            reason: insight.reason,
+          };
+        }),
+        accountPurpose,
+      },
+      analytics: {
+        fixedMinor: coreAnalytics.fixedMinor,
+        variableMinor: coreAnalytics.variableMinor,
+        mixedMinor: coreAnalytics.mixedMinor,
+        reports: reports.map((report) => ({
+          type: report.type,
+          periodStart: report.periodStart,
+          periodEnd: report.periodEnd,
+          confidence: report.confidence,
+          incomeMinor: report.snapshot.cashFlow.incomeMinor,
+          expenseMinor: report.snapshot.cashFlow.expenseMinor,
+          netCashflowMinor: report.snapshot.cashFlow.netCashflowMinor,
+        })),
+      },
     });
   }
-
   private setSnapshot(snapshot: RuntimeSnapshot): void {
     this.snapshot = snapshot;
     for (const listener of this.listeners) listener(snapshot);
