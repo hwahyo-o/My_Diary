@@ -117,8 +117,8 @@ export function AssetsPage({
         ))}
       </section>
 
-      <section className="page-stack" aria-labelledby="holding-list-title">
-        <h2 id="holding-list-title">보유 종목</h2>
+      <section className="page-stack" aria-label="보유 종목 목록">
+        <h2>보유 종목</h2>
         {assets.holdings.length === 0 ? <p className="assistive-copy">등록된 보유 종목이 없습니다.</p> : assets.holdings.map((holding) => (
           <article className="dashboard-card" key={holding.holdingId}>
             <strong>{holding.ticker}</strong>
