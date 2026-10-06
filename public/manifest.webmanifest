@@ -2,14 +2,14 @@
   "name": "My Diary",
   "short_name": "My Diary",
   "description": "Local-first encrypted personal finance diary",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#fcfcff",
   "theme_color": "#fcfcff",
   "icons": [
     {
-      "src": "/icons/app-icon.svg",
+      "src": "icons/app-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
