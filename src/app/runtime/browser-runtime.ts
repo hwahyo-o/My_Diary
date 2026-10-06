@@ -19,6 +19,7 @@ import { EncryptedRepository, type StoredEncryptedRecord, type StoredEvent } fro
 import { generateDeviceSecret, generateRecoveryKey, generateVaultKey } from '../../vault/key-material';
 import { wrapVaultKey, unwrapVaultKey, type WrappedKeyEnvelope } from '../../vault/key-wrap';
 import { deriveDeviceKek, DEFAULT_ARGON2_PARAMS, TEST_ARGON2_PARAMS, type Argon2Params } from '../../vault/pin-kdf';
+import { assertStrongPin } from '../../vault/pin-policy';
 import { deriveRecoveryKek } from '../../vault/recovery';
 import { decryptRecord, encryptRecord, type EncryptedRecordEnvelope, type RecordAad } from '../../vault/record-crypto';
 import { VaultSession } from '../../vault/session';
@@ -234,6 +235,7 @@ export class BrowserRuntime {
 
   async createProfile(input: { readonly nickname: string; readonly pin: string }): Promise<{ readonly recoveryKey: string }> {
     if (this.bootstrap) throw new Error('A local vault is already configured.');
+    assertStrongPin(input.pin);
     const nickname = input.nickname.trim();
     if (!nickname) throw new TypeError('Nickname is required.');
 
@@ -545,6 +547,7 @@ export class BrowserRuntime {
     readonly pin: string;
   }): Promise<void> {
     if (this.bootstrap) throw new Error('Recovery requires a fresh local device profile.');
+    assertStrongPin(input.pin);
     const verified = await verifyVaultPackage(input.packageBytes, input.recoveryKey);
     const deviceSecret = generateDeviceSecret();
     const pinSalt = crypto.getRandomValues(new Uint8Array(16));
