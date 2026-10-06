@@ -34,7 +34,7 @@ export function RecoveryFlow({ onRecover, onCancel }: RecoveryFlowProps) {
       return;
     }
     if (!strongPin.test(pin)) {
-      setError('새 PIN은 8~12자리 숫자로 입력해주세요.');
+      setError('새 PIN은 10~12자리 숫자로 입력해주세요.');
       return;
     }
 
