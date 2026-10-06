@@ -42,7 +42,7 @@ export function selectHoldingInsights(
       returnPercent,
       freshness,
       tone,
-      reason: `평가손익 ${signed}${unrealizedChangeMinor.toLocaleString('ko-KR')}원 (${returnPercent.toFixed(1)}%), 가격 기준일 ${holding.priceAsOf} · ${ageDays}일 경과. 기록된 평가값을 요약하며 매수·매도 추천이 아닙니다.`,
+      reason: `평가손익 ${signed}${unrealizedChangeMinor.toLocaleString('ko-KR')}원 (${returnPercent.toFixed(1)}%), 가격 기준일 ${holding.priceAsOf} · ${ageDays}일 경과. 기록된 평가값과 가격 신선도를 요약한 정보입니다.`,
     });
   });
 }
