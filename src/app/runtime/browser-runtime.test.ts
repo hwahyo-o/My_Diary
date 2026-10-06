@@ -26,7 +26,7 @@ describe('BrowserRuntime composition', () => {
     const runtime = await BrowserRuntime.open({ dbName, argon2Profile: 'test' });
 
     try {
-      const result = await runtime.createProfile({ nickname: '예현', pin: '482951' });
+      const result = await runtime.createProfile({ nickname: '예현', pin: '4829517304' });
       expect(result.recoveryKey).toMatch(/^[A-Za-z0-9_-]{40,}$/);
       expect(runtime.getSnapshot().access).toBe('unlocked');
       expect(runtime.getSnapshot().dashboard.nickname).toBe('예현');
@@ -35,7 +35,7 @@ describe('BrowserRuntime composition', () => {
       const security = await dumpStore(dbName, STORE_NAMES.securityMeta);
       const serialized = JSON.stringify({ records, security });
       expect(serialized).not.toContain('예현');
-      expect(serialized).not.toContain('482951');
+      expect(serialized).not.toContain('4829517304');
       expect(serialized).not.toContain(result.recoveryKey);
     } finally {
       runtime.close();
@@ -47,15 +47,15 @@ describe('BrowserRuntime composition', () => {
     const runtime = await BrowserRuntime.open({ dbName, argon2Profile: 'test' });
 
     try {
-      await runtime.createProfile({ nickname: '예현', pin: '482951' });
+      await runtime.createProfile({ nickname: '예현', pin: '4829517304' });
       runtime.lock();
       expect(runtime.getSnapshot().access).toBe('locked');
       expect(runtime.getSnapshot().dashboard.nickname).toBe('');
 
-      await expect(runtime.unlock('938271')).rejects.toThrow();
+      await expect(runtime.unlock('9382716405')).rejects.toThrow();
       expect(runtime.getSnapshot().access).toBe('locked');
 
-      await runtime.unlock('482951');
+      await runtime.unlock('4829517304');
       expect(runtime.getSnapshot().access).toBe('unlocked');
       expect(runtime.getSnapshot().dashboard.nickname).toBe('예현');
     } finally {
@@ -72,7 +72,7 @@ describe('BrowserRuntime composition', () => {
     });
 
     try {
-      await runtime.createProfile({ nickname: '예현', pin: '482951' });
+      await runtime.createProfile({ nickname: '예현', pin: '4829517304' });
       await runtime.submitTransaction({ mode: 'direct', amountMinor: 13000, memo: '점심' });
       await runtime.submitTransaction({ mode: 'quick', text: '택시 18000' });
 
@@ -93,7 +93,7 @@ describe('BrowserRuntime composition', () => {
   it('refuses submissions after lock and clears hydrated financial state', async () => {
     const runtime = await BrowserRuntime.open({ dbName: `runtime-${crypto.randomUUID()}`, argon2Profile: 'test' });
     try {
-      await runtime.createProfile({ nickname: '예현', pin: '482951' });
+      await runtime.createProfile({ nickname: '예현', pin: '4829517304' });
       await runtime.submitTransaction({ mode: 'direct', amountMinor: 13000, memo: '점심' });
       runtime.lock();
 
