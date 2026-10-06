@@ -1,8 +1,13 @@
 import { useRef, useState } from 'react';
 import type {
   AppPage,
+  AnalyticsViewModel,
+  AssetsViewModel,
   BackupStatusViewModel,
   DashboardViewModel,
+  SaveAccountInput,
+  SaveHoldingInput,
+  SaveLoanInput,
   TransactionSubmission,
   VaultImportInspectionViewModel,
 } from '../app/ui-types';
@@ -17,8 +22,14 @@ import { BottomNavigation } from './BottomNavigation';
 
 interface AppShellProps {
   readonly dashboard: DashboardViewModel;
+  readonly assets: AssetsViewModel;
+  readonly analytics: AnalyticsViewModel;
   readonly backup: BackupStatusViewModel;
   readonly onSubmitTransaction: (input: TransactionSubmission) => Promise<void>;
+  readonly onSaveBudget: (input: { readonly limitMinor: number }) => Promise<void>;
+  readonly onSaveAccount: (input: SaveAccountInput) => Promise<string>;
+  readonly onSaveHolding: (input: SaveHoldingInput) => Promise<void>;
+  readonly onSaveLoan: (input: SaveLoanInput) => Promise<void>;
   readonly onExportVault: (input: { readonly recoveryKey: string }) => Promise<Uint8Array>;
   readonly onInspectVaultImport: (bytes: Uint8Array, input: { readonly recoveryKey: string }) => Promise<VaultImportInspectionViewModel>;
   readonly onApplyVaultImport: (bytes: Uint8Array, input: { readonly recoveryKey: string }) => Promise<void>;
@@ -27,8 +38,14 @@ interface AppShellProps {
 
 export function AppShell({
   dashboard,
+  assets,
+  analytics,
   backup,
   onSubmitTransaction,
+  onSaveBudget,
+  onSaveAccount,
+  onSaveHolding,
+  onSaveLoan,
   onExportVault,
   onInspectVaultImport,
   onApplyVaultImport,
@@ -47,10 +64,10 @@ export function AppShell({
       content = <CalendarPage />;
       break;
     case 'stats':
-      content = <StatsPage incomeMinor={dashboard.incomeMinor} expenseMinor={dashboard.expenseMinor} />;
+      content = <StatsPage incomeMinor={dashboard.incomeMinor} expenseMinor={dashboard.expenseMinor} budget={dashboard.budget} analytics={analytics} onSaveBudget={onSaveBudget} />;
       break;
     case 'assets':
-      content = <AssetsPage />;
+      content = <AssetsPage assets={assets} onSaveAccount={onSaveAccount} onSaveHolding={onSaveHolding} onSaveLoan={onSaveLoan} />;
       break;
     case 'settings':
       content = (
