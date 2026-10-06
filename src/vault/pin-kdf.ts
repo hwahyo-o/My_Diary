@@ -22,6 +22,22 @@ export const TEST_ARGON2_PARAMS: Argon2Params = {
   hashLength: 32,
 };
 
+function assertArgon2Params(params: Argon2Params): void {
+  if (params === TEST_ARGON2_PARAMS) return;
+  if (!Number.isInteger(params.memoryKiB) || params.memoryKiB < 19 * 1024 || params.memoryKiB > 256 * 1024) {
+    throw new TypeError('Argon2 memory cost is outside the supported security bounds.');
+  }
+  if (!Number.isInteger(params.iterations) || params.iterations < 2 || params.iterations > 10) {
+    throw new TypeError('Argon2 iteration count is outside the supported security bounds.');
+  }
+  if (!Number.isInteger(params.parallelism) || params.parallelism < 1 || params.parallelism > 4) {
+    throw new TypeError('Argon2 parallelism is outside the supported security bounds.');
+  }
+  if (params.hashLength !== 32) {
+    throw new TypeError('Argon2 output length must be 32 bytes.');
+  }
+}
+
 export async function deriveDeviceKek(
   pin: string,
   deviceSecret: Uint8Array,
@@ -29,6 +45,7 @@ export async function deriveDeviceKek(
   params: Argon2Params = DEFAULT_ARGON2_PARAMS,
 ): Promise<Uint8Array> {
   assertSupportedPin(pin);
+  assertArgon2Params(params);
   if (deviceSecret.length !== 32) throw new TypeError('Device Secret must be 32 bytes.');
   if (salt.length < 16) throw new TypeError('Argon2id salt must be at least 16 bytes.');
 
