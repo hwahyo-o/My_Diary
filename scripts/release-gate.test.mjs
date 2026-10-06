@@ -11,6 +11,8 @@ describe('final release gate', () => {
       ['npm', ['run', 'build']],
       ['npm', ['run', 'verify:dist-security']],
       ['npm', ['run', 'verify:sw-release']],
+      ['npm', ['run', 'verify:pages']],
+      ['npm', ['run', 'release:manifest']],
     ]);
 
     const calls = [];
