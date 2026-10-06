@@ -35,7 +35,7 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onAcces
     const pinPattern = mode === 'onboarding' ? strongPin : supportedPin;
     if (!pinPattern.test(pin)) {
       setError(mode === 'onboarding'
-        ? '새 PIN은 8~12자리 숫자로 입력해주세요.'
+        ? '새 PIN은 10~12자리 숫자로 입력해주세요.'
         : 'PIN은 6~12자리 숫자로 입력해주세요.');
       return;
     }
@@ -102,7 +102,7 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onAcces
         <h1 id="access-title">{mode === 'onboarding' ? 'My Diary 시작하기' : 'My Diary 잠금 해제'}</h1>
         <p className="access-copy">
           {mode === 'onboarding'
-            ? '이 기기에서 사용할 닉네임과 8~12자리 PIN을 설정하세요.'
+            ? '이 기기에서 사용할 닉네임과 10~12자리 PIN을 설정하세요.'
             : '금융 기록을 보려면 이 기기의 PIN을 입력하세요.'}
         </p>
 
