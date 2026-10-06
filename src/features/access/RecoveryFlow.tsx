@@ -7,7 +7,7 @@ interface RecoveryFlowProps {
   readonly onCancel: () => void;
 }
 
-const sixDigitPin = /^\d{6}$/;
+const strongPin = /^\d{10,12}$/;
 
 export function RecoveryFlow({ onRecover, onCancel }: RecoveryFlowProps) {
   const [file, setFile] = useState<File | null>(null);
