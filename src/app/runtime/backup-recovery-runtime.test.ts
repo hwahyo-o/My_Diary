@@ -33,7 +33,7 @@ describe('Encrypted backup / recovery runtime', () => {
     const runtime = await BrowserRuntime.open({ dbName, argon2Profile: 'test' });
 
     try {
-      const { recoveryKey } = await runtime.createProfile({ nickname: '예현', pin: '482951' });
+      const { recoveryKey } = await runtime.createProfile({ nickname: '예현', pin: '4829517304' });
       await runtime.submitTransaction({ mode: 'direct', amountMinor: 13_000, memo: '비밀 점심' });
 
       const backup = await runtime.exportVault({ recoveryKey });
@@ -43,7 +43,7 @@ describe('Encrypted backup / recovery runtime', () => {
       expect(serialized).toContain('FVAULT');
       expect(serialized).not.toContain('예현');
       expect(serialized).not.toContain('비밀 점심');
-      expect(serialized).not.toContain('482951');
+      expect(serialized).not.toContain('4829517304');
       expect(serialized).not.toContain(recoveryKey);
 
       const inspection = await runtime.inspectVaultImport(backup, { recoveryKey });
@@ -62,7 +62,7 @@ describe('Encrypted backup / recovery runtime', () => {
     const runtime = await BrowserRuntime.open({ dbName, argon2Profile: 'test' });
 
     try {
-      const { recoveryKey } = await runtime.createProfile({ nickname: '예현', pin: '482951' });
+      const { recoveryKey } = await runtime.createProfile({ nickname: '예현', pin: '4829517304' });
       await runtime.submitTransaction({ mode: 'direct', amountMinor: 13_000, memo: '점심' });
       const backup = await runtime.exportVault({ recoveryKey });
       const before = runtime.getSnapshot().dashboard.expenseMinor;
@@ -84,24 +84,24 @@ describe('Encrypted backup / recovery runtime', () => {
     const target = await BrowserRuntime.open({ dbName: targetDb, argon2Profile: 'test' });
 
     try {
-      const { recoveryKey } = await source.createProfile({ nickname: '예현', pin: '482951' });
+      const { recoveryKey } = await source.createProfile({ nickname: '예현', pin: '4829517304' });
       await source.submitTransaction({ mode: 'quick', text: '택시 18000' });
       const backup = await source.exportVault({ recoveryKey });
 
-      await target.recoverFromVault({ packageBytes: backup, recoveryKey, pin: '731905' });
+      await target.recoverFromVault({ packageBytes: backup, recoveryKey, pin: '7319052846' });
       expect(target.getSnapshot().access).toBe('unlocked');
       expect(target.getSnapshot().dashboard.nickname).toBe('예현');
       expect(target.getSnapshot().dashboard.expenseMinor).toBe(18_000);
 
       target.lock();
-      await expect(target.unlock('482951')).rejects.toThrow();
-      await target.unlock('731905');
+      await expect(target.unlock('4829517304')).rejects.toThrow();
+      await target.unlock('7319052846');
       expect(target.getSnapshot().dashboard.expenseMinor).toBe(18_000);
 
       const security = JSON.stringify(await dumpStore(targetDb, STORE_NAMES.securityMeta));
       expect(security).not.toContain(recoveryKey);
-      expect(security).not.toContain('482951');
-      expect(security).not.toContain('731905');
+      expect(security).not.toContain('4829517304');
+      expect(security).not.toContain('7319052846');
     } finally {
       source.close();
       target.close();
@@ -114,14 +114,14 @@ describe('Encrypted backup / recovery runtime', () => {
     const target = await BrowserRuntime.open({ dbName: targetDb, argon2Profile: 'test' });
 
     try {
-      const { recoveryKey } = await source.createProfile({ nickname: '예현', pin: '482951' });
+      const { recoveryKey } = await source.createProfile({ nickname: '예현', pin: '4829517304' });
       const backup = await source.exportVault({ recoveryKey });
       const wrongRecoveryKey = `${recoveryKey.slice(0, -1)}${recoveryKey.endsWith('A') ? 'B' : 'A'}`;
 
       await expect(target.recoverFromVault({
         packageBytes: backup,
         recoveryKey: wrongRecoveryKey,
-        pin: '731905',
+        pin: '7319052846',
       })).rejects.toThrow();
 
       expect(target.getSnapshot().access).toBe('onboarding');
