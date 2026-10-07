@@ -44,7 +44,7 @@ jobs:
           grep -i '^strict-transport-security:' headers.txt
 
           curl --fail --silent --show-error --location "${SITE_URL}release-manifest.json" -o release-manifest.json
-          grep -F ""commitSha": "${EXPECTED_SHA}"" release-manifest.json
+          node -e 'const fs=require("fs"); const m=JSON.parse(fs.readFileSync("release-manifest.json","utf8")); if (m.commitSha!==process.env.EXPECTED_SHA) { throw new Error(`Cloudflare SHA mismatch: expected ${process.env.EXPECTED_SHA}, found ${m.commitSha}`); }'
 
           grep -F '<title>My Diary</title>' index.html
           echo "Cloudflare live security verification passed for ${EXPECTED_SHA}"
