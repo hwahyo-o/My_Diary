@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 
 const REQUIRED_CSP = [
   "default-src 'self'",
-  "script-src 'self'",
+  "script-src 'self' 'wasm-unsafe-eval'",
   "style-src 'self'",
   "img-src 'self' data:",
   "font-src 'self'",
