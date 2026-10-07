@@ -85,7 +85,7 @@ export async function writeReleaseManifest(options) {
 
 const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : '';
 if (import.meta.url === invokedPath) {
-  const [distDir = 'dist', commitSha = process.env.GITHUB_SHA ?? process.env.RELEASE_SHA] = process.argv.slice(2);
+  const [distDir = 'dist', commitSha = process.env.GITHUB_SHA ?? process.env.CF_PAGES_COMMIT_SHA ?? process.env.RELEASE_SHA] = process.argv.slice(2);
   const packageJson = JSON.parse(await readFile('package.json', 'utf8'));
   const schemaSource = await readFile('src/app/runtime/browser-runtime.ts', 'utf8');
   const schemaMatch = schemaSource.match(/const\s+SCHEMA_VERSION\s*=\s*(\d+)/);
