@@ -116,6 +116,12 @@ describe('T20 quick input parser', () => {
     expect(parsed.unresolved).toEqual([]);
   });
 
+  it('parses common KRW suffix and comma formats', () => {
+    expect(parseQuickInput('점심 3,000원', now).amountMinor).toBe(3000);
+    expect(parseQuickInput('교통 ₩12,500', now).amountMinor).toBe(12500);
+    expect(parseQuickInput('간식 2500원', now).amountMinor).toBe(2500);
+  });
+
   it('parses yesterday and transport hints', () => {
     const parsed = parseQuickInput('어제 택시 18000', now);
     expect(parsed.amountMinor).toBe(18000);
