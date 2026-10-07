@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AppShell } from '../components/AppShell';
 import { AccessGate } from '../features/access/AccessGate';
+import { HostingNotice } from '../components/HostingNotice';
 import type { AccessState, AnalyticsViewModel, AppRuntimePorts, AssetsViewModel, DashboardViewModel } from './ui-types';
 import { defaultBackupStatus, emptyAnalytics, emptyAssets, emptyDashboard } from './ui-types';
 
@@ -46,6 +47,8 @@ export function App({ initialAccess, dashboard, assets, analytics, runtime = fai
       ? { onRecover: (input: { readonly packageBytes: Uint8Array; readonly recoveryKey: string; readonly pin: string }) => runtime.recoverFromVault!(input) }
       : {};
     return (
+      <>
+      <HostingNotice />
       <AccessGate
         mode={access}
         onCreateProfile={(input) => runtime.createProfile(input)}
@@ -63,11 +66,14 @@ export function App({ initialAccess, dashboard, assets, analytics, runtime = fai
           setAccess('unlocked');
         }}
       />
+      </>
     );
   }
 
   return (
-    <AppShell
+    <>
+      <HostingNotice />
+      <AppShell
       dashboard={dashboardState}
       assets={assetsState}
       analytics={analyticsState}
@@ -103,5 +109,6 @@ export function App({ initialAccess, dashboard, assets, analytics, runtime = fai
       }}
       onLock={() => runtime.lock?.()}
     />
+    </>
   );
 }

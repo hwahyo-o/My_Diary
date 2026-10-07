@@ -88,3 +88,7 @@ h2 { margin-bottom: 0; }
   .status-chip { align-self: flex-start; }
   .update-notice { right: .75rem; bottom: 6rem; width: calc(100% - 1.5rem); }
 }
+
+.hosting-notice { position: sticky; z-index: 80; top: 0; display: grid; gap: .2rem; width: 100%; padding: .65rem 1rem; border-bottom: 1px solid rgba(139,92,25,.22); color: #6f4b17; background: #fff7df; text-align: center; }
+.hosting-notice strong { font-size: .85rem; }
+.hosting-notice span { font-size: .78rem; line-height: 1.45; }
