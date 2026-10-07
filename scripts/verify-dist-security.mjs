@@ -19,6 +19,16 @@ const REQUIRED_CSP = [
 
 const TEXT_EXTENSIONS = new Set(['.html', '.js', '.css', '.json', '.webmanifest']);
 const EXECUTABLE_EXTENSIONS = new Set(['.html', '.js', '.css']);
+const REQUIRED_RESPONSE_HEADERS = [
+  "Content-Security-Policy:",
+  "frame-ancestors 'none'",
+  "X-Frame-Options: DENY",
+  "X-Content-Type-Options: nosniff",
+  "Referrer-Policy: no-referrer",
+  "Permissions-Policy:",
+  "Cross-Origin-Opener-Policy: same-origin",
+  "Cross-Origin-Resource-Policy: same-origin",
+];
 const SECRET_PATTERNS = [
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/i,
   /\bsk-[A-Za-z0-9_-]{20,}\b/,
@@ -89,6 +99,13 @@ export async function verifyDistSecurity(distPath = 'dist') {
   const indexPath = join(distPath, 'index.html');
   const indexHtml = await readFile(indexPath, 'utf8');
   assertSafeCsp(extractMetaCsp(indexHtml));
+
+  const headersSource = await readFile(join(distPath, '_headers'), 'utf8');
+  for (const required of REQUIRED_RESPONSE_HEADERS) {
+    if (!headersSource.includes(required)) {
+      throw new Error(`Cloudflare response headers missing required policy: ${required}`);
+    }
+  }
 
   let filesScanned = 0;
   for (const file of files) {

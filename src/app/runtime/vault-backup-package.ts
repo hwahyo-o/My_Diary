@@ -87,10 +87,17 @@ export function bytesToBase64Url(bytes: Uint8Array): string {
 }
 
 export function base64UrlToBytes(value: string): Uint8Array {
-  if (!/^[A-Za-z0-9_-]+$/.test(value)) throw new TypeError('Invalid base64url value.');
+  if (!/^[A-Za-z0-9_-]+$/.test(value) || value.length % 4 === 1) {
+    throw new TypeError('Invalid base64url value.');
+  }
   const padded = value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4);
   const binary = atob(padded);
-  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  if (bytesToBase64Url(bytes) !== value) {
+    bytes.fill(0);
+    throw new TypeError('Non-canonical base64url value.');
+  }
+  return bytes;
 }
 
 function encodeEnvelope(envelope: EncryptedRecordEnvelope): EncodedEnvelope {
@@ -233,41 +240,46 @@ export async function verifyVaultPackage(bytes: Uint8Array, recoveryKeyText: str
   if (expectedDigest !== integrity.sha256) throw new Error('Vault package checksum verification failed.');
 
   const recoveryKey = base64UrlToBytes(recoveryKeyText);
-  if (recoveryKey.length !== 32) throw new Error('RecoveryKey has an invalid length.');
-  const macKey = await deriveMacKey(recoveryKey, packageValue.vaultId);
-  const validMac = await crypto.subtle.verify(
-    'HMAC',
-    macKey,
-    toArrayBuffer(base64UrlToBytes(integrity.hmacSha256)),
-    toArrayBuffer(unsignedBytes),
-  );
-  if (!validMac) throw new Error('Vault package authentication failed.');
-
-  const recoveryKek = await deriveRecoveryKek(recoveryKey, packageValue.vaultId);
   try {
-    const recoveryWrap = decodeWrappedKey(packageValue.recoveryWrap);
-    const vaultKey = await unwrapVaultKey(recoveryWrap, recoveryKek, wrapAad(packageValue.vaultId));
-    const manifest = await decryptRecord<VaultBackupManifest>(
-      vaultKey,
-      manifestAad(packageValue.vaultId, packageValue.schemaVersion),
-      decodeEnvelope(packageValue.encryptedManifest),
+    if (recoveryKey.length !== 32) throw new Error('RecoveryKey has an invalid length.');
+    const macKey = await deriveMacKey(recoveryKey, packageValue.vaultId);
+    const suppliedHmac = base64UrlToBytes(integrity.hmacSha256);
+    const validMac = await crypto.subtle.verify(
+      'HMAC',
+      macKey,
+      toArrayBuffer(suppliedHmac),
+      toArrayBuffer(unsignedBytes),
     );
-    if (!manifest.profileRecordId || !manifest.defaultAccountId || !Number.isInteger(manifest.revision) || manifest.revision < 0) {
-      vaultKey.fill(0);
-      throw new Error('Vault package manifest is invalid.');
+    suppliedHmac.fill(0);
+    if (!validMac) throw new Error('Vault package authentication failed.');
+
+    const recoveryKek = await deriveRecoveryKek(recoveryKey, packageValue.vaultId);
+    try {
+      const recoveryWrap = decodeWrappedKey(packageValue.recoveryWrap);
+      const vaultKey = await unwrapVaultKey(recoveryWrap, recoveryKek, wrapAad(packageValue.vaultId));
+      const manifest = await decryptRecord<VaultBackupManifest>(
+        vaultKey,
+        manifestAad(packageValue.vaultId, packageValue.schemaVersion),
+        decodeEnvelope(packageValue.encryptedManifest),
+      );
+      if (!manifest.profileRecordId || !manifest.defaultAccountId || !Number.isInteger(manifest.revision) || manifest.revision < 0) {
+        vaultKey.fill(0);
+        throw new Error('Vault package manifest is invalid.');
+      }
+      return {
+        schemaVersion: packageValue.schemaVersion,
+        vaultId: packageValue.vaultId,
+        createdAt: packageValue.createdAt,
+        manifest,
+        records: packageValue.records.map(decodeRecord),
+        events: packageValue.events.map(decodeEvent),
+        vaultKey,
+        recoveryWrap,
+      };
+    } finally {
+      recoveryKek.fill(0);
     }
-    return {
-      schemaVersion: packageValue.schemaVersion,
-      vaultId: packageValue.vaultId,
-      createdAt: packageValue.createdAt,
-      manifest,
-      records: packageValue.records.map(decodeRecord),
-      events: packageValue.events.map(decodeEvent),
-      vaultKey,
-      recoveryWrap,
-    };
   } finally {
     recoveryKey.fill(0);
-    recoveryKek.fill(0);
   }
 }
