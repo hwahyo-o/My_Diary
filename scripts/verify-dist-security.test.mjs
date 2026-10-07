@@ -7,13 +7,24 @@ import { verifyDistSecurity } from './verify-dist-security.mjs';
 
 const roots = [];
 
-async function makeDist({ html, js = "console.log('safe')", extraFiles = [] }) {
+const safeHeaders = `/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+`;
+
+async function makeDist({ html, js = "console.log('safe')", headers = safeHeaders, extraFiles = [] }) {
   const root = await mkdtemp(join(tmpdir(), 'my-diary-dist-'));
   roots.push(root);
   const dist = join(root, 'dist');
   await mkdir(join(dist, 'assets'), { recursive: true });
   await writeFile(join(dist, 'index.html'), html, 'utf8');
   await writeFile(join(dist, 'assets', 'app.js'), js, 'utf8');
+  await writeFile(join(dist, '_headers'), headers, 'utf8');
   for (const [name, content] of extraFiles) {
     await writeFile(join(dist, name), content, 'utf8');
   }
@@ -51,6 +62,14 @@ describe('production artifact security verifier', () => {
       js: 'const RECOVERY_KEY_SAMPLE = "RECOVERY-THIS-MUST-NOT-SHIP";',
     });
     await expect(verifyDistSecurity(distWithSecret)).rejects.toThrow(/secret-like/i);
+  });
+
+  it('rejects a missing required Cloudflare response header', async () => {
+    const dist = await makeDist({
+      html: htmlWithCsp(),
+      headers: safeHeaders.replace("X-Frame-Options: DENY\n", ''),
+    });
+    await expect(verifyDistSecurity(dist)).rejects.toThrow(/response headers/i);
   });
 
   it('rejects a missing or weakened CSP fallback', async () => {
