@@ -17,7 +17,7 @@
     "verify:ci-security": "node scripts/verify-ci-security.mjs",
     "verify:sw-release": "node scripts/verify-sw-release.mjs public/sw.js",
     "release:gate": "node scripts/release-gate.mjs",
-    "verify:pages": "node scripts/verify-pages-deployment.mjs dist /My_Diary/",
+    "verify:pages": "node scripts/verify-pages-deployment.mjs dist",
     "release:manifest": "node scripts/release-manifest.mjs dist"
   },
   "dependencies": {
