@@ -48,3 +48,8 @@ To move data between origins or to recover on a new browser/device:
 | GitHub Pages | Recovery / verification mirror | `/My_Diary/` | No, except deliberate recovery testing |
 
 Both deployments are expected to expose the same release-manifest commit SHA for the same `main` release. Their generated HTML/JS hashes may differ because the required base paths differ.
+
+
+## Git integration status
+
+Cloudflare Pages GitHub repository access for `hwahyo-o/My_Diary` was restored on 2026-10-07 after the project reported a disconnected Git account. A post-reconnection `main` deployment is used to verify that automatic production deployments resume correctly.
