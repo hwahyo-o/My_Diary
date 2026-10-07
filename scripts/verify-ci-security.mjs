@@ -12,7 +12,7 @@ const AUDITED_INSTALL_WORKFLOWS = new Set([
   '.github/workflows/ci.yml',
   '.github/workflows/deploy-pages.yml',
 ]);
-const PINNED_ACTION = /^\s*-?\s*uses:\s*[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[0-9a-f]{40}(?:\s+#.*)?$/;
+const PINNED_ACTION = /^\s*-?\s*uses:\s*[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*@[0-9a-f]{40}(?:\s+#.*)?$/;
 
 export async function verifyCiSecurity(read = readFile) {
   const contents = [];
