@@ -34,6 +34,24 @@ describe('AccessGate', () => {
     expect(onAccessGranted).toHaveBeenCalledTimes(1);
   });
 
+  it('explains when a new PIN is rejected as too weak', async () => {
+    const onCreateProfile = vi.fn().mockRejectedValue(new TypeError('PIN is too weak.'));
+    render(
+      <AccessGate
+        mode="onboarding"
+        onCreateProfile={onCreateProfile}
+        onUnlock={vi.fn()}
+        onAccessGranted={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: '예현' } });
+    fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '1234567890' } });
+    fireEvent.click(screen.getByRole('button', { name: '시작하기' }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('너무 단순합니다'));
+  });
+
   it('keeps the user locked and shows a neutral error when unlock fails', async () => {
     const onUnlock = vi.fn().mockRejectedValue(new Error('wrong pin'));
     const onAccessGranted = vi.fn();

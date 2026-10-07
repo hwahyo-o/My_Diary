@@ -59,8 +59,12 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onAcces
         await onUnlock(pin);
         onAccessGranted();
       }
-    } catch {
-      setError(mode === 'locked' ? 'PIN을 확인해주세요.' : '설정을 완료하지 못했습니다. 다시 시도해주세요.');
+    } catch (error) {
+      if (mode === 'onboarding' && error instanceof TypeError && error.message === 'PIN is too weak.') {
+        setError('PIN이 너무 단순합니다. 반복되거나 연속된 숫자 패턴을 피해주세요.');
+      } else {
+        setError(mode === 'locked' ? 'PIN을 확인해주세요.' : '설정을 완료하지 못했습니다. 다시 시도해주세요.');
+      }
     } finally {
       setPin('');
       setBusy(false);

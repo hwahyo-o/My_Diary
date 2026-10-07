@@ -14,6 +14,8 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, retu
   const [quickText, setQuickText] = useState('');
   const [amount, setAmount] = useState('');
   const [memo, setMemo] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -30,18 +32,47 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, retu
 
   if (!open) return null;
 
-  function submitQuick(event: FormEvent<HTMLFormElement>) {
+  async function submitQuick(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setError(null);
     const text = quickText.trim();
-    if (!text) return;
-    void onSubmitTransaction({ mode: 'quick', text });
+    if (!text) {
+      setError('빠른 입력 내용을 입력해주세요.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await onSubmitTransaction({ mode: 'quick', text });
+      setQuickText('');
+      onClose();
+    } catch {
+      setError('거래를 저장하지 못했습니다. 금액과 입력 내용을 확인해주세요.');
+    } finally {
+      setBusy(false);
+    }
   }
 
-  function submitDirect(event: FormEvent<HTMLFormElement>) {
+  async function submitDirect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setError(null);
     const amountMinor = Number(amount);
-    if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) return;
-    void onSubmitTransaction({ mode: 'direct', amountMinor, memo: memo.trim() });
+    if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) {
+      setError('금액은 1원 이상의 숫자로 입력해주세요.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await onSubmitTransaction({ mode: 'direct', amountMinor, memo: memo.trim() });
+      setAmount('');
+      setMemo('');
+      onClose();
+    } catch {
+      setError('거래를 저장하지 못했습니다. 다시 시도해주세요.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -58,17 +89,18 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, retu
         </div>
 
         <div className="entry-tabs" aria-label="거래 입력 방식">
-          <button type="button" aria-pressed={tab === 'quick'} onClick={() => setTab('quick')}>빠른 입력</button>
-          <button type="button" aria-pressed={tab === 'direct'} onClick={() => setTab('direct')}>직접 입력</button>
+          <button type="button" aria-pressed={tab === 'quick'} onClick={() => { setTab('quick'); setError(null); }}>빠른 입력</button>
+          <button type="button" aria-pressed={tab === 'direct'} onClick={() => { setTab('direct'); setError(null); }}>직접 입력</button>
         </div>
 
         {tab === 'quick' ? (
           <form className="entry-form" onSubmit={submitQuick}>
             <label>
               <span>빠른 입력</span>
-              <input aria-label="빠른 입력" value={quickText} onChange={(event) => setQuickText(event.currentTarget.value)} placeholder="예: 점심 만삼천" autoFocus />
+              <input aria-label="빠른 입력" value={quickText} onChange={(event) => setQuickText(event.currentTarget.value)} placeholder="예: 점심 13,000원" autoFocus />
             </label>
-            <button className="primary-button" type="submit">빠른 입력 저장</button>
+            {error ? <p role="alert" className="form-error">{error}</p> : null}
+            <button className="primary-button" type="submit" disabled={busy}>빠른 입력 저장</button>
           </form>
         ) : (
           <form className="entry-form" onSubmit={submitDirect}>
@@ -80,7 +112,8 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, retu
               <span>메모</span>
               <input aria-label="메모" value={memo} onChange={(event) => setMemo(event.currentTarget.value)} />
             </label>
-            <button className="primary-button" type="submit">직접 입력 저장</button>
+            {error ? <p role="alert" className="form-error">{error}</p> : null}
+            <button className="primary-button" type="submit" disabled={busy}>직접 입력 저장</button>
           </form>
         )}
       </section>

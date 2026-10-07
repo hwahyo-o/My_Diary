@@ -42,23 +42,24 @@ function parseBelow10000(text: string): number | undefined {
 }
 
 function parseKoreanAmount(token: string): number | undefined {
-  if (!token) return undefined;
-  if (/^\d+$/.test(token)) {
-    const value = Number(token);
+  const normalized = token.trim().replace(/^₩/, '').replace(/원$/, '').replace(/,/g, '');
+  if (!normalized) return undefined;
+  if (/^\d+$/.test(normalized)) {
+    const value = Number(normalized);
     return Number.isSafeInteger(value) && value > 0 ? value : undefined;
   }
 
-  const manIndex = token.indexOf('만');
+  const manIndex = normalized.indexOf('만');
   if (manIndex >= 0) {
-    const highText = token.slice(0, manIndex);
-    const lowText = token.slice(manIndex + 1);
+    const highText = normalized.slice(0, manIndex);
+    const lowText = normalized.slice(manIndex + 1);
     const high = highText ? parseBelow10000(highText) : 1;
     const low = parseBelow10000(lowText);
     if (high === undefined || low === undefined) return undefined;
     return high * 10000 + low;
   }
 
-  return parseBelow10000(token);
+  return parseBelow10000(normalized);
 }
 
 function previousDay(now: ISODateTime): ISODateTime {
