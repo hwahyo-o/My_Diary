@@ -1,0 +1,50 @@
+name: Verify Cloudflare Live Security
+
+on:
+  push:
+    branches: [feat/cloudflare-live-header-check]
+
+permissions:
+  contents: read
+
+jobs:
+  verify-live:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify live response headers and release identity
+        shell: bash
+        env:
+          SITE_URL: https://my-diary-2mw.pages.dev/
+          EXPECTED_SHA: bafd8a37424cecdd0f8fda3c78db6828ae4688b1
+        run: |
+          set -euo pipefail
+
+          for attempt in 1 2 3 4 5 6; do
+            if curl --fail --silent --show-error --location --dump-header headers.raw --output index.html "$SITE_URL"; then
+              break
+            fi
+            if [ "$attempt" -eq 6 ]; then
+              exit 1
+            fi
+            sleep 10
+          done
+
+          tr -d '\r' < headers.raw > headers.txt
+          echo "=== LIVE RESPONSE HEADERS ==="
+          cat headers.txt
+
+          grep -i '^content-security-policy:' headers.txt
+          grep -i "content-security-policy:.*frame-ancestors 'none'" headers.txt
+          grep -i '^x-frame-options:[[:space:]]*DENY[[:space:]]*$' headers.txt
+          grep -i '^x-content-type-options:[[:space:]]*nosniff[[:space:]]*$' headers.txt
+          grep -i '^referrer-policy:[[:space:]]*no-referrer[[:space:]]*$' headers.txt
+          grep -i '^permissions-policy:' headers.txt
+          grep -i '^cross-origin-opener-policy:[[:space:]]*same-origin[[:space:]]*$' headers.txt
+          grep -i '^cross-origin-resource-policy:[[:space:]]*same-origin[[:space:]]*$' headers.txt
+          grep -i '^strict-transport-security:' headers.txt
+
+          curl --fail --silent --show-error --location "${SITE_URL}release-manifest.json" -o release-manifest.json
+          grep -F ""commitSha": "${EXPECTED_SHA}"" release-manifest.json
+
+          grep -F '<title>My Diary</title>' index.html
+          echo "Cloudflare live security verification passed for ${EXPECTED_SHA}"
