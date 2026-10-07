@@ -10,7 +10,10 @@ function normalizedBase(basePath) {
   return basePath;
 }
 
-export async function verifyPagesDeployment(distDir = 'dist', expectedBase = '/My_Diary/') {
+export async function verifyPagesDeployment(
+  distDir = 'dist',
+  expectedBase = process.env.CF_PAGES === '1' ? '/' : '/My_Diary/',
+) {
   const basePath = normalizedBase(expectedBase);
   const [html, manifestSource, sw] = await Promise.all([
     readFile(join(distDir, 'index.html'), 'utf8'),
@@ -44,7 +47,7 @@ export async function verifyPagesDeployment(distDir = 'dist', expectedBase = '/M
 
 const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : '';
 if (import.meta.url === invokedPath) {
-  verifyPagesDeployment(process.argv[2] ?? 'dist', process.argv[3] ?? '/My_Diary/')
+  verifyPagesDeployment(process.argv[2] ?? 'dist', process.argv[3])
     .then(({ basePath }) => console.log(`GitHub Pages deployment verified (${basePath})`))
     .catch((error) => {
       console.error(error instanceof Error ? error.message : error);
