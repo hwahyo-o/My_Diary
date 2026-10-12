@@ -1,5 +1,5 @@
 /* global self, caches, fetch, Response, URL */
-const RELEASE_ID = '2026.10.12.1';
+const RELEASE_ID = '2026.10.12.2';
 const CACHE_PREFIX = 'my-diary-shell-';
 const CACHE_NAME = `${CACHE_PREFIX}${RELEASE_ID}`;
 const BASE_PATH = new URL('./', self.location.href).pathname;
@@ -90,6 +90,8 @@ self.addEventListener('fetch', (event) => {
 });
 
 self.addEventListener('message', (event) => {
+  if (event.origin !== self.location.origin) return;
+
   if (event.data?.type === 'SKIP_WAITING') {
     void self.skipWaiting();
   }
