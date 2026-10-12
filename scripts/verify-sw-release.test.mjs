@@ -14,6 +14,10 @@ function classifyRequest(request) {
   if (SENSITIVE_PATH_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) return 'bypass';
   return 'static';
 }
+self.addEventListener('message', (event) => {
+  if (event.origin !== self.location.origin) return;
+  if (event.data?.type === 'SKIP_WAITING') void self.skipWaiting();
+});
 `;
 
 describe('service worker release verifier', () => {
