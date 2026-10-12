@@ -1,5 +1,5 @@
 /* global self, caches, fetch, Response, URL */
-const RELEASE_ID = '2026.10.06.1';
+const RELEASE_ID = '2026.10.12.1';
 const CACHE_PREFIX = 'my-diary-shell-';
 const CACHE_NAME = `${CACHE_PREFIX}${RELEASE_ID}`;
 const BASE_PATH = new URL('./', self.location.href).pathname;
