@@ -86,7 +86,7 @@ jobs:
             throw new Error('Deployed PWA manifest is not project-path safe.');
           }
           const sw = readFileSync('sw.js', 'utf8');
-          if (!sw.includes("const RELEASE_ID = '2026.10.06.1'")) {
+          if (!sw.includes("const RELEASE_ID = '2026.10.12.1'")) {
             throw new Error('Unexpected service worker release.');
           }
           console.log(`deployed release verified at ${process.env.SITE_URL} for ${manifest.commitSha}`);
