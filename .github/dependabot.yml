@@ -8,6 +8,10 @@ updates:
       time: "08:00"
       timezone: "Asia/Seoul"
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "typescript"
+        update-types:
+          - "version-update:semver-major"
     commit-message:
       prefix: "deps"
 
@@ -19,5 +23,9 @@ updates:
       time: "08:15"
       timezone: "Asia/Seoul"
     open-pull-requests-limit: 5
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action/*"
     commit-message:
       prefix: "ci"
