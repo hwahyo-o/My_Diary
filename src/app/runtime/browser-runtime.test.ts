@@ -90,6 +90,58 @@ describe('BrowserRuntime composition', () => {
     }
   });
 
+  it('round-trips an encrypted backup into a fresh runtime and unlocks with a new PIN', async () => {
+    const sourceDbName = `runtime-source-${crypto.randomUUID()}`;
+    const targetDbName = `runtime-target-${crypto.randomUUID()}`;
+    const source = await BrowserRuntime.open({
+      dbName: sourceDbName,
+      argon2Profile: 'test',
+      now: () => new Date('2026-10-12T06:16:53.867Z'),
+    });
+    const target = await BrowserRuntime.open({
+      dbName: targetDbName,
+      argon2Profile: 'test',
+      now: () => new Date('2026-10-12T06:20:00.000Z'),
+    });
+
+    try {
+      const created = await source.createProfile({ nickname: '복구 훈련', pin: '4829517304' });
+      await source.submitTransaction({ mode: 'quick', text: '복구훈련 3,000원' });
+
+      const sourceSnapshot = source.getSnapshot();
+      expect(sourceSnapshot.dashboard.expenseMinor).toBe(3000);
+      expect(sourceSnapshot.dashboard.todayReceipt.transactionCount).toBe(1);
+
+      const backup = await source.exportVault({ recoveryKey: created.recoveryKey });
+      expect(backup.byteLength).toBeGreaterThan(0);
+      expect(target.getSnapshot().access).toBe('onboarding');
+
+      await target.recoverFromVault({
+        packageBytes: backup,
+        recoveryKey: created.recoveryKey,
+        pin: '7391058246',
+      });
+
+      let recovered = target.getSnapshot();
+      expect(recovered.access).toBe('unlocked');
+      expect(recovered.dashboard.nickname).toBe('복구 훈련');
+      expect(recovered.dashboard.expenseMinor).toBe(3000);
+      expect(recovered.dashboard.todayReceipt.transactionCount).toBe(1);
+
+      target.lock();
+      expect(target.getSnapshot().access).toBe('locked');
+
+      await target.unlock('7391058246');
+      recovered = target.getSnapshot();
+      expect(recovered.access).toBe('unlocked');
+      expect(recovered.dashboard.expenseMinor).toBe(3000);
+      expect(recovered.dashboard.todayReceipt.transactionCount).toBe(1);
+    } finally {
+      source.close();
+      target.close();
+    }
+  });
+
   it('refuses submissions after lock and clears hydrated financial state', async () => {
     const runtime = await BrowserRuntime.open({ dbName: `runtime-${crypto.randomUUID()}`, argon2Profile: 'test' });
     try {
