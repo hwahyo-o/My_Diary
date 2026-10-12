@@ -29,6 +29,10 @@ export function verifyServiceWorkerRelease(source) {
     throw new Error('Service worker must bypass non-GET requests');
   }
 
+  if (!/event\.origin\s*!==\s*self\.location\.origin/.test(source)) {
+    throw new Error('Service worker message handler must reject cross-origin messages');
+  }
+
   return { releaseId };
 }
 
