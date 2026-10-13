@@ -2,8 +2,11 @@ import {
   authVerifier,
   createSession,
   fromBase64Url,
+  hasAllowedOrigin,
+  isValidNickname,
   json,
   normalizeNickname,
+  readJsonBody,
   nowIso,
   randomBytes,
   toBase64Url,
@@ -11,13 +14,18 @@ import {
 import { encryptWithMasterKey } from '../../_shared/master-key.js';
 
 export async function onRequestPost({ request, env }) {
+  let accountSalt;
+  let authSecret;
+  let unlockPepper;
+  let verifier;
   try {
-    const body = await request.json();
+    if (!hasAllowedOrigin(request)) return json({ error: 'Forbidden origin.' }, { status: 403 });
+    const body = await readJsonBody(request);
     const nicknameNorm = normalizeNickname(body?.nickname);
-    const accountSalt = fromBase64Url(body?.accountSalt);
-    const authSecret = fromBase64Url(body?.authSecret);
+    accountSalt = fromBase64Url(body?.accountSalt);
+    authSecret = fromBase64Url(body?.authSecret);
 
-    if (!nicknameNorm || accountSalt.length !== 32 || authSecret.length !== 32) {
+    if (!isValidNickname(nicknameNorm) || accountSalt.length !== 32 || authSecret.length !== 32) {
       return json({ error: 'Invalid registration payload.' }, { status: 400 });
     }
 
@@ -27,8 +35,8 @@ export async function onRequestPost({ request, env }) {
     if (existing) return json({ error: 'Nickname is unavailable.' }, { status: 409 });
 
     const accountId = crypto.randomUUID();
-    const verifier = await authVerifier(env, authSecret);
-    const unlockPepper = randomBytes(32);
+    verifier = await authVerifier(env, authSecret);
+    unlockPepper = randomBytes(32);
     const aad = `my-diary/unlock-pepper/v1/${accountId}`;
     const encryptedPepper = await encryptWithMasterKey(env.UNLOCK_MASTER_KEY, unlockPepper, aad);
     const timestamp = nowIso();
@@ -52,5 +60,10 @@ export async function onRequestPost({ request, env }) {
     return response;
   } catch {
     return json({ error: 'Registration failed.' }, { status: 400 });
+  } finally {
+    accountSalt?.fill(0);
+    authSecret?.fill(0);
+    unlockPepper?.fill(0);
+    verifier?.fill(0);
   }
 }
