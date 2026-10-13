@@ -34,3 +34,8 @@ export interface CloudSnapshotUploadInput {
 export interface CloudSnapshotUploadResult {
   readonly revision: number;
 }
+
+
+export interface CloudAccountDeleteResult {
+  readonly ok: boolean;
+}

@@ -112,6 +112,35 @@ describe('EncryptedRepository atomic writes', () => {
   });
 });
 
+describe('encrypted repository reset', () => {
+  it('clears records, events, metadata, snapshots, and security state atomically', async () => {
+    const db = await openVaultDatabase(nextDbName());
+    try {
+      const repo = new EncryptedRepository(db);
+      await repo.commitRecordEvent('vault-1', record(), event(), 0);
+      await repo.putSnapshot({
+        snapshotId: 'snapshot-reset',
+        vaultId: 'vault-1',
+        createdAt: '2026-10-02T04:00:00.000Z',
+        reason: 'manual',
+        schemaVersion: 1,
+        encryptedPayload: new Uint8Array([7, 8, 9]),
+      });
+      await repo.putSecurityMeta('device-bootstrap-v1', { marker: 'encrypted-only' });
+
+      await repo.clearAllData();
+
+      expect(await repo.listAllRecords()).toEqual([]);
+      expect(await repo.listAllEvents()).toEqual([]);
+      expect(await repo.getRevision('vault-1')).toBe(0);
+      expect(await repo.getSnapshot('snapshot-reset')).toBeUndefined();
+      expect(await repo.getSecurityMeta('device-bootstrap-v1')).toBeUndefined();
+    } finally {
+      db.close();
+    }
+  });
+});
+
 describe('snapshots and schema guard', () => {
   it('stores encrypted snapshot bytes without requiring plaintext state', async () => {
     const db = await openVaultDatabase(nextDbName());

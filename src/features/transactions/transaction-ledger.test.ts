@@ -19,6 +19,7 @@ const eventIds = [
   parseUUID('55555555-5555-4555-8555-555555555552'),
   parseUUID('55555555-5555-4555-8555-555555555553'),
   parseUUID('55555555-5555-4555-8555-555555555554'),
+  parseUUID('55555555-5555-4555-8555-555555555555'),
 ];
 const occurredAt = parseISODateTime('2026-10-02T12:00:00+09:00');
 const now = parseISODateTime('2026-10-02T13:00:00+09:00');
@@ -150,6 +151,7 @@ describe('T19/T21 encrypted common save path', () => {
       parseISODateTime('2026-10-02T13:01:00+09:00'),
       parseISODateTime('2026-10-02T13:02:00+09:00'),
       parseISODateTime('2026-10-02T13:03:00+09:00'),
+      parseISODateTime('2026-10-02T13:04:00+09:00'),
     ];
     const service = new TransactionLedgerService({
       repository: repo,
@@ -190,23 +192,40 @@ describe('T19/T21 encrypted common save path', () => {
       expect(storedText).not.toContain('비밀 점심');
       expect(eventText).not.toContain('비밀 점심');
 
-      const deleted = await service.deleteTransaction(transactionId, 1);
+      const edited = await service.updateTransaction(
+        transactionId,
+        {
+          amountMinor: 15000,
+          occurredAt: parseISODateTime('2026-10-03T09:30:00+09:00'),
+          label: '수정된 카페',
+        },
+        1,
+      );
+      expect(edited.transaction.amountMinor).toBe(15000);
+      expect(edited.transaction.merchant).toBe('수정된 카페');
+      expect(edited.transaction.version).toBe(2);
+      expect(edited.revision).toBe(2);
+
+      const editedStored = await repo.getRecord(transactionId);
+      expect(new TextDecoder().decode(editedStored!.encryptedPayload)).not.toContain('수정된 카페');
+
+      const deleted = await service.deleteTransaction(transactionId, 2);
       expect(deleted.transaction.deletedAt).toBeDefined();
-      expect(deleted.transaction.version).toBe(2);
-      expect(deleted.revision).toBe(2);
+      expect(deleted.transaction.version).toBe(3);
+      expect(deleted.revision).toBe(3);
 
-      const restored = await service.restoreTransaction(transactionId, 2);
+      const restored = await service.restoreTransaction(transactionId, 3);
       expect(restored.transaction.deletedAt).toBeUndefined();
-      expect(restored.transaction.version).toBe(3);
-      expect(restored.revision).toBe(3);
+      expect(restored.transaction.version).toBe(4);
+      expect(restored.revision).toBe(4);
 
-      const undone = await service.undoLastMutation(transactionId, 3);
+      const undone = await service.undoLastMutation(transactionId, 4);
       expect(undone.transaction.deletedAt).toBeDefined();
-      expect(undone.transaction.version).toBe(4);
-      expect(undone.revision).toBe(4);
+      expect(undone.transaction.version).toBe(5);
+      expect(undone.revision).toBe(5);
 
       const events = await repo.listEventsByRecord(transactionId);
-      expect(events.map((item) => item.action)).toEqual(['create', 'delete', 'restore', 'update']);
+      expect(events.map((item) => item.action)).toEqual(['create', 'update', 'delete', 'restore', 'update']);
     } finally {
       session.lock();
       db.close();

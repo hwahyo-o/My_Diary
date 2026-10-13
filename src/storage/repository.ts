@@ -170,6 +170,23 @@ export class EncryptedRepository {
     await txDone(tx);
   }
 
+  async clearAllData(): Promise<void> {
+    const tx = this.db.transaction(
+      [STORE_NAMES.records, STORE_NAMES.events, STORE_NAMES.vaultMeta, STORE_NAMES.snapshots, STORE_NAMES.securityMeta],
+      'readwrite',
+    );
+    for (const storeName of [
+      STORE_NAMES.records,
+      STORE_NAMES.events,
+      STORE_NAMES.vaultMeta,
+      STORE_NAMES.snapshots,
+      STORE_NAMES.securityMeta,
+    ]) {
+      tx.objectStore(storeName).clear();
+    }
+    await txDone(tx);
+  }
+
   async putSnapshot(snapshot: StoredSnapshot): Promise<void> {
     const tx = this.db.transaction(STORE_NAMES.snapshots, 'readwrite');
     await requestValue(tx.objectStore(STORE_NAMES.snapshots).put(snapshot));

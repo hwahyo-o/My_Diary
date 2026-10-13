@@ -281,13 +281,25 @@ h2 { margin-bottom: 0; }
 .calendar-empty-state p { margin: 0; color: var(--color-ink-muted); line-height: 1.5; }
 .calendar-transaction-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
 .calendar-transaction-list li {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
   padding: .85rem 0;
   border-top: 1px solid var(--color-border);
 }
+.calendar-transaction-list li > .calendar-toolbar-actions {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.calendar-edit-form {
+  grid-column: 1 / -1;
+  width: 100%;
+  gap: var(--space-3);
+}
+.calendar-edit-form label { display: grid; gap: var(--space-2); color: var(--color-ink-muted); font-size: .82rem; font-weight: 800; }
+.calendar-edit-form input { min-height: 44px; width: 100%; padding: 0 .8rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); color: var(--color-ink); background: var(--color-surface); }
 .calendar-transaction-main { min-width: 0; display: grid; gap: .25rem; }
 .calendar-transaction-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .calendar-transaction-main span { color: var(--color-ink-muted); font-size: .75rem; }

@@ -29,6 +29,12 @@ export interface MutationResult {
   readonly revision: number;
 }
 
+export interface UpdateTransactionInput {
+  readonly amountMinor: number;
+  readonly occurredAt: ISODateTime;
+  readonly label: string;
+}
+
 interface MutationPatch {
   readonly before: Transaction | null;
   readonly after: Transaction;
@@ -76,6 +82,64 @@ export class TransactionLedgerService {
 
     const revision = await this.persistMutation(transaction, null, 'create', options.expectedRevision);
     return { transaction, revision };
+  }
+
+  async updateTransaction(
+    recordId: UUID,
+    input: UpdateTransactionInput,
+    expectedRevision: number,
+  ): Promise<MutationResult> {
+    const current = await this.loadTransaction(recordId);
+    if (current.deletedAt) throw new Error('Deleted transaction cannot be edited.');
+    if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor <= 0) {
+      throw new TypeError('Transaction amountMinor must be a positive safe integer.');
+    }
+    const label = input.label.trim();
+    const timestamp = this.deps.now();
+
+    let next: Transaction;
+    if (current.merchant !== undefined) {
+      const { merchant: _merchant, ...withoutMerchant } = current;
+      void _merchant;
+      next = label
+        ? {
+            ...current,
+            amountMinor: input.amountMinor,
+            occurredAt: input.occurredAt,
+            merchant: label,
+            updatedAt: timestamp,
+            version: current.version + 1,
+          }
+        : {
+            ...withoutMerchant,
+            amountMinor: input.amountMinor,
+            occurredAt: input.occurredAt,
+            updatedAt: timestamp,
+            version: current.version + 1,
+          };
+    } else {
+      const { memo: _memo, ...withoutMemo } = current;
+      void _memo;
+      next = label
+        ? {
+            ...current,
+            amountMinor: input.amountMinor,
+            occurredAt: input.occurredAt,
+            memo: label,
+            updatedAt: timestamp,
+            version: current.version + 1,
+          }
+        : {
+            ...withoutMemo,
+            amountMinor: input.amountMinor,
+            occurredAt: input.occurredAt,
+            updatedAt: timestamp,
+            version: current.version + 1,
+          };
+    }
+
+    const revision = await this.persistMutation(next, current, 'update', expectedRevision);
+    return { transaction: next, revision };
   }
 
   async deleteTransaction(recordId: UUID, expectedRevision: number): Promise<MutationResult> {

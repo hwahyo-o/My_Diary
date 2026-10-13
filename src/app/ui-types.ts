@@ -120,6 +120,13 @@ export type TransactionSubmission =
   | { readonly mode: 'quick'; readonly text: string }
   | { readonly mode: 'direct'; readonly amountMinor: number; readonly memo: string };
 
+export interface UpdateTransactionInput {
+  readonly id: string;
+  readonly amountMinor: number;
+  readonly label: string;
+  readonly occurredAt: string;
+}
+
 export interface SaveAccountInput {
   readonly name: string;
   readonly kind: AccountKind;
@@ -155,6 +162,9 @@ export interface AppRuntimePorts {
   createProfile(input: { readonly nickname: string; readonly pin: string }): Promise<void | { readonly recoveryKey: string }>;
   unlock(pin: string): Promise<void>;
   submitTransaction(input: TransactionSubmission): Promise<void>;
+  updateTransaction?(input: UpdateTransactionInput): Promise<void>;
+  deleteTransaction?(id: string): Promise<void>;
+  restoreTransaction?(id: string): Promise<void>;
   saveBudget?(input: { readonly limitMinor: number }): Promise<void>;
   saveAccount?(input: SaveAccountInput): Promise<string>;
   saveHolding?(input: SaveHoldingInput): Promise<void>;
@@ -167,6 +177,7 @@ export interface AppRuntimePorts {
   loginFromCloud?(input: { readonly nickname: string; readonly pin: string }): Promise<void>;
   isCloudEnrolled?(): boolean;
   hasCloudConflict?(): boolean;
+  resetAllData?(input: { readonly pin: string }): Promise<void>;
   lock?(): void;
   getSnapshot?(): RuntimeSnapshot;
   subscribe?(listener: (snapshot: RuntimeSnapshot) => void): () => void;

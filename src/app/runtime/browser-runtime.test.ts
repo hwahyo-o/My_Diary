@@ -142,6 +142,35 @@ describe('BrowserRuntime composition', () => {
     }
   });
 
+  it('requires the current PIN and fully clears a local-only Vault on reset', async () => {
+    const dbName = `runtime-reset-${crypto.randomUUID()}`;
+    const runtime = await BrowserRuntime.open({
+      dbName,
+      argon2Profile: 'test',
+      now: () => new Date('2026-10-13T09:00:00.000Z'),
+    });
+
+    try {
+      await runtime.createProfile({ nickname: '초기화 테스트', pin: '4829517304' });
+      await runtime.submitTransaction({ mode: 'direct', amountMinor: 7000, memo: '삭제 전 기록' });
+      expect(runtime.getSnapshot().dashboard.expenseMinor).toBe(7000);
+
+      await expect(runtime.resetAllData({ pin: '9382716405' })).rejects.toThrow();
+      expect(runtime.getSnapshot().access).toBe('unlocked');
+      expect(runtime.getSnapshot().dashboard.expenseMinor).toBe(7000);
+
+      await runtime.resetAllData({ pin: '4829517304' });
+      expect(runtime.getSnapshot().access).toBe('onboarding');
+      expect(runtime.getSnapshot().dashboard.expenseMinor).toBe(0);
+
+      expect(await dumpStore(dbName, STORE_NAMES.records)).toEqual([]);
+      expect(await dumpStore(dbName, STORE_NAMES.events)).toEqual([]);
+      expect(await dumpStore(dbName, STORE_NAMES.securityMeta)).toEqual([]);
+    } finally {
+      runtime.close();
+    }
+  });
+
   it('refuses submissions after lock and clears hydrated financial state', async () => {
     const runtime = await BrowserRuntime.open({ dbName: `runtime-${crypto.randomUUID()}`, argon2Profile: 'test' });
     try {

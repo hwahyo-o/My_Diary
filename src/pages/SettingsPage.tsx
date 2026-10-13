@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { BackupStatusViewModel, VaultImportInspectionViewModel } from '../app/ui-types';
 import { BackupPanel } from '../features/backup/BackupPanel';
-import { deriveBackupStatus, formatBackupDateKst, readBackupStatus } from '../features/backup/backup-status';
+import { clearBackupStatus, deriveBackupStatus, formatBackupDateKst, readBackupStatus } from '../features/backup/backup-status';
 
 interface SettingsPageProps {
   readonly onLock: () => void;
@@ -13,6 +13,7 @@ interface SettingsPageProps {
   readonly cloudEnrolled: boolean;
   readonly cloudConflict: boolean;
   readonly onEnrollCloud: (input: { readonly pin: string }) => Promise<void>;
+  readonly onResetAllData: (input: { readonly pin: string }) => Promise<void>;
 }
 
 export function SettingsPage({
@@ -25,6 +26,7 @@ export function SettingsPage({
   cloudEnrolled,
   cloudConflict,
   onEnrollCloud,
+  onResetAllData,
 }: SettingsPageProps) {
   const [backupOpen, setBackupOpen] = useState(false);
   const [backupState, setBackupState] = useState<BackupStatusViewModel>(() =>
@@ -34,6 +36,10 @@ export function SettingsPage({
   const [cloudBusy, setCloudBusy] = useState(false);
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [cloudReady, setCloudReady] = useState(cloudEnrolled);
+  const [resetPin, setResetPin] = useState('');
+  const [resetPhrase, setResetPhrase] = useState('');
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   async function enableCloudSync() {
     setCloudError(null);
@@ -51,6 +57,30 @@ export function SettingsPage({
     } finally {
       setCloudPin('');
       setCloudBusy(false);
+    }
+  }
+
+  async function resetAllData() {
+    setResetError(null);
+    if (!/^\d{10,12}$/.test(resetPin)) {
+      setResetError('현재 사용 중인 10~12자리 PIN을 입력해주세요.');
+      return;
+    }
+    if (resetPhrase !== '초기화') {
+      setResetError('확인란에 “초기화”를 정확히 입력해주세요.');
+      return;
+    }
+
+    setResetBusy(true);
+    try {
+      await onResetAllData({ pin: resetPin });
+      clearBackupStatus();
+    } catch {
+      setResetError('초기화하지 못했습니다. PIN과 네트워크 상태를 확인해주세요.');
+    } finally {
+      setResetPin('');
+      setResetPhrase('');
+      setResetBusy(false);
     }
   }
 
@@ -204,6 +234,66 @@ export function SettingsPage({
             <li><strong>교통 힌트</strong><span>택시 · 버스 · 지하철</span></li>
           </ul>
           <p className="settings-footnote">사용자 정의 규칙 편집은 다음 설정 단계에서 추가 예정입니다.</p>
+        </article>
+
+        <article className="settings-card" aria-labelledby="reset-settings-title">
+          <div className="settings-card-heading">
+            <div>
+              <p className="card-kicker">DANGER ZONE</p>
+              <h2 id="reset-settings-title">전체 초기화</h2>
+              <p>현재 My Diary 데이터를 모두 지우고 처음 시작 상태로 되돌립니다.</p>
+            </div>
+            <span className="status-chip warning">되돌릴 수 없음</span>
+          </div>
+
+          <div className="backup-status-summary">
+            <span>삭제 범위</span>
+            <strong>{cloudReady ? '현재 기기 + 클라우드 계정 데이터' : '현재 기기의 로컬 Vault 데이터'}</strong>
+            <small>
+              {cloudReady
+                ? 'Cloudflare D1의 계정·세션 메타데이터와 R2의 암호화 Vault 스냅샷도 삭제됩니다.'
+                : '이 기기에 저장된 암호화 Vault와 기록을 삭제합니다.'}
+            </small>
+          </div>
+
+          <p className="settings-footnote">
+            다른 기기에 이미 저장된 로컬 Vault 사본과 별도로 내려받아 둔 .vault 백업 파일은 원격으로 삭제할 수 없습니다.
+            필요하면 각 기기와 백업 파일도 직접 정리해야 합니다.
+          </p>
+
+          <div className="settings-card-actions">
+            <label className="access-form">
+              <span>현재 PIN</span>
+              <input
+                aria-label="초기화 확인 PIN"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={12}
+                type="password"
+                value={resetPin}
+                onChange={(event) => setResetPin(event.currentTarget.value.replace(/\D/g, '').slice(0, 12))}
+              />
+            </label>
+            <label className="access-form">
+              <span>확인을 위해 “초기화” 입력</span>
+              <input
+                aria-label="초기화 확인 문구"
+                autoComplete="off"
+                value={resetPhrase}
+                onChange={(event) => setResetPhrase(event.currentTarget.value)}
+              />
+            </label>
+            {resetError ? <p role="alert" className="form-error">{resetError}</p> : null}
+            <button
+              type="button"
+              className="danger-button"
+              disabled={resetBusy}
+              onClick={() => void resetAllData()}
+            >
+              모든 데이터 초기화
+            </button>
+            <p>PIN 재확인과 확인 문구가 모두 일치해야 실행됩니다.</p>
+          </div>
         </article>
 
         <article className="settings-card" aria-labelledby="display-settings-title">

@@ -88,6 +88,18 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
       calendar={calendarState}
       backup={defaultBackupStatus}
       onSubmitTransaction={(input) => runtime.submitTransaction(input)}
+      onUpdateTransaction={(input) => {
+        if (!runtime.updateTransaction) return Promise.reject(new Error('Transaction edit runtime is not connected.'));
+        return runtime.updateTransaction(input);
+      }}
+      onDeleteTransaction={(id) => {
+        if (!runtime.deleteTransaction) return Promise.reject(new Error('Transaction delete runtime is not connected.'));
+        return runtime.deleteTransaction(id);
+      }}
+      onRestoreTransaction={(id) => {
+        if (!runtime.restoreTransaction) return Promise.reject(new Error('Transaction restore runtime is not connected.'));
+        return runtime.restoreTransaction(id);
+      }}
       onSaveBudget={(input) => {
         if (!runtime.saveBudget) return Promise.reject(new Error('Budget runtime is not connected.'));
         return runtime.saveBudget(input);
@@ -121,6 +133,10 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
       onEnrollCloud={(input) => {
         if (!runtime.enrollCloud) return Promise.reject(new Error('Cloud sync is not connected.'));
         return runtime.enrollCloud(input);
+      }}
+      onResetAllData={(input) => {
+        if (!runtime.resetAllData) return Promise.reject(new Error('Reset runtime is not connected.'));
+        return runtime.resetAllData(input);
       }}
       onLock={() => runtime.lock?.()}
     />
