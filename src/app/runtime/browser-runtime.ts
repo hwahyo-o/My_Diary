@@ -198,6 +198,7 @@ export class BrowserRuntime {
     dashboard: emptyDashboard,
     assets: emptyAssets,
     analytics: emptyAnalytics,
+    calendar: emptyCalendar,
   };
   private readonly listeners = new Set<(snapshot: RuntimeSnapshot) => void>();
 
