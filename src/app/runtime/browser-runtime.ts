@@ -686,6 +686,7 @@ export class BrowserRuntime {
       });
       this.bootstrap = nextBootstrap;
       await this.hydrate();
+      void this.syncCloudBestEffort();
     } finally {
       verified.vaultKey.fill(0);
     }
@@ -781,7 +782,8 @@ export class BrowserRuntime {
       this.repository.getRevision(bootstrap.vaultId),
     ]);
     const localChanged = localRevision !== meta.localRevisionAtSync;
-    const cloudChanged = head.revision !== meta.cloudRevision;
+    if (head.revision < meta.cloudRevision) throw new Error('Cloud sync head moved backwards.');
+    const cloudChanged = head.revision > meta.cloudRevision;
 
     if (localChanged && cloudChanged) throw new Error('Cloud sync conflict requires resolution.');
     if (cloudChanged) {
