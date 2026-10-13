@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, vi } from 'vitest';
 import { SettingsPage } from './SettingsPage';
 
 const baseProps = {
@@ -12,6 +12,7 @@ const baseProps = {
 };
 
 describe('SettingsPage operational hub', () => {
+  beforeEach(() => localStorage.clear());
   it('shows security, backup, input-rule, and display status without fake navigation buttons', () => {
     render(<SettingsPage {...baseProps} />);
 
@@ -43,6 +44,28 @@ describe('SettingsPage operational hub', () => {
     fireEvent.click(toggle);
     expect(screen.getByRole('button', { name: '백업 도구 닫기' })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getAllByText(/RecoveryKey/).length).toBeGreaterThan(0);
+  });
+
+  it('restores persisted backup metadata when the parent only has the default empty status', () => {
+    localStorage.setItem('my-diary-backup-status-v1', '2026-10-12T08:00:00.000Z');
+    render(<SettingsPage {...baseProps} />);
+
+    expect(screen.getByText('백업 최신')).toBeInTheDocument();
+    expect(screen.getByText('최근 백업 기록이 있습니다.')).toBeInTheDocument();
+    expect(screen.queryByText('아직 백업 없음')).not.toBeInTheDocument();
+  });
+
+  it('updates the settings summary immediately after a successful export', async () => {
+    const onExportVault = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
+    render(<SettingsPage {...baseProps} onExportVault={onExportVault} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '백업 도구 열기' }));
+    fireEvent.change(screen.getByLabelText('내보내기 RecoveryKey'), { target: { value: 'recover-secret' } });
+    fireEvent.click(screen.getByRole('button', { name: '백업 내보내기' }));
+
+    await waitFor(() => expect(screen.getByText('백업 최신')).toBeInTheDocument());
+    expect(screen.getByText('최근 백업 기록이 있습니다.')).toBeInTheDocument();
+    expect(screen.queryByText('아직 백업 없음')).not.toBeInTheDocument();
   });
 
   it('shows a formatted last-backup time when a backup exists', () => {
