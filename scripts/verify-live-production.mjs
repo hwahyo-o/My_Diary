@@ -1,4 +1,4 @@
-/* global process, console, fetch */
+/* global process, console, fetch, URL, setTimeout */
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 
