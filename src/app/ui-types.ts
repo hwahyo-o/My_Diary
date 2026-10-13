@@ -90,6 +90,19 @@ export interface AnalyticsViewModel {
   readonly reports: readonly ReportSummaryViewModel[];
 }
 
+export interface CalendarTransactionViewModel {
+  readonly id: string;
+  readonly occurredAt: string;
+  readonly label: string;
+  readonly type: string;
+  readonly amountMinor: number;
+  readonly direction: 'income' | 'expense' | 'neutral';
+}
+
+export interface CalendarViewModel {
+  readonly transactions: readonly CalendarTransactionViewModel[];
+}
+
 export interface BackupStatusViewModel {
   readonly lastExportedAt: string | null;
   readonly reminderDue: boolean;
@@ -135,6 +148,7 @@ export interface RuntimeSnapshot {
   readonly dashboard: DashboardViewModel;
   readonly assets: AssetsViewModel;
   readonly analytics: AnalyticsViewModel;
+  readonly calendar: CalendarViewModel;
 }
 
 export interface AppRuntimePorts {
@@ -193,6 +207,10 @@ export const emptyAnalytics: AnalyticsViewModel = {
   variableMinor: 0,
   mixedMinor: 0,
   reports: [],
+};
+
+export const emptyCalendar: CalendarViewModel = {
+  transactions: [],
 };
 
 export const defaultBackupStatus: BackupStatusViewModel = {

@@ -4,6 +4,7 @@ import type {
   AnalyticsViewModel,
   AssetsViewModel,
   BackupStatusViewModel,
+  CalendarViewModel,
   DashboardViewModel,
   SaveAccountInput,
   SaveHoldingInput,
@@ -25,6 +26,7 @@ interface AppShellProps {
   readonly assets: AssetsViewModel;
   readonly analytics: AnalyticsViewModel;
   readonly backup: BackupStatusViewModel;
+  readonly calendar: CalendarViewModel;
   readonly onSubmitTransaction: (input: TransactionSubmission) => Promise<void>;
   readonly onSaveBudget: (input: { readonly limitMinor: number }) => Promise<void>;
   readonly onSaveAccount: (input: SaveAccountInput) => Promise<string>;
@@ -41,6 +43,7 @@ export function AppShell({
   assets,
   analytics,
   backup,
+  calendar,
   onSubmitTransaction,
   onSaveBudget,
   onSaveAccount,
@@ -61,7 +64,7 @@ export function AppShell({
       content = <HomePage dashboard={dashboard} onQuickAdd={() => setEntryOpen(true)} quickAddButtonRef={quickAddButtonRef} />;
       break;
     case 'calendar':
-      content = <CalendarPage />;
+      content = <CalendarPage calendar={calendar} onQuickAdd={() => setEntryOpen(true)} />;
       break;
     case 'stats':
       content = <StatsPage incomeMinor={dashboard.incomeMinor} expenseMinor={dashboard.expenseMinor} budget={dashboard.budget} analytics={analytics} onSaveBudget={onSaveBudget} />;
