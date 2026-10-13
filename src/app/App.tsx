@@ -49,6 +49,9 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
     const recoveryProps = runtime.recoverFromVault
       ? { onRecover: (input: { readonly packageBytes: Uint8Array; readonly recoveryKey: string; readonly pin: string }) => runtime.recoverFromVault!(input) }
       : {};
+    const cloudLoginProps = runtime.loginFromCloud
+      ? { onCloudLogin: (input: { readonly nickname: string; readonly pin: string }) => runtime.loginFromCloud!(input) }
+      : {};
     return (
       <>
       <HostingNotice />
@@ -57,6 +60,7 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
         onCreateProfile={(input) => runtime.createProfile(input)}
         onUnlock={(pin) => runtime.unlock(pin)}
         {...recoveryProps}
+        {...cloudLoginProps}
         onAccessGranted={() => {
           const next = runtime.getSnapshot?.();
           if (next) {
@@ -111,6 +115,11 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
       onApplyVaultImport={(bytes, input) => {
         if (!runtime.applyVaultImport) return Promise.reject(new Error('Backup import is not connected.'));
         return runtime.applyVaultImport(bytes, input);
+      }}
+      cloudEnrolled={runtime.isCloudEnrolled?.() ?? false}
+      onEnrollCloud={(input) => {
+        if (!runtime.enrollCloud) return Promise.reject(new Error('Cloud sync is not connected.'));
+        return runtime.enrollCloud(input);
       }}
       onLock={() => runtime.lock?.()}
     />

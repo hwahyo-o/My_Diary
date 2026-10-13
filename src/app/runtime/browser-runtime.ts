@@ -1,3 +1,6 @@
+import { CloudSyncClient } from '../../cloud-sync/http-client';
+import { deriveCloudAuthSecret, deriveCloudKek, deriveCloudRootKey } from '../../cloud-sync/key-derivation';
+import { openCloudVaultSnapshot, sealCloudVaultSnapshot, sha256Hex } from '../../cloud-sync/snapshot';
 import { selectAccountPurposeAnalysis } from '../../domain/analytics/account-purpose';
 import { selectBudgetUsage } from '../../domain/analytics/budget';
 import { selectCoreAnalytics } from '../../domain/analytics/core';
@@ -60,6 +63,15 @@ interface BootstrapMeta {
   readonly failedAttempts: number;
 }
 
+interface CloudEnrollmentMeta {
+  readonly accountId: string;
+  readonly nickname: string;
+  readonly accountSalt: Uint8Array;
+  readonly cloudWrap: WrappedKeyEnvelope;
+  readonly cloudRevision: number;
+  readonly localRevisionAtSync: number;
+}
+
 interface StoredAccountPayload {
   readonly account: Account;
   readonly balanceMinor: number;
@@ -81,6 +93,7 @@ export interface BrowserRuntimeOptions {
 }
 
 const BOOTSTRAP_KEY = 'device-bootstrap-v1';
+const CLOUD_META_KEY = 'cloud-enrollment-v1';
 const SCHEMA_VERSION = 1;
 const MAX_PIN_FAILURES = 10;
 
@@ -111,6 +124,10 @@ function decodeEnvelope(bytes: Uint8Array): EncryptedRecordEnvelope {
     iv: new Uint8Array(parsed.iv),
     ciphertext: new Uint8Array(parsed.ciphertext),
   };
+}
+
+function cloudWrapAad(accountId: string, vaultId: string): Uint8Array {
+  return new TextEncoder().encode(`my-diary/cloud-vault-wrap/v1/${accountId}/${vaultId}`);
 }
 
 function wrapAad(vaultId: string, kind: 'device' | 'recovery'): Uint8Array {
@@ -193,6 +210,9 @@ function recordsEqual(a: StoredEncryptedRecord, b: StoredEncryptedRecord): boole
 export class BrowserRuntime {
   private session: VaultSession | null = null;
   private bootstrap: BootstrapMeta | null = null;
+  private cloudMeta: CloudEnrollmentMeta | null = null;
+  private cloudKek: Uint8Array | null = null;
+  private readonly cloudClient = new CloudSyncClient();
   private snapshot: RuntimeSnapshot = {
     access: 'onboarding',
     dashboard: emptyDashboard,
@@ -216,6 +236,7 @@ export class BrowserRuntime {
       now: options.now ?? (() => new Date()),
     });
     runtime.bootstrap = await repository.getSecurityMeta<BootstrapMeta>(BOOTSTRAP_KEY) ?? null;
+    runtime.cloudMeta = await repository.getSecurityMeta<CloudEnrollmentMeta>(CLOUD_META_KEY) ?? null;
     runtime.snapshot = {
       access: runtime.bootstrap ? 'locked' : 'onboarding',
       dashboard: emptyDashboard,
@@ -233,6 +254,10 @@ export class BrowserRuntime {
   subscribe(listener: (snapshot: RuntimeSnapshot) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  isCloudEnrolled(): boolean {
+    return this.cloudMeta !== null;
   }
 
   async createProfile(input: { readonly nickname: string; readonly pin: string }): Promise<{ readonly recoveryKey: string }> {
@@ -311,6 +336,7 @@ export class BrowserRuntime {
       await this.repository.putSecurityMeta(BOOTSTRAP_KEY, resetBootstrap);
       this.bootstrap = resetBootstrap;
       await this.hydrate();
+      if (this.cloudMeta) await this.authenticateAndSyncCloud(pin).catch(() => undefined);
     } catch (error) {
       this.session?.lock();
       this.session = null;
@@ -327,6 +353,122 @@ export class BrowserRuntime {
       throw error;
     } finally {
       kek.fill(0);
+    }
+  }
+
+  async enrollCloud(input: { readonly pin: string }): Promise<void> {
+    const bootstrap = this.bootstrap;
+    const session = this.session;
+    if (!bootstrap || !session?.isUnlocked) throw new Error('Vault session is locked.');
+    if (this.cloudMeta) throw new Error('Cloud sync is already enabled.');
+    assertStrongPin(input.pin);
+
+    const nickname = this.snapshot.dashboard.nickname.trim();
+    if (!nickname) throw new Error('Profile nickname is unavailable.');
+    const accountSalt = crypto.getRandomValues(new Uint8Array(32));
+    const rootKey = await deriveCloudRootKey(input.pin, accountSalt, bootstrap.argon2Params);
+    const authSecret = await deriveCloudAuthSecret(rootKey, accountSalt);
+    const deviceKek = await deriveDeviceKek(input.pin, bootstrap.deviceSecret, bootstrap.pinSalt, bootstrap.argon2Params);
+    let vaultKey: Uint8Array | null = null;
+    let cloudKek: Uint8Array | null = null;
+    try {
+      const registration = await this.cloudClient.register({ nickname, accountSalt, authSecret });
+      const unlockPepper = CloudSyncClient.decodeBytes(registration.unlockPepper);
+      cloudKek = await deriveCloudKek(rootKey, unlockPepper);
+      this.cloudKek?.fill(0);
+      this.cloudKek = cloudKek.slice();
+      vaultKey = await unwrapVaultKey(bootstrap.wrappedDeviceVaultKey, deviceKek, wrapAad(bootstrap.vaultId, 'device'));
+      const cloudWrap = await wrapVaultKey(vaultKey, cloudKek, cloudWrapAad(registration.accountId, bootstrap.vaultId));
+      const initialMeta: CloudEnrollmentMeta = {
+        accountId: registration.accountId,
+        nickname,
+        accountSalt,
+        cloudWrap,
+        cloudRevision: registration.revision,
+        localRevisionAtSync: -1,
+      };
+      this.cloudMeta = initialMeta;
+      await this.repository.putSecurityMeta(CLOUD_META_KEY, initialMeta);
+      await this.uploadCloudSnapshot(initialMeta, registration.revision);
+    } finally {
+      rootKey.fill(0);
+      authSecret.fill(0);
+      deviceKek.fill(0);
+      vaultKey?.fill(0);
+      cloudKek?.fill(0);
+    }
+  }
+
+  async loginFromCloud(input: { readonly nickname: string; readonly pin: string }): Promise<void> {
+    if (this.bootstrap) throw new Error('Cloud login requires a fresh local device profile.');
+    assertStrongPin(input.pin);
+    const nickname = input.nickname.trim();
+    if (!nickname) throw new TypeError('Nickname is required.');
+
+    const challenge = await this.cloudClient.challenge(nickname);
+    const accountSalt = CloudSyncClient.decodeBytes(challenge.accountSalt);
+    const params = this.options.argon2Profile === 'test' ? TEST_ARGON2_PARAMS : DEFAULT_ARGON2_PARAMS;
+    const rootKey = await deriveCloudRootKey(input.pin, accountSalt, params);
+    const authSecret = await deriveCloudAuthSecret(rootKey, accountSalt);
+    let cloudKek: Uint8Array | null = null;
+    let vaultKey: Uint8Array | null = null;
+    const deviceSecret = generateDeviceSecret();
+    const pinSalt = crypto.getRandomValues(new Uint8Array(16));
+    const deviceId = newUuid();
+    const deviceKek = await deriveDeviceKek(input.pin, deviceSecret, pinSalt, params);
+    try {
+      const login = await this.cloudClient.loginWithSecret(nickname, authSecret);
+      cloudKek = await deriveCloudKek(rootKey, CloudSyncClient.decodeBytes(login.unlockPepper));
+      this.cloudKek?.fill(0);
+      this.cloudKek = cloudKek.slice();
+
+      const download = await this.cloudClient.downloadSnapshot();
+      if (!download) throw new Error('Cloud Vault snapshot is missing.');
+      if (await sha256Hex(download.bytes) !== download.objectSha256) throw new Error('Cloud snapshot digest mismatch.');
+      const snapshot = await openCloudVaultSnapshot(download.bytes, cloudKek);
+      if (snapshot.accountId !== login.accountId) throw new Error('Cloud account mismatch.');
+      if (snapshot.schemaVersion > SCHEMA_VERSION) throw new Error('Cloud Vault uses a future schema version.');
+      vaultKey = await unwrapVaultKey(snapshot.cloudWrap, cloudKek, cloudWrapAad(login.accountId, snapshot.vaultId));
+      const wrappedDeviceVaultKey = await wrapVaultKey(vaultKey, deviceKek, wrapAad(snapshot.vaultId, 'device'));
+      const bootstrap: BootstrapMeta = {
+        vaultId: snapshot.vaultId,
+        profileRecordId: parseUUID(snapshot.manifest.profileRecordId),
+        defaultAccountId: parseUUID(snapshot.manifest.defaultAccountId),
+        deviceId,
+        deviceSecret,
+        pinSalt,
+        argon2Params: params,
+        wrappedDeviceVaultKey,
+        wrappedRecoveryVaultKey: snapshot.recoveryWrap,
+        failedAttempts: 0,
+      };
+      await this.repository.replaceVaultData({
+        vaultId: snapshot.vaultId,
+        schemaVersion: snapshot.schemaVersion,
+        revision: snapshot.manifest.revision,
+        records: snapshot.records,
+        events: snapshot.events,
+        securityMeta: { key: BOOTSTRAP_KEY, value: bootstrap },
+      });
+      const cloudMeta: CloudEnrollmentMeta = {
+        accountId: login.accountId,
+        nickname,
+        accountSalt,
+        cloudWrap: snapshot.cloudWrap,
+        cloudRevision: download.revision,
+        localRevisionAtSync: snapshot.manifest.revision,
+      };
+      await this.repository.putSecurityMeta(CLOUD_META_KEY, cloudMeta);
+      this.bootstrap = bootstrap;
+      this.cloudMeta = cloudMeta;
+      this.session = await VaultSession.unlock(vaultKey.slice());
+      await this.hydrate();
+    } finally {
+      rootKey.fill(0);
+      authSecret.fill(0);
+      cloudKek?.fill(0);
+      vaultKey?.fill(0);
+      deviceKek.fill(0);
     }
   }
 
@@ -359,6 +501,7 @@ export class BrowserRuntime {
     const revision = await this.repository.getRevision(bootstrap.vaultId);
     await service.saveDraft(draft, { expectedRevision: revision });
     await this.hydrate();
+    void this.syncCloudBestEffort();
   }
 
   async saveBudget(input: { readonly limitMinor: number }): Promise<void> {
@@ -377,6 +520,7 @@ export class BrowserRuntime {
     };
     await this.persistFinanceRecord('budget', budget.id, budget.version, budget.updatedAt, budget);
     await this.hydrate();
+    void this.syncCloudBestEffort();
   }
 
   async saveAccount(input: SaveAccountInput): Promise<string> {
@@ -396,6 +540,7 @@ export class BrowserRuntime {
     const payload: StoredAccountPayload = { account, balanceMinor: input.balanceMinor };
     await this.persistFinanceRecord('account', account.id, account.version, account.updatedAt, payload);
     await this.hydrate();
+    void this.syncCloudBestEffort();
     return account.id;
   }
 
@@ -419,6 +564,7 @@ export class BrowserRuntime {
     }
     await this.persistFinanceRecord('holding', holding.id, holding.version, holding.updatedAt, holding);
     await this.hydrate();
+    void this.syncCloudBestEffort();
   }
 
   async saveLoan(input: SaveLoanInput): Promise<void> {
@@ -437,6 +583,7 @@ export class BrowserRuntime {
     };
     await this.persistFinanceRecord('loan', loan.id, loan.version, loan.updatedAt, loan);
     await this.hydrate();
+    void this.syncCloudBestEffort();
   }
 
   async exportVault(input: { readonly recoveryKey: string }): Promise<Uint8Array> {
@@ -539,6 +686,7 @@ export class BrowserRuntime {
       });
       this.bootstrap = nextBootstrap;
       await this.hydrate();
+      void this.syncCloudBestEffort();
     } finally {
       verified.vaultKey.fill(0);
     }
@@ -593,7 +741,125 @@ export class BrowserRuntime {
     }
   }
 
+  private async authenticateAndSyncCloud(pin: string): Promise<void> {
+    const meta = this.cloudMeta;
+    const bootstrap = this.bootstrap;
+    if (!meta || !bootstrap) return;
+    const rootKey = await deriveCloudRootKey(pin, meta.accountSalt, bootstrap.argon2Params);
+    const authSecret = await deriveCloudAuthSecret(rootKey, meta.accountSalt);
+    try {
+      const login = await this.cloudClient.loginWithSecret(meta.nickname, authSecret);
+      const cloudKek = await deriveCloudKek(rootKey, CloudSyncClient.decodeBytes(login.unlockPepper));
+      try {
+        this.cloudKek?.fill(0);
+        this.cloudKek = cloudKek.slice();
+        await this.syncCloudNow();
+      } finally {
+        cloudKek.fill(0);
+      }
+    } finally {
+      rootKey.fill(0);
+      authSecret.fill(0);
+    }
+  }
+
+  private async syncCloudBestEffort(): Promise<void> {
+    if (!this.cloudMeta || !this.session?.isUnlocked) return;
+    try {
+      await this.syncCloudNow();
+    } catch {
+      // Local-first writes remain available. A later unlock/manual sync retries safely.
+    }
+  }
+
+  private async syncCloudNow(): Promise<void> {
+    const meta = this.cloudMeta;
+    const bootstrap = this.bootstrap;
+    if (!meta || !bootstrap || !this.session?.isUnlocked) return;
+
+    const [head, localRevision] = await Promise.all([
+      this.cloudClient.getHead(),
+      this.repository.getRevision(bootstrap.vaultId),
+    ]);
+    const localChanged = localRevision !== meta.localRevisionAtSync;
+    if (head.revision < meta.cloudRevision) throw new Error('Cloud sync head moved backwards.');
+    const cloudChanged = head.revision > meta.cloudRevision;
+
+    if (localChanged && cloudChanged) throw new Error('Cloud sync conflict requires resolution.');
+    if (cloudChanged) {
+      const download = await this.cloudClient.downloadSnapshot();
+      if (!download) throw new Error('Cloud Vault snapshot is missing.');
+      if (await sha256Hex(download.bytes) !== download.objectSha256) throw new Error('Cloud snapshot digest mismatch.');
+      const cloudKek = this.cloudKek;
+      if (!cloudKek) throw new Error('Cloud sync key is unavailable.');
+      const snapshot = await openCloudVaultSnapshot(download.bytes, cloudKek);
+      if (snapshot.accountId !== meta.accountId || snapshot.vaultId !== bootstrap.vaultId) {
+        throw new Error('Cloud Vault identity mismatch.');
+      }
+      await this.repository.replaceVaultData({
+        vaultId: snapshot.vaultId,
+        schemaVersion: snapshot.schemaVersion,
+        revision: snapshot.manifest.revision,
+        records: snapshot.records,
+        events: snapshot.events,
+      });
+      const nextMeta: CloudEnrollmentMeta = {
+        ...meta,
+        cloudWrap: snapshot.cloudWrap,
+        cloudRevision: download.revision,
+        localRevisionAtSync: snapshot.manifest.revision,
+      };
+      await this.repository.putSecurityMeta(CLOUD_META_KEY, nextMeta);
+      this.cloudMeta = nextMeta;
+      await this.hydrate();
+      return;
+    }
+    if (localChanged) await this.uploadCloudSnapshot(meta, head.revision);
+  }
+
+  private async uploadCloudSnapshot(meta: CloudEnrollmentMeta, expectedCloudRevision: number): Promise<void> {
+    const bootstrap = this.bootstrap;
+    if (!bootstrap || !this.session?.isUnlocked) throw new Error('Vault session is locked.');
+    const [records, events, localRevision] = await Promise.all([
+      this.repository.listAllRecords(),
+      this.repository.listAllEvents(),
+      this.repository.getRevision(bootstrap.vaultId),
+    ]);
+    const cloudKek = this.cloudKek;
+    if (!cloudKek) throw new Error('Cloud sync key is unavailable.');
+    const bytes = await sealCloudVaultSnapshot({
+      formatVersion: 1,
+      schemaVersion: SCHEMA_VERSION,
+      vaultId: bootstrap.vaultId,
+      createdAt: toIso(this.options.now()),
+      accountId: meta.accountId,
+      manifest: {
+        profileRecordId: bootstrap.profileRecordId,
+        defaultAccountId: bootstrap.defaultAccountId,
+        revision: localRevision,
+      },
+      cloudWrap: meta.cloudWrap,
+      recoveryWrap: bootstrap.wrappedRecoveryVaultKey,
+      records,
+      events,
+    }, cloudKek);
+    const result = await this.cloudClient.uploadSnapshot({
+      expectedRevision: expectedCloudRevision,
+      objectSha256: await sha256Hex(bytes),
+      bytes,
+    });
+    const nextMeta: CloudEnrollmentMeta = {
+      ...meta,
+      cloudRevision: result.revision,
+      localRevisionAtSync: localRevision,
+    };
+    await this.repository.putSecurityMeta(CLOUD_META_KEY, nextMeta);
+    this.cloudMeta = nextMeta;
+  }
+
   lock(): void {
+    this.cloudKek?.fill(0);
+    this.cloudKek = null;
     this.session?.lock();
     this.session = null;
     this.setSnapshot({

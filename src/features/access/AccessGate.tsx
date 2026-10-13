@@ -7,24 +7,27 @@ interface AccessGateProps {
   readonly onCreateProfile: (input: { readonly nickname: string; readonly pin: string }) => Promise<void | { readonly recoveryKey: string }>;
   readonly onUnlock: (pin: string) => Promise<void>;
   readonly onRecover?: (input: { readonly packageBytes: Uint8Array; readonly recoveryKey: string; readonly pin: string }) => Promise<void>;
+  readonly onCloudLogin?: (input: { readonly nickname: string; readonly pin: string }) => Promise<void>;
   readonly onAccessGranted: () => void;
 }
 
 const supportedPin = /^\d{6,12}$/;
 const strongPin = /^\d{10,12}$/;
 
-export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onAccessGranted }: AccessGateProps) {
+export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onCloudLogin, onAccessGranted }: AccessGateProps) {
   const [nickname, setNickname] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
   const [recovering, setRecovering] = useState(false);
+  const [cloudLogin, setCloudLogin] = useState(false);
 
   useEffect(() => {
     if (mode !== 'locked') return;
     setRecoveryKey(null);
     setRecovering(false);
+    setCloudLogin(false);
     setPin('');
     setError(null);
   }, [mode]);
@@ -33,7 +36,7 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onAcces
     event.preventDefault();
     setError(null);
 
-    const pinPattern = mode === 'onboarding' ? strongPin : supportedPin;
+    const pinPattern = mode === 'onboarding' || cloudLogin ? strongPin : supportedPin;
     if (!pinPattern.test(pin)) {
       setError(mode === 'onboarding'
         ? '새 PIN은 10~12자리 숫자로 입력해주세요.'
@@ -41,14 +44,17 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onAcces
       return;
     }
 
-    if (mode === 'onboarding' && nickname.trim().length === 0) {
+    if ((mode === 'onboarding' || cloudLogin) && nickname.trim().length === 0) {
       setError('닉네임을 입력해주세요.');
       return;
     }
 
     setBusy(true);
     try {
-      if (mode === 'onboarding') {
+      if (mode === 'onboarding' && cloudLogin && onCloudLogin) {
+        await onCloudLogin({ nickname: nickname.trim(), pin });
+        onAccessGranted();
+      } else if (mode === 'onboarding') {
         const result = await onCreateProfile({ nickname: nickname.trim(), pin });
         if (result && 'recoveryKey' in result) {
           setRecoveryKey(result.recoveryKey);
@@ -60,10 +66,10 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onAcces
         onAccessGranted();
       }
     } catch (error) {
-      if (mode === 'onboarding' && error instanceof TypeError && error.message === 'PIN is too weak.') {
+      if ((mode === 'onboarding' || cloudLogin) && error instanceof TypeError && error.message === 'PIN is too weak.') {
         setError('PIN이 너무 단순합니다. 반복되거나 연속된 숫자 패턴을 피해주세요.');
       } else {
-        setError(mode === 'locked' ? 'PIN을 확인해주세요.' : '설정을 완료하지 못했습니다. 다시 시도해주세요.');
+        setError(mode === 'locked' ? 'PIN을 확인해주세요.' : cloudLogin ? '닉네임 또는 PIN을 확인해주세요.' : '설정을 완료하지 못했습니다. 다시 시도해주세요.');
       }
     } finally {
       setPin('');
@@ -104,10 +110,12 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onAcces
     <main className="access-shell">
       <section className="access-card" aria-labelledby="access-title">
         <p className="eyebrow">LOCAL-FIRST FINANCE</p>
-        <h1 id="access-title">{mode === 'onboarding' ? 'My Diary 시작하기' : 'My Diary 잠금 해제'}</h1>
+        <h1 id="access-title">{mode === 'onboarding' ? (cloudLogin ? '기존 계정으로 로그인' : 'My Diary 시작하기') : 'My Diary 잠금 해제'}</h1>
         <p className="access-copy">
           {mode === 'onboarding'
-            ? '이 기기에서 사용할 닉네임과 10~12자리 PIN을 설정하세요.'
+            ? (cloudLogin
+              ? '기존 닉네임과 PIN으로 로그인하면 암호화된 Vault를 이 기기에 자동으로 복원합니다.'
+              : '새 Vault를 만들거나, 기존 계정이 있다면 로그인해서 이어서 사용할 수 있습니다.')
             : '금융 기록을 보려면 이 기기의 PIN을 입력하세요.'}
         </p>
 
@@ -125,11 +133,24 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onAcces
           </label>
 
           {error ? <p role="alert" className="form-error">{error}</p> : null}
-          <button className="primary-button" type="submit" disabled={busy}>{mode === 'onboarding' ? '시작하기' : '잠금 해제'}</button>
+          <button className="primary-button" type="submit" disabled={busy}>{mode === 'onboarding' ? (cloudLogin ? '기존 계정 로그인' : '새 Vault 만들기') : '잠금 해제'}</button>
         </form>
 
+        {mode === 'onboarding' && onCloudLogin ? (
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => {
+              setCloudLogin((value) => !value);
+              setError(null);
+              setPin('');
+            }}
+          >
+            {cloudLogin ? '새 Vault 만들기' : '기존 계정으로 로그인'}
+          </button>
+        ) : null}
         {mode === 'onboarding' && onRecover ? (
-          <button type="button" className="text-button" onClick={() => setRecovering(true)}>기존 Vault 백업에서 복구</button>
+          <button type="button" className="text-button" onClick={() => setRecovering(true)}>비상 복구: 기존 .vault 백업 사용</button>
         ) : null}
       </section>
     </main>

@@ -1,4 +1,4 @@
-import { json, requireSession } from '../../_shared/cloud-sync.js';
+import { json, requireSession, sha256 } from '../../_shared/cloud-sync.js';
 
 const MAX_SNAPSHOT_BYTES = 25 * 1024 * 1024;
 
@@ -15,6 +15,12 @@ export async function onRequestPut({ request, env }) {
   const bytes = new Uint8Array(await request.arrayBuffer());
   if (bytes.byteLength === 0 || bytes.byteLength > MAX_SNAPSHOT_BYTES) {
     return json({ error: 'Invalid snapshot size.' }, { status: 413 });
+  }
+  const actualDigest = [...await sha256(bytes)]
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('');
+  if (actualDigest !== objectSha256) {
+    return json({ error: 'Snapshot digest mismatch.' }, { status: 400 });
   }
 
   const head = await env.DB.prepare(
