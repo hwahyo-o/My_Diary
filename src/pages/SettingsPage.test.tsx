@@ -78,6 +78,7 @@ describe('SettingsPage operational hub', () => {
 
     expect(screen.getByText('백업 최신')).toBeInTheDocument();
     expect(screen.getByText('최근 백업 기록이 있습니다.')).toBeInTheDocument();
+    expect(screen.getByText('2026.10.12 17:00 (KST)')).toBeInTheDocument();
     expect(screen.queryByText('아직 백업 없음')).not.toBeInTheDocument();
   });
 });
