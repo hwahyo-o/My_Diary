@@ -9,6 +9,8 @@ const baseProps = {
   onInspectVaultImport: vi.fn(),
   onApplyVaultImport: vi.fn(),
   onDownloadVault: vi.fn(),
+  cloudEnrolled: false,
+  onEnrollCloud: vi.fn().mockResolvedValue(undefined),
 };
 
 describe('SettingsPage operational hub', () => {
@@ -31,6 +33,24 @@ describe('SettingsPage operational hub', () => {
     expect(screen.getByRole('heading', { name: '표시 및 앱 상태' })).toBeInTheDocument();
     expect(screen.getByText('Local-first PWA')).toBeInTheDocument();
     expect(screen.getByText('Cloudflare Pages')).toBeInTheDocument();
+  });
+
+  it('enrolls the current Vault into encrypted cloud sync with the current PIN', async () => {
+    const onEnrollCloud = vi.fn().mockResolvedValue(undefined);
+    render(<SettingsPage {...baseProps} onEnrollCloud={onEnrollCloud} />);
+
+    fireEvent.change(screen.getByLabelText('클라우드 동기화 PIN'), { target: { value: '4829517304' } });
+    fireEvent.click(screen.getByRole('button', { name: '클라우드 동기화 시작' }));
+
+    await waitFor(() => expect(onEnrollCloud).toHaveBeenCalledWith({ pin: '4829517304' }));
+    expect(screen.getByText('암호화 클라우드 동기화 사용 중')).toBeInTheDocument();
+  });
+
+  it('shows an already-enrolled cloud Vault without asking for the PIN again', () => {
+    render(<SettingsPage {...baseProps} cloudEnrolled />);
+
+    expect(screen.getByText('암호화 클라우드 동기화 사용 중')).toBeInTheDocument();
+    expect(screen.queryByLabelText('클라우드 동기화 PIN')).not.toBeInTheDocument();
   });
 
   it('locks immediately and expands the real backup tools', () => {
