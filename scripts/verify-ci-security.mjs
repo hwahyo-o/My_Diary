@@ -7,6 +7,7 @@ const WORKFLOWS = [
   '.github/workflows/deploy-pages.yml',
   '.github/workflows/codeql.yml',
   '.github/workflows/dependency-review.yml',
+  '.github/workflows/production-security.yml',
 ];
 const AUDITED_INSTALL_WORKFLOWS = new Set([
   '.github/workflows/ci.yml',
@@ -47,6 +48,17 @@ export async function verifyCiSecurity(read = readFile) {
   const dependencyReview = contents.find(([path]) => path.endsWith('/dependency-review.yml'))?.[1] ?? '';
   if (!/fail-on-severity:\s+high\b/.test(dependencyReview)) {
     throw new Error('Dependency Review must fail on high-severity findings.');
+  }
+
+  const productionSecurity = contents.find(([path]) => path.endsWith('/production-security.yml'))?.[1] ?? '';
+  if (!/workflow_run:/.test(productionSecurity) || !/schedule:/.test(productionSecurity)) {
+    throw new Error('Production Security must run after deployment and on a schedule.');
+  }
+  if (!/PRODUCTION_URL:\s+https:\/\/my-diary-2mw\.pages\.dev\//.test(productionSecurity)) {
+    throw new Error('Production Security must verify the canonical Cloudflare production URL.');
+  }
+  if (!/contents:\s+read\b/.test(productionSecurity)) {
+    throw new Error('Production Security must use read-only repository contents permission.');
   }
 
   return { workflowsChecked: WORKFLOWS.length };
