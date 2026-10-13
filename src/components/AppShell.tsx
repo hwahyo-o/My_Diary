@@ -35,6 +35,8 @@ interface AppShellProps {
   readonly onExportVault: (input: { readonly recoveryKey: string }) => Promise<Uint8Array>;
   readonly onInspectVaultImport: (bytes: Uint8Array, input: { readonly recoveryKey: string }) => Promise<VaultImportInspectionViewModel>;
   readonly onApplyVaultImport: (bytes: Uint8Array, input: { readonly recoveryKey: string }) => Promise<void>;
+  readonly cloudEnrolled: boolean;
+  readonly onEnrollCloud: (input: { readonly pin: string }) => Promise<void>;
   readonly onLock: () => void;
 }
 
@@ -52,6 +54,8 @@ export function AppShell({
   onExportVault,
   onInspectVaultImport,
   onApplyVaultImport,
+  cloudEnrolled,
+  onEnrollCloud,
   onLock,
 }: AppShellProps) {
   const [page, setPage] = useState<AppPage>('home');
@@ -81,6 +85,8 @@ export function AppShell({
           onInspectVaultImport={onInspectVaultImport}
           onApplyVaultImport={onApplyVaultImport}
           onDownloadVault={downloadVaultBytes}
+          cloudEnrolled={cloudEnrolled}
+          onEnrollCloud={onEnrollCloud}
         />
       );
       break;
