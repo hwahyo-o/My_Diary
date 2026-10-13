@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { deriveCloudAuthSecret, deriveCloudKek } from './key-derivation';
+import { TEST_ARGON2_PARAMS } from '../vault/pin-kdf';
+import { deriveCloudAuthSecret, deriveCloudKek, deriveCloudRootKey } from './key-derivation';
 
 describe('cloud sync key derivation', () => {
+  it('derives a stable account root key from PIN and account salt', async () => {
+    const salt = new Uint8Array(32).fill(9);
+    const rootA = await deriveCloudRootKey('5831049276', salt, TEST_ARGON2_PARAMS);
+    const rootB = await deriveCloudRootKey('5831049276', salt, TEST_ARGON2_PARAMS);
+    const rootOtherPin = await deriveCloudRootKey('5831049277', salt, TEST_ARGON2_PARAMS);
+
+    expect(rootA).toEqual(rootB);
+    expect(rootA).not.toEqual(rootOtherPin);
+    expect(rootA).toHaveLength(32);
+  });
+
+
   it('derives stable but domain-separated keys', async () => {
     const root = Uint8Array.from({ length: 32 }, (_, index) => index + 1);
     const salt = Uint8Array.from({ length: 32 }, (_, index) => 255 - index);
