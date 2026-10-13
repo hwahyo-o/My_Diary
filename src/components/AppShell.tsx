@@ -61,7 +61,7 @@ export function AppShell({
   let content;
   switch (page) {
     case 'home':
-      content = <HomePage dashboard={dashboard} onQuickAdd={() => setEntryOpen(true)} quickAddButtonRef={quickAddButtonRef} />;
+      content = <HomePage dashboard={dashboard} analytics={analytics} assets={assets} calendar={calendar} onQuickAdd={() => setEntryOpen(true)} quickAddButtonRef={quickAddButtonRef} />;
       break;
     case 'calendar':
       content = <CalendarPage calendar={calendar} onQuickAdd={() => setEntryOpen(true)} />;
