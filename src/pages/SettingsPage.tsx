@@ -35,7 +35,7 @@ export function SettingsPage({
 }: SettingsPageProps) {
   const [backupOpen, setBackupOpen] = useState(false);
   const [backupState, setBackupState] = useState<BackupStatusViewModel>(() =>
-    backupState.lastExportedAt ? backup : readBackupStatus(),
+    backup.lastExportedAt ? backup : readBackupStatus(),
   );
 
   return (
