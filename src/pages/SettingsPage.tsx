@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { BackupStatusViewModel, VaultImportInspectionViewModel } from '../app/ui-types';
 import { BackupPanel } from '../features/backup/BackupPanel';
-import { deriveBackupStatus, readBackupStatus } from '../features/backup/backup-status';
+import { deriveBackupStatus, formatBackupDateKst, readBackupStatus } from '../features/backup/backup-status';
 
 interface SettingsPageProps {
   readonly onLock: () => void;
@@ -10,19 +10,6 @@ interface SettingsPageProps {
   readonly onInspectVaultImport: (bytes: Uint8Array, input: { readonly recoveryKey: string }) => Promise<VaultImportInspectionViewModel>;
   readonly onApplyVaultImport: (bytes: Uint8Array, input: { readonly recoveryKey: string }) => Promise<void>;
   readonly onDownloadVault: (bytes: Uint8Array, filename: string) => void;
-}
-
-function formatBackupDate(value: string | null): string {
-  if (!value) return '아직 백업 없음';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '백업 기록 확인 필요';
-  return new Intl.DateTimeFormat('ko-KR', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
 }
 
 export function SettingsPage({
@@ -99,7 +86,7 @@ export function SettingsPage({
           </div>
           <div className="backup-status-summary">
             <span>마지막 백업</span>
-            <strong>{formatBackupDate(backupState.lastExportedAt)}</strong>
+            <strong>{formatBackupDateKst(backupState.lastExportedAt)}</strong>
             <small>{backupState.reminderDue ? '중요한 변경 전 새 백업을 권장합니다.' : '최근 백업 기록이 있습니다.'}</small>
           </div>
           <button
