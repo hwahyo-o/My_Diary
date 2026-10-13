@@ -32,6 +32,7 @@ import type {
   SaveHoldingInput,
   SaveLoanInput,
   TransactionSubmission,
+  UpdateTransactionInput,
 } from '../ui-types';
 import { emptyAnalytics, emptyAssets, emptyCalendar, emptyDashboard } from '../ui-types';
 import {
@@ -552,6 +553,128 @@ export class BrowserRuntime {
     await service.saveDraft(draft, { expectedRevision: revision });
     await this.hydrate();
     void this.syncCloudBestEffort();
+  }
+
+  async updateTransaction(input: UpdateTransactionInput): Promise<void> {
+    const session = this.session;
+    const bootstrap = this.bootstrap;
+    if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
+    if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor <= 0) {
+      throw new TypeError('Transaction amount must be a positive safe integer.');
+    }
+    if (input.label.length > 500) throw new TypeError('Transaction label is too long.');
+
+    const service = new TransactionLedgerService({
+      repository: this.repository,
+      session,
+      vaultId: bootstrap.vaultId,
+      schemaVersion: SCHEMA_VERSION,
+      deviceId: bootstrap.deviceId,
+      newTransactionId: newUuid,
+      newEventId: newUuid,
+      now: () => toIso(this.options.now()),
+    });
+    const revision = await this.repository.getRevision(bootstrap.vaultId);
+    await service.updateTransaction(
+      parseUUID(input.id),
+      {
+        amountMinor: input.amountMinor,
+        occurredAt: parseISODateTime(input.occurredAt),
+        label: input.label,
+      },
+      revision,
+    );
+    await this.hydrate();
+    void this.syncCloudBestEffort();
+  }
+
+  async deleteTransaction(id: string): Promise<void> {
+    const session = this.session;
+    const bootstrap = this.bootstrap;
+    if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
+
+    const service = new TransactionLedgerService({
+      repository: this.repository,
+      session,
+      vaultId: bootstrap.vaultId,
+      schemaVersion: SCHEMA_VERSION,
+      deviceId: bootstrap.deviceId,
+      newTransactionId: newUuid,
+      newEventId: newUuid,
+      now: () => toIso(this.options.now()),
+    });
+    const revision = await this.repository.getRevision(bootstrap.vaultId);
+    await service.deleteTransaction(parseUUID(id), revision);
+    await this.hydrate();
+    void this.syncCloudBestEffort();
+  }
+
+  async restoreTransaction(id: string): Promise<void> {
+    const session = this.session;
+    const bootstrap = this.bootstrap;
+    if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
+
+    const service = new TransactionLedgerService({
+      repository: this.repository,
+      session,
+      vaultId: bootstrap.vaultId,
+      schemaVersion: SCHEMA_VERSION,
+      deviceId: bootstrap.deviceId,
+      newTransactionId: newUuid,
+      newEventId: newUuid,
+      now: () => toIso(this.options.now()),
+    });
+    const revision = await this.repository.getRevision(bootstrap.vaultId);
+    await service.restoreTransaction(parseUUID(id), revision);
+    await this.hydrate();
+    void this.syncCloudBestEffort();
+  }
+
+  async resetAllData(input: { readonly pin: string }): Promise<void> {
+    const bootstrap = this.bootstrap;
+    const session = this.session;
+    if (!bootstrap || !session?.isUnlocked) throw new Error('Vault session is locked.');
+
+    const deviceKek = await deriveDeviceKek(input.pin, bootstrap.deviceSecret, bootstrap.pinSalt, bootstrap.argon2Params);
+    let rawVaultKey: Uint8Array | null = null;
+    let rootKey: Uint8Array | null = null;
+    let authSecret: Uint8Array | null = null;
+    try {
+      rawVaultKey = await unwrapVaultKey(
+        bootstrap.wrappedDeviceVaultKey,
+        deviceKek,
+        wrapAad(bootstrap.vaultId, 'device'),
+      );
+
+      const meta = this.cloudMeta;
+      if (meta) {
+        rootKey = await deriveCloudRootKey(input.pin, meta.accountSalt, bootstrap.argon2Params);
+        authSecret = await deriveCloudAuthSecret(rootKey, meta.accountSalt);
+        await this.cloudClient.deleteAccount(authSecret);
+      }
+
+      await this.repository.clearAllData();
+
+      this.cloudKek?.fill(0);
+      this.cloudKek = null;
+      this.cloudMeta = null;
+      this.bootstrap = null;
+      this.cloudConflict = false;
+      this.session?.lock();
+      this.session = null;
+      this.setSnapshot({
+        access: 'onboarding',
+        dashboard: emptyDashboard,
+        assets: emptyAssets,
+        analytics: emptyAnalytics,
+        calendar: emptyCalendar,
+      });
+    } finally {
+      deviceKek.fill(0);
+      rawVaultKey?.fill(0);
+      rootKey?.fill(0);
+      authSecret?.fill(0);
+    }
   }
 
   async saveBudget(input: { readonly limitMinor: number }): Promise<void> {
