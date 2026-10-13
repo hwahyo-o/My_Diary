@@ -379,7 +379,6 @@ export class BrowserRuntime {
       this.cloudKek = cloudKek.slice();
       vaultKey = await unwrapVaultKey(bootstrap.wrappedDeviceVaultKey, deviceKek, wrapAad(bootstrap.vaultId, 'device'));
       const cloudWrap = await wrapVaultKey(vaultKey, cloudKek, cloudWrapAad(registration.accountId, bootstrap.vaultId));
-      const localRevision = await this.repository.getRevision(bootstrap.vaultId);
       const initialMeta: CloudEnrollmentMeta = {
         accountId: registration.accountId,
         nickname,
