@@ -116,3 +116,74 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', buffer));
   return [...digest].map((value) => value.toString(16).padStart(2, '0')).join('');
 }
+
+
+interface SealedCloudSnapshot {
+  readonly format: 'my-diary-cloud-snapshot-v1';
+  readonly iv: number[];
+  readonly ciphertext: number[];
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+async function importCloudSnapshotKey(rawKey: Uint8Array, usage: KeyUsage[]): Promise<CryptoKey> {
+  if (rawKey.length !== 32) throw new TypeError('Cloud snapshot key must be 32 bytes.');
+  return crypto.subtle.importKey('raw', toArrayBuffer(rawKey), 'AES-GCM', false, usage);
+}
+
+export async function sealCloudVaultSnapshot(snapshot: CloudVaultSnapshot, cloudKek: Uint8Array): Promise<Uint8Array> {
+  const key = await importCloudSnapshotKey(cloudKek, ['encrypt']);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const plaintext = encodeCloudVaultSnapshot(snapshot);
+  try {
+    const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
+      {
+        name: 'AES-GCM',
+        iv: toArrayBuffer(iv),
+        additionalData: new TextEncoder().encode('my-diary/cloud-snapshot/v1'),
+        tagLength: 128,
+      },
+      key,
+      toArrayBuffer(plaintext),
+    ));
+    const sealed: SealedCloudSnapshot = {
+      format: 'my-diary-cloud-snapshot-v1',
+      iv: [...iv],
+      ciphertext: [...ciphertext],
+    };
+    return new TextEncoder().encode(JSON.stringify(sealed));
+  } finally {
+    plaintext.fill(0);
+  }
+}
+
+export async function openCloudVaultSnapshot(bytes: Uint8Array, cloudKek: Uint8Array): Promise<CloudVaultSnapshot> {
+  const sealed = JSON.parse(new TextDecoder().decode(bytes)) as SealedCloudSnapshot;
+  if (
+    sealed.format !== 'my-diary-cloud-snapshot-v1'
+    || !Array.isArray(sealed.iv)
+    || sealed.iv.length !== 12
+    || !Array.isArray(sealed.ciphertext)
+  ) {
+    throw new TypeError('Sealed cloud snapshot is invalid.');
+  }
+
+  const key = await importCloudSnapshotKey(cloudKek, ['decrypt']);
+  const plaintext = new Uint8Array(await crypto.subtle.decrypt(
+    {
+      name: 'AES-GCM',
+      iv: toArrayBuffer(new Uint8Array(sealed.iv)),
+      additionalData: new TextEncoder().encode('my-diary/cloud-snapshot/v1'),
+      tagLength: 128,
+    },
+    key,
+    toArrayBuffer(new Uint8Array(sealed.ciphertext)),
+  ));
+  try {
+    return decodeCloudVaultSnapshot(plaintext);
+  } finally {
+    plaintext.fill(0);
+  }
+}
