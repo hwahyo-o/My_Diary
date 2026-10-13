@@ -9,9 +9,10 @@ interface BackupPanelProps {
   readonly onInspectImport: (bytes: Uint8Array, input: { readonly recoveryKey: string }) => Promise<VaultImportInspectionViewModel>;
   readonly onApplyImport: (bytes: Uint8Array, input: { readonly recoveryKey: string }) => Promise<void>;
   readonly onDownload: (bytes: Uint8Array, filename: string) => void;
+  readonly onBackupExported?: (exportedAt: string) => void;
 }
 
-export function BackupPanel({ backup, onExport, onInspectImport, onApplyImport, onDownload }: BackupPanelProps) {
+export function BackupPanel({ backup, onExport, onInspectImport, onApplyImport, onDownload, onBackupExported }: BackupPanelProps) {
   const [status, setStatus] = useState<BackupStatusViewModel>(() => backup.lastExportedAt ? backup : readBackupStatus());
   const [exportKey, setExportKey] = useState('');
   const [importKey, setImportKey] = useState('');
@@ -47,6 +48,7 @@ export function BackupPanel({ backup, onExport, onInspectImport, onApplyImport, 
       const exportedAt = new Date().toISOString();
       writeBackupExportedAt(exportedAt);
       setStatus(deriveBackupStatus(exportedAt));
+      onBackupExported?.(exportedAt);
       setMessage('최근 내보내기: 방금 생성됨');
       setExportKey('');
     } catch {
