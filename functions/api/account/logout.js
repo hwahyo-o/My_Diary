@@ -1,6 +1,7 @@
-import { fromBase64Url, json, parseCookie, sha256 } from '../../_shared/cloud-sync.js';
+import { fromBase64Url, hasAllowedOrigin, json, parseCookie, sha256 } from '../../_shared/cloud-sync.js';
 
 export async function onRequestPost({ request, env }) {
+  if (!hasAllowedOrigin(request)) return json({ error: 'Forbidden origin.' }, { status: 403 });
   const tokenValue = parseCookie(request, 'my_diary_session');
   if (tokenValue) {
     try {
