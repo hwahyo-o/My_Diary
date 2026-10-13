@@ -1,4 +1,5 @@
 // @vitest-environment node
+/* global Headers, Response */
 import { describe, expect, it, vi } from 'vitest';
 import { verifyLiveProduction, verifyProductionHeaders } from './verify-live-production.mjs';
 
