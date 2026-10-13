@@ -1,0 +1,45 @@
+name: Production Security
+
+on:
+  workflow_run:
+    workflows: ["Deploy GitHub Pages Recovery Mirror"]
+    types: [completed]
+  schedule:
+    - cron: "30 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-security
+  cancel-in-progress: true
+
+jobs:
+  verify-production:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Resolve expected production SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "EXPECTED_SHA=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_ENV"
+          else
+            echo "EXPECTED_SHA=${{ github.sha }}" >> "$GITHUB_ENV"
+          fi
+      - name: Verify live Cloudflare production
+        env:
+          PRODUCTION_URL: https://my-diary-2mw.pages.dev/
+          MAX_ATTEMPTS: "20"
+          RETRY_DELAY_MS: "15000"
+        run: node scripts/verify-live-production.mjs
