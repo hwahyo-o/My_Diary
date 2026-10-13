@@ -650,6 +650,7 @@ export class BrowserRuntime {
       if (meta) {
         rootKey = await deriveCloudRootKey(input.pin, meta.accountSalt, bootstrap.argon2Params);
         authSecret = await deriveCloudAuthSecret(rootKey, meta.accountSalt);
+        await this.cloudClient.loginWithSecret(meta.nickname, authSecret);
         await this.cloudClient.deleteAccount(authSecret);
       }
 
