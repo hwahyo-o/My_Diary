@@ -55,6 +55,9 @@ export function verifyProductionHeaders(headers) {
   if (!/max-age=\d+/i.test(hsts)) {
     throw new Error('Strict-Transport-Security must include max-age.');
   }
+  if (!/includeSubDomains/i.test(hsts)) {
+    throw new Error('Strict-Transport-Security must include includeSubDomains.');
+  }
 
   return true;
 }
