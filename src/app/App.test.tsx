@@ -102,7 +102,7 @@ describe('App protected shell', () => {
     render(<App runtime={runtime} />);
     fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: '예현' } });
     fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '4829517304' } });
-    fireEvent.click(screen.getByRole('button', { name: '시작하기' }));
+    fireEvent.click(screen.getByRole('button', { name: '새 Vault 만들기' }));
     await screen.findByText('RECOVERY_KEY_SAMPLE');
 
     act(() => {
