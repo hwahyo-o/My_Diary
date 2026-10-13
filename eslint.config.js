@@ -10,6 +10,9 @@ export default tseslint.config(
       globals: {
         crypto: 'readonly',
         TextEncoder: 'readonly',
+        TextDecoder: 'readonly',
+        URL: 'readonly',
+        Request: 'readonly',
         Headers: 'readonly',
         Response: 'readonly',
         atob: 'readonly',
