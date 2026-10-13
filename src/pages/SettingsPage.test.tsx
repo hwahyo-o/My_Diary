@@ -12,6 +12,7 @@ const baseProps = {
   cloudEnrolled: false,
   cloudConflict: false,
   onEnrollCloud: vi.fn().mockResolvedValue(undefined),
+  onResetAllData: vi.fn().mockResolvedValue(undefined),
 };
 
 describe('SettingsPage operational hub', () => {
@@ -59,6 +60,29 @@ describe('SettingsPage operational hub', () => {
 
     expect(screen.getByText('암호화 클라우드 동기화 사용 중')).toBeInTheDocument();
     expect(screen.queryByLabelText('클라우드 동기화 PIN')).not.toBeInTheDocument();
+  });
+
+  it('requires both the current PIN and exact reset phrase before destructive reset', async () => {
+    const onResetAllData = vi.fn().mockResolvedValue(undefined);
+    render(<SettingsPage {...baseProps} onResetAllData={onResetAllData} />);
+
+    fireEvent.change(screen.getByLabelText('초기화 확인 PIN'), { target: { value: '4829517304' } });
+    fireEvent.click(screen.getByRole('button', { name: '모든 데이터 초기화' }));
+    expect(onResetAllData).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent('초기화');
+
+    fireEvent.change(screen.getByLabelText('초기화 확인 문구'), { target: { value: '초기화' } });
+    fireEvent.click(screen.getByRole('button', { name: '모든 데이터 초기화' }));
+
+    await waitFor(() => expect(onResetAllData).toHaveBeenCalledWith({ pin: '4829517304' }));
+  });
+
+  it('warns that cloud reset does not remotely erase other device copies or exported backups', () => {
+    render(<SettingsPage {...baseProps} cloudEnrolled />);
+
+    expect(screen.getByText('현재 기기 + 클라우드 계정 데이터')).toBeInTheDocument();
+    expect(screen.getByText(/다른 기기에 이미 저장된 로컬 Vault 사본/)).toBeInTheDocument();
+    expect(screen.getByText(/\.vault 백업 파일은 원격으로 삭제할 수 없습니다/)).toBeInTheDocument();
   });
 
   it('locks immediately and expands the real backup tools', () => {
