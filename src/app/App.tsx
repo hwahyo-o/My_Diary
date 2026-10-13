@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { AppShell } from '../components/AppShell';
 import { AccessGate } from '../features/access/AccessGate';
 import { HostingNotice } from '../components/HostingNotice';
-import type { AccessState, AnalyticsViewModel, AppRuntimePorts, AssetsViewModel, DashboardViewModel } from './ui-types';
-import { defaultBackupStatus, emptyAnalytics, emptyAssets, emptyDashboard } from './ui-types';
+import type { AccessState, AnalyticsViewModel, AppRuntimePorts, AssetsViewModel, CalendarViewModel, DashboardViewModel } from './ui-types';
+import { defaultBackupStatus, emptyAnalytics, emptyAssets, emptyCalendar, emptyDashboard } from './ui-types';
 
 const failClosedRuntime: AppRuntimePorts = {
   async createProfile() {
@@ -22,15 +22,17 @@ interface AppProps {
   readonly dashboard?: DashboardViewModel;
   readonly assets?: AssetsViewModel;
   readonly analytics?: AnalyticsViewModel;
+  readonly calendar?: CalendarViewModel;
   readonly runtime?: AppRuntimePorts;
 }
 
-export function App({ initialAccess, dashboard, assets, analytics, runtime = failClosedRuntime }: AppProps) {
+export function App({ initialAccess, dashboard, assets, analytics, calendar, runtime = failClosedRuntime }: AppProps) {
   const runtimeSnapshot = runtime.getSnapshot?.();
   const [access, setAccess] = useState<AccessState>(initialAccess ?? runtimeSnapshot?.access ?? 'onboarding');
   const [dashboardState, setDashboardState] = useState<DashboardViewModel>(dashboard ?? runtimeSnapshot?.dashboard ?? emptyDashboard);
   const [assetsState, setAssetsState] = useState<AssetsViewModel>(assets ?? runtimeSnapshot?.assets ?? emptyAssets);
   const [analyticsState, setAnalyticsState] = useState<AnalyticsViewModel>(analytics ?? runtimeSnapshot?.analytics ?? emptyAnalytics);
+  const [calendarState, setCalendarState] = useState<CalendarViewModel>(calendar ?? runtimeSnapshot?.calendar ?? emptyCalendar);
 
   useEffect(() => {
     if (!runtime.subscribe) return;
@@ -38,6 +40,7 @@ export function App({ initialAccess, dashboard, assets, analytics, runtime = fai
       setDashboardState(snapshot.dashboard);
       setAssetsState(snapshot.assets);
       setAnalyticsState(snapshot.analytics);
+      setCalendarState(snapshot.calendar);
       if (snapshot.access !== 'unlocked') setAccess(snapshot.access);
     });
   }, [runtime]);
@@ -60,6 +63,7 @@ export function App({ initialAccess, dashboard, assets, analytics, runtime = fai
             setDashboardState(next.dashboard);
             setAssetsState(next.assets);
             setAnalyticsState(next.analytics);
+            setCalendarState(next.calendar);
             setAccess(next.access);
             return;
           }
@@ -77,6 +81,7 @@ export function App({ initialAccess, dashboard, assets, analytics, runtime = fai
       dashboard={dashboardState}
       assets={assetsState}
       analytics={analyticsState}
+      calendar={calendarState}
       backup={defaultBackupStatus}
       onSubmitTransaction={(input) => runtime.submitTransaction(input)}
       onSaveBudget={(input) => {
