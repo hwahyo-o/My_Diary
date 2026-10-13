@@ -10,6 +10,7 @@ import type {
   SaveHoldingInput,
   SaveLoanInput,
   TransactionSubmission,
+  UpdateTransactionInput,
   VaultImportInspectionViewModel,
 } from '../app/ui-types';
 import { downloadVaultBytes } from '../app/runtime/browser-file-io';
@@ -28,6 +29,9 @@ interface AppShellProps {
   readonly backup: BackupStatusViewModel;
   readonly calendar: CalendarViewModel;
   readonly onSubmitTransaction: (input: TransactionSubmission) => Promise<void>;
+  readonly onUpdateTransaction: (input: UpdateTransactionInput) => Promise<void>;
+  readonly onDeleteTransaction: (id: string) => Promise<void>;
+  readonly onRestoreTransaction: (id: string) => Promise<void>;
   readonly onSaveBudget: (input: { readonly limitMinor: number }) => Promise<void>;
   readonly onSaveAccount: (input: SaveAccountInput) => Promise<string>;
   readonly onSaveHolding: (input: SaveHoldingInput) => Promise<void>;
@@ -38,6 +42,7 @@ interface AppShellProps {
   readonly cloudEnrolled: boolean;
   readonly cloudConflict: boolean;
   readonly onEnrollCloud: (input: { readonly pin: string }) => Promise<void>;
+  readonly onResetAllData: (input: { readonly pin: string }) => Promise<void>;
   readonly onLock: () => void;
 }
 
@@ -48,6 +53,9 @@ export function AppShell({
   backup,
   calendar,
   onSubmitTransaction,
+  onUpdateTransaction,
+  onDeleteTransaction,
+  onRestoreTransaction,
   onSaveBudget,
   onSaveAccount,
   onSaveHolding,
@@ -58,6 +66,7 @@ export function AppShell({
   cloudEnrolled,
   cloudConflict,
   onEnrollCloud,
+  onResetAllData,
   onLock,
 }: AppShellProps) {
   const [page, setPage] = useState<AppPage>('home');
@@ -70,7 +79,7 @@ export function AppShell({
       content = <HomePage dashboard={dashboard} analytics={analytics} assets={assets} calendar={calendar} onQuickAdd={() => setEntryOpen(true)} quickAddButtonRef={quickAddButtonRef} />;
       break;
     case 'calendar':
-      content = <CalendarPage calendar={calendar} onQuickAdd={() => setEntryOpen(true)} />;
+      content = <CalendarPage calendar={calendar} onQuickAdd={() => setEntryOpen(true)} onUpdateTransaction={onUpdateTransaction} onDeleteTransaction={onDeleteTransaction} onRestoreTransaction={onRestoreTransaction} />;
       break;
     case 'stats':
       content = <StatsPage incomeMinor={dashboard.incomeMinor} expenseMinor={dashboard.expenseMinor} budget={dashboard.budget} analytics={analytics} onSaveBudget={onSaveBudget} />;
@@ -90,6 +99,7 @@ export function AppShell({
           cloudEnrolled={cloudEnrolled}
           cloudConflict={cloudConflict}
           onEnrollCloud={onEnrollCloud}
+          onResetAllData={onResetAllData}
         />
       );
       break;
