@@ -97,23 +97,46 @@ export class TransactionLedgerService {
     const label = input.label.trim();
     const timestamp = this.deps.now();
 
-    const next: Transaction = current.merchant !== undefined
-      ? {
-          ...current,
-          amountMinor: input.amountMinor,
-          occurredAt: input.occurredAt,
-          merchant: label || undefined,
-          updatedAt: timestamp,
-          version: current.version + 1,
-        }
-      : {
-          ...current,
-          amountMinor: input.amountMinor,
-          occurredAt: input.occurredAt,
-          memo: label || undefined,
-          updatedAt: timestamp,
-          version: current.version + 1,
-        };
+    let next: Transaction;
+    if (current.merchant !== undefined) {
+      const { merchant: _merchant, ...withoutMerchant } = current;
+      void _merchant;
+      next = label
+        ? {
+            ...current,
+            amountMinor: input.amountMinor,
+            occurredAt: input.occurredAt,
+            merchant: label,
+            updatedAt: timestamp,
+            version: current.version + 1,
+          }
+        : {
+            ...withoutMerchant,
+            amountMinor: input.amountMinor,
+            occurredAt: input.occurredAt,
+            updatedAt: timestamp,
+            version: current.version + 1,
+          };
+    } else {
+      const { memo: _memo, ...withoutMemo } = current;
+      void _memo;
+      next = label
+        ? {
+            ...current,
+            amountMinor: input.amountMinor,
+            occurredAt: input.occurredAt,
+            memo: label,
+            updatedAt: timestamp,
+            version: current.version + 1,
+          }
+        : {
+            ...withoutMemo,
+            amountMinor: input.amountMinor,
+            occurredAt: input.occurredAt,
+            updatedAt: timestamp,
+            version: current.version + 1,
+          };
+    }
 
     const revision = await this.persistMutation(next, current, 'update', expectedRevision);
     return { transaction: next, revision };
