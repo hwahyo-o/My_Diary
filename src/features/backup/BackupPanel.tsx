@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { makeVaultFilename, readVaultFile } from '../../app/runtime/browser-file-io';
 import type { BackupStatusViewModel, VaultImportInspectionViewModel } from '../../app/ui-types';
-import { deriveBackupStatus, readBackupStatus, writeBackupExportedAt } from './backup-status';
+import { deriveBackupStatus, formatBackupDateKst, readBackupStatus, writeBackupExportedAt } from './backup-status';
 
 interface BackupPanelProps {
   readonly backup: BackupStatusViewModel;
@@ -108,7 +108,7 @@ export function BackupPanel({ backup, onExport, onInspectImport, onApplyImport, 
         </span>
       </div>
       <p className="settings-help">
-        {status.lastExportedAt ? `마지막 내보내기 ${status.lastExportedAt}` : '아직 내보낸 백업이 없습니다.'}
+        {status.lastExportedAt ? `마지막 내보내기 ${formatBackupDateKst(status.lastExportedAt)}` : '아직 내보낸 백업이 없습니다.'}
       </p>
 
       <div className="backup-grid">
