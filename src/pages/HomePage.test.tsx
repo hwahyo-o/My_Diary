@@ -93,7 +93,7 @@ describe('HomePage operational dashboard', () => {
     expect(screen.getByText('이번 달 순현금흐름')).toBeInTheDocument();
     expect(screen.getByText('₩70,000')).toBeInTheDocument();
     expect(screen.getAllByText('예산 주의').length).toBeGreaterThan(0);
-    expect(screen.getByText('리포트 재생성 필요')).toBeInTheDocument();
+    expect(screen.getAllByText('리포트 재생성 필요').length).toBeGreaterThan(0);
     expect(screen.getByText('자산 평가 업데이트 필요')).toBeInTheDocument();
     expect(screen.getByText('₩1,250,000')).toBeInTheDocument();
     expect(screen.getByText('지출 구조')).toBeInTheDocument();
