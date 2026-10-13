@@ -386,7 +386,7 @@ export class BrowserRuntime {
         accountSalt,
         cloudWrap,
         cloudRevision: registration.revision,
-        localRevisionAtSync: localRevision,
+        localRevisionAtSync: -1,
       };
       this.cloudMeta = initialMeta;
       await this.repository.putSecurityMeta(CLOUD_META_KEY, initialMeta);
