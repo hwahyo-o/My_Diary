@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CalendarPage } from './CalendarPage';
 import type { CalendarViewModel } from '../app/ui-types';
@@ -70,9 +70,12 @@ describe('CalendarPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '수정' }));
     fireEvent.change(screen.getByLabelText('거래 내용 수정'), { target: { value: '수정된 점심' } });
     fireEvent.change(screen.getByLabelText('거래 금액 수정'), { target: { value: '5500' } });
-    fireEvent.click(screen.getByRole('button', { name: '수정 저장' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '수정 저장' }));
+      await Promise.resolve();
+    });
 
-    await waitFor(() => expect(onUpdateTransaction).toHaveBeenCalledTimes(1));
+    expect(onUpdateTransaction).toHaveBeenCalledTimes(1);
     expect(onUpdateTransaction.mock.calls[0]?.[0]).toMatchObject({
       id: 'expense-1',
       amountMinor: 5500,
@@ -95,11 +98,17 @@ describe('CalendarPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '삭제' }));
     expect(onDeleteTransaction).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: '삭제 확인' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '삭제 확인' }));
+      await Promise.resolve();
+    });
 
-    await waitFor(() => expect(onDeleteTransaction).toHaveBeenCalledWith('expense-1'));
-    fireEvent.click(screen.getByRole('button', { name: '삭제 취소' }));
-    await waitFor(() => expect(onRestoreTransaction).toHaveBeenCalledWith('expense-1'));
+    expect(onDeleteTransaction).toHaveBeenCalledWith('expense-1');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '삭제 취소' }));
+      await Promise.resolve();
+    });
+    expect(onRestoreTransaction).toHaveBeenCalledWith('expense-1');
   });
 
   it('opens the existing transaction entry flow from the calendar', () => {
