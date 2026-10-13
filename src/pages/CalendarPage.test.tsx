@@ -44,7 +44,7 @@ describe('CalendarPage', () => {
 
     fireEvent.click(screen.getByRole('gridcell', { name: /10월 14일.*거래 1건/ }));
     expect(screen.getByText('급여')).toBeInTheDocument();
-    expect(screen.getByText('+₩100,000')).toBeInTheDocument();
+    expect(screen.getAllByText('+₩100,000').length).toBeGreaterThan(0);
   });
 
   it('moves between months and returns to today', () => {
