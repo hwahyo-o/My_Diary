@@ -1,5 +1,6 @@
 import type {
   CloudAccountChallenge,
+  CloudAccountDeleteResult,
   CloudLoginInput,
   CloudLoginResult,
   CloudSnapshotDownload,
@@ -75,6 +76,17 @@ export class CloudSyncClient {
 
   async loginWithSecret(nickname: string, authSecret: Uint8Array): Promise<CloudLoginResult> {
     return this.login({ nickname, authSecret: base64Url(authSecret) });
+  }
+
+  async deleteAccount(authSecret: Uint8Array): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/api/account/delete`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ authSecret: base64Url(authSecret) }),
+    });
+    const result = await parseJson<CloudAccountDeleteResult>(response);
+    if (!result.ok) throw new Error('Cloud account reset failed.');
   }
 
   async logout(): Promise<void> {
