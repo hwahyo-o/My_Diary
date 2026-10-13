@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { BackupStatusViewModel, VaultImportInspectionViewModel } from '../app/ui-types';
 import { BackupPanel } from '../features/backup/BackupPanel';
+import { deriveBackupStatus, readBackupStatus } from '../features/backup/backup-status';
 
 interface SettingsPageProps {
   readonly onLock: () => void;
@@ -33,6 +34,9 @@ export function SettingsPage({
   onDownloadVault,
 }: SettingsPageProps) {
   const [backupOpen, setBackupOpen] = useState(false);
+  const [backupState, setBackupState] = useState<BackupStatusViewModel>(() =>
+    backupState.lastExportedAt ? backup : readBackupStatus(),
+  );
 
   return (
     <section className="page-stack settings-page" aria-labelledby="settings-title">
@@ -44,8 +48,8 @@ export function SettingsPage({
         </div>
         <div className="settings-overview" aria-label="설정 상태 요약">
           <span className="status-chip">Vault 보호됨</span>
-          <span className={backup.reminderDue ? 'status-chip warning' : 'status-chip'}>
-            {backup.reminderDue ? '백업 필요' : '백업 최신'}
+          <span className={backupState.reminderDue ? 'status-chip warning' : 'status-chip'}>
+            {backupState.reminderDue ? '백업 필요' : '백업 최신'}
           </span>
         </div>
       </header>
@@ -89,14 +93,14 @@ export function SettingsPage({
               <h2 id="backup-settings-title">백업 및 복구</h2>
               <p>암호화된 .vault 파일로 기기 변경과 재해 복구를 준비합니다.</p>
             </div>
-            <span className={backup.reminderDue ? 'status-chip warning' : 'status-chip'}>
-              {backup.reminderDue ? '점검 필요' : '정상'}
+            <span className={backupState.reminderDue ? 'status-chip warning' : 'status-chip'}>
+              {backupState.reminderDue ? '점검 필요' : '정상'}
             </span>
           </div>
           <div className="backup-status-summary">
             <span>마지막 백업</span>
-            <strong>{formatBackupDate(backup.lastExportedAt)}</strong>
-            <small>{backup.reminderDue ? '중요한 변경 전 새 백업을 권장합니다.' : '최근 백업 기록이 있습니다.'}</small>
+            <strong>{formatBackupDate(backupState.lastExportedAt)}</strong>
+            <small>{backupState.reminderDue ? '중요한 변경 전 새 백업을 권장합니다.' : '최근 백업 기록이 있습니다.'}</small>
           </div>
           <button
             type="button"
@@ -111,11 +115,12 @@ export function SettingsPage({
           {backupOpen ? (
             <div id="backup-settings-panel">
               <BackupPanel
-                backup={backup}
+                backup={backupState}
                 onExport={onExportVault}
                 onInspectImport={onInspectVaultImport}
                 onApplyImport={onApplyVaultImport}
                 onDownload={onDownloadVault}
+                onBackupExported={(exportedAt) => setBackupState(deriveBackupStatus(exportedAt))}
               />
             </div>
           ) : null}
