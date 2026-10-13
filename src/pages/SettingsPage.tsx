@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { BackupStatusViewModel, VaultImportInspectionViewModel } from '../app/ui-types';
 import { BackupPanel } from '../features/backup/BackupPanel';
-import { deriveBackupStatus, formatBackupDateKst, readBackupStatus } from '../features/backup/backup-status';
+import { clearBackupStatus, deriveBackupStatus, formatBackupDateKst, readBackupStatus } from '../features/backup/backup-status';
 
 interface SettingsPageProps {
   readonly onLock: () => void;
@@ -74,6 +74,7 @@ export function SettingsPage({
     setResetBusy(true);
     try {
       await onResetAllData({ pin: resetPin });
+      clearBackupStatus();
     } catch {
       setResetError('초기화하지 못했습니다. PIN과 네트워크 상태를 확인해주세요.');
     } finally {
@@ -289,7 +290,7 @@ export function SettingsPage({
               disabled={resetBusy}
               onClick={() => void resetAllData()}
             >
-              계정 및 모든 데이터 초기화
+              모든 데이터 초기화
             </button>
             <p>PIN 재확인과 확인 문구가 모두 일치해야 실행됩니다.</p>
           </div>
