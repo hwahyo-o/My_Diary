@@ -42,3 +42,8 @@ export function readBackupStatus(now = new Date()): BackupStatusViewModel {
 export function writeBackupExportedAt(iso: string): void {
   localStorage.setItem(STORAGE_KEY, iso);
 }
+
+
+export function clearBackupStatus(): void {
+  localStorage.removeItem(STORAGE_KEY);
+}
