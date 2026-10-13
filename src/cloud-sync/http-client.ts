@@ -122,7 +122,7 @@ export class CloudSyncClient {
         'x-my-diary-expected-revision': String(input.expectedRevision),
         'x-my-diary-sha256': input.objectSha256,
       },
-      body: input.bytes,
+      body: input.bytes.buffer.slice(input.bytes.byteOffset, input.bytes.byteOffset + input.bytes.byteLength) as ArrayBuffer,
     });
     return parseJson<CloudSnapshotUploadResult>(response);
   }
