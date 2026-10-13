@@ -10,6 +10,8 @@ interface SettingsPageProps {
   readonly onInspectVaultImport: (bytes: Uint8Array, input: { readonly recoveryKey: string }) => Promise<VaultImportInspectionViewModel>;
   readonly onApplyVaultImport: (bytes: Uint8Array, input: { readonly recoveryKey: string }) => Promise<void>;
   readonly onDownloadVault: (bytes: Uint8Array, filename: string) => void;
+  readonly cloudEnrolled: boolean;
+  readonly onEnrollCloud: (input: { readonly pin: string }) => Promise<void>;
 }
 
 export function SettingsPage({
@@ -19,11 +21,36 @@ export function SettingsPage({
   onInspectVaultImport,
   onApplyVaultImport,
   onDownloadVault,
+  cloudEnrolled,
+  onEnrollCloud,
 }: SettingsPageProps) {
   const [backupOpen, setBackupOpen] = useState(false);
   const [backupState, setBackupState] = useState<BackupStatusViewModel>(() =>
     backup.lastExportedAt ? backup : readBackupStatus(),
   );
+  const [cloudPin, setCloudPin] = useState('');
+  const [cloudBusy, setCloudBusy] = useState(false);
+  const [cloudError, setCloudError] = useState<string | null>(null);
+  const [cloudReady, setCloudReady] = useState(cloudEnrolled);
+
+  async function enableCloudSync() {
+    setCloudError(null);
+    if (!/^\d{10,12}$/.test(cloudPin)) {
+      setCloudError('현재 사용 중인 10~12자리 PIN을 입력해주세요.');
+      return;
+    }
+    setCloudBusy(true);
+    try {
+      await onEnrollCloud({ pin: cloudPin });
+      setCloudReady(true);
+      setCloudPin('');
+    } catch {
+      setCloudError('클라우드 동기화를 시작하지 못했습니다. PIN 또는 네트워크 상태를 확인해주세요.');
+    } finally {
+      setCloudPin('');
+      setCloudBusy(false);
+    }
+  }
 
   return (
     <section className="page-stack settings-page" aria-labelledby="settings-title">
@@ -111,6 +138,50 @@ export function SettingsPage({
               />
             </div>
           ) : null}
+        </article>
+
+        <article className="settings-card" aria-labelledby="cloud-sync-settings-title">
+          <div className="settings-card-heading">
+            <div>
+              <p className="card-kicker">ENCRYPTED CLOUD SYNC</p>
+              <h2 id="cloud-sync-settings-title">기기 간 동기화</h2>
+              <p>같은 닉네임과 PIN으로 다른 기기에서도 기존 데이터를 이어서 사용합니다.</p>
+            </div>
+            <span className={cloudReady ? 'status-chip' : 'status-chip warning'}>
+              {cloudReady ? '연결됨' : '설정 필요'}
+            </span>
+          </div>
+
+          {cloudReady ? (
+            <>
+              <div className="backup-status-summary">
+                <span>동기화 상태</span>
+                <strong>암호화 클라우드 동기화 사용 중</strong>
+                <small>PIN, RecoveryKey, 금융 평문은 Cloudflare에 저장하지 않습니다.</small>
+              </div>
+              <p className="settings-footnote">이 기기에서 PIN으로 잠금 해제할 때 클라우드 변경사항을 확인하고, 로컬 변경사항은 암호화된 상태로 동기화합니다.</p>
+            </>
+          ) : (
+            <div className="settings-card-actions">
+              <label className="access-form">
+                <span>현재 PIN</span>
+                <input
+                  aria-label="클라우드 동기화 PIN"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  maxLength={12}
+                  type="password"
+                  value={cloudPin}
+                  onChange={(event) => setCloudPin(event.currentTarget.value.replace(/\D/g, '').slice(0, 12))}
+                />
+              </label>
+              {cloudError ? <p role="alert" className="form-error">{cloudError}</p> : null}
+              <button type="button" className="primary-button" disabled={cloudBusy} onClick={() => void enableCloudSync()}>
+                클라우드 동기화 시작
+              </button>
+              <p>처음 한 번만 연결하면 이후 새 기기에서는 닉네임과 PIN으로 로그인할 수 있습니다.</p>
+            </div>
+          )}
         </article>
 
         <article className="settings-card" aria-labelledby="rules-settings-title">
