@@ -1,6 +1,6 @@
 import { CloudSyncClient } from '../../cloud-sync/http-client';
 import { deriveCloudAuthSecret, deriveCloudKek, deriveCloudRootKey } from '../../cloud-sync/key-derivation';
-import { decodeCloudVaultSnapshot, encodeCloudVaultSnapshot, sha256Hex } from '../../cloud-sync/snapshot';
+import { openCloudVaultSnapshot, sealCloudVaultSnapshot, sha256Hex } from '../../cloud-sync/snapshot';
 import { selectAccountPurposeAnalysis } from '../../domain/analytics/account-purpose';
 import { selectBudgetUsage } from '../../domain/analytics/budget';
 import { selectCoreAnalytics } from '../../domain/analytics/core';
@@ -211,6 +211,7 @@ export class BrowserRuntime {
   private session: VaultSession | null = null;
   private bootstrap: BootstrapMeta | null = null;
   private cloudMeta: CloudEnrollmentMeta | null = null;
+  private cloudKek: Uint8Array | null = null;
   private readonly cloudClient = new CloudSyncClient();
   private snapshot: RuntimeSnapshot = {
     access: 'onboarding',
@@ -370,6 +371,8 @@ export class BrowserRuntime {
       const registration = await this.cloudClient.register({ nickname, accountSalt, authSecret });
       const unlockPepper = CloudSyncClient.decodeBytes(registration.unlockPepper);
       cloudKek = await deriveCloudKek(rootKey, unlockPepper);
+      this.cloudKek?.fill(0);
+      this.cloudKek = cloudKek.slice();
       vaultKey = await unwrapVaultKey(bootstrap.wrappedDeviceVaultKey, deviceKek, wrapAad(bootstrap.vaultId, 'device'));
       const cloudWrap = await wrapVaultKey(vaultKey, cloudKek, cloudWrapAad(registration.accountId, bootstrap.vaultId));
       const localRevision = await this.repository.getRevision(bootstrap.vaultId);
@@ -416,10 +419,14 @@ export class BrowserRuntime {
       if (!download) throw new Error('Cloud Vault snapshot is missing.');
       if (await sha256Hex(download.bytes) !== download.objectSha256) throw new Error('Cloud snapshot digest mismatch.');
 
-      const snapshot = decodeCloudVaultSnapshot(download.bytes);
+      const cloudKek = this.cloudKek;
+      if (!cloudKek) throw new Error('Cloud sync key is unavailable.');
+      const snapshot = await openCloudVaultSnapshot(download.bytes, cloudKek);
       if (snapshot.accountId !== login.accountId) throw new Error('Cloud account mismatch.');
       if (snapshot.schemaVersion > SCHEMA_VERSION) throw new Error('Cloud Vault uses a future schema version.');
       cloudKek = await deriveCloudKek(rootKey, CloudSyncClient.decodeBytes(login.unlockPepper));
+      this.cloudKek?.fill(0);
+      this.cloudKek = cloudKek.slice();
       vaultKey = await unwrapVaultKey(snapshot.cloudWrap, cloudKek, cloudWrapAad(login.accountId, snapshot.vaultId));
       const wrappedDeviceVaultKey = await wrapVaultKey(vaultKey, deviceKek, wrapAad(snapshot.vaultId, 'device'));
       const bootstrap: BootstrapMeta = {
@@ -739,8 +746,15 @@ export class BrowserRuntime {
     const rootKey = await deriveCloudRootKey(pin, meta.accountSalt, bootstrap.argon2Params);
     const authSecret = await deriveCloudAuthSecret(rootKey, meta.accountSalt);
     try {
-      await this.cloudClient.loginWithSecret(meta.nickname, authSecret);
-      await this.syncCloudNow();
+      const login = await this.cloudClient.loginWithSecret(meta.nickname, authSecret);
+      const cloudKek = await deriveCloudKek(rootKey, CloudSyncClient.decodeBytes(login.unlockPepper));
+      try {
+        this.cloudKek?.fill(0);
+        this.cloudKek = cloudKek.slice();
+        await this.syncCloudNow();
+      } finally {
+        cloudKek.fill(0);
+      }
     } finally {
       rootKey.fill(0);
       authSecret.fill(0);
@@ -773,7 +787,9 @@ export class BrowserRuntime {
       const download = await this.cloudClient.downloadSnapshot();
       if (!download) throw new Error('Cloud Vault snapshot is missing.');
       if (await sha256Hex(download.bytes) !== download.objectSha256) throw new Error('Cloud snapshot digest mismatch.');
-      const snapshot = decodeCloudVaultSnapshot(download.bytes);
+      const cloudKek = this.cloudKek;
+      if (!cloudKek) throw new Error('Cloud sync key is unavailable.');
+      const snapshot = await openCloudVaultSnapshot(download.bytes, cloudKek);
       if (snapshot.accountId !== meta.accountId || snapshot.vaultId !== bootstrap.vaultId) {
         throw new Error('Cloud Vault identity mismatch.');
       }
@@ -806,7 +822,9 @@ export class BrowserRuntime {
       this.repository.listAllEvents(),
       this.repository.getRevision(bootstrap.vaultId),
     ]);
-    const bytes = encodeCloudVaultSnapshot({
+    const cloudKek = this.cloudKek;
+    if (!cloudKek) throw new Error('Cloud sync key is unavailable.');
+    const bytes = await sealCloudVaultSnapshot({
       formatVersion: 1,
       schemaVersion: SCHEMA_VERSION,
       vaultId: bootstrap.vaultId,
@@ -821,7 +839,7 @@ export class BrowserRuntime {
       recoveryWrap: bootstrap.wrappedRecoveryVaultKey,
       records,
       events,
-    });
+    }, cloudKek);
     const result = await this.cloudClient.uploadSnapshot({
       expectedRevision: expectedCloudRevision,
       objectSha256: await sha256Hex(bytes),
@@ -837,6 +855,8 @@ export class BrowserRuntime {
   }
 
   lock(): void {
+    this.cloudKek?.fill(0);
+    this.cloudKek = null;
     this.session?.lock();
     this.session = null;
     this.setSnapshot({
