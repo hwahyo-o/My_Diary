@@ -415,18 +415,16 @@ export class BrowserRuntime {
     const deviceKek = await deriveDeviceKek(input.pin, deviceSecret, pinSalt, params);
     try {
       const login = await this.cloudClient.loginWithSecret(nickname, authSecret);
-      const download = await this.cloudClient.downloadSnapshot();
-      if (!download) throw new Error('Cloud Vault snapshot is missing.');
-      if (await sha256Hex(download.bytes) !== download.objectSha256) throw new Error('Cloud snapshot digest mismatch.');
-
-      const cloudKek = this.cloudKek;
-      if (!cloudKek) throw new Error('Cloud sync key is unavailable.');
-      const snapshot = await openCloudVaultSnapshot(download.bytes, cloudKek);
-      if (snapshot.accountId !== login.accountId) throw new Error('Cloud account mismatch.');
-      if (snapshot.schemaVersion > SCHEMA_VERSION) throw new Error('Cloud Vault uses a future schema version.');
       cloudKek = await deriveCloudKek(rootKey, CloudSyncClient.decodeBytes(login.unlockPepper));
       this.cloudKek?.fill(0);
       this.cloudKek = cloudKek.slice();
+
+      const download = await this.cloudClient.downloadSnapshot();
+      if (!download) throw new Error('Cloud Vault snapshot is missing.');
+      if (await sha256Hex(download.bytes) !== download.objectSha256) throw new Error('Cloud snapshot digest mismatch.');
+      const snapshot = await openCloudVaultSnapshot(download.bytes, cloudKek);
+      if (snapshot.accountId !== login.accountId) throw new Error('Cloud account mismatch.');
+      if (snapshot.schemaVersion > SCHEMA_VERSION) throw new Error('Cloud Vault uses a future schema version.');
       vaultKey = await unwrapVaultKey(snapshot.cloudWrap, cloudKek, cloudWrapAad(login.accountId, snapshot.vaultId));
       const wrappedDeviceVaultKey = await wrapVaultKey(vaultKey, deviceKek, wrapAad(snapshot.vaultId, 'device'));
       const bootstrap: BootstrapMeta = {
