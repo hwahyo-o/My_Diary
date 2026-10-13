@@ -19,7 +19,7 @@ describe('App protected shell', () => {
   it('renders supplied Home view-model values without recomputing finance logic', () => {
     render(<App initialAccess="unlocked" dashboard={dashboard} />);
 
-    expect(screen.getByRole('heading', { name: '안녕하세요, 예현님' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '예현님의 재무 운영 현황' })).toBeInTheDocument();
     expect(screen.getByText('₩1,250,000')).toBeInTheDocument();
     expect(screen.getByText('58%')).toBeInTheDocument();
     expect(screen.getByText('카페 봄')).toBeInTheDocument();
