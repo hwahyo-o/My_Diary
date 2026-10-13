@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import { App } from './App';
-import { emptyAnalytics, emptyAssets, emptyDashboard, type RuntimeSnapshot } from './ui-types';
+import { emptyAnalytics, emptyAssets, emptyCalendar, emptyDashboard, type RuntimeSnapshot } from './ui-types';
 
 const dashboard = {
   nickname: '예현',
@@ -65,7 +65,7 @@ describe('App protected shell', () => {
       unlock: vi.fn().mockResolvedValue(undefined),
       submitTransaction: vi.fn().mockResolvedValue(undefined),
       lock,
-      getSnapshot: () => ({ access: 'unlocked' as const, dashboard, assets: emptyAssets, analytics: emptyAnalytics }),
+      getSnapshot: () => ({ access: 'unlocked' as const, dashboard, assets: emptyAssets, analytics: emptyAnalytics, calendar: emptyCalendar }),
       subscribe: (next: (snapshot: RuntimeSnapshot) => void) => {
         listener = next;
         return () => { listener = undefined; };
@@ -77,16 +77,16 @@ describe('App protected shell', () => {
     fireEvent.click(screen.getByRole('button', { name: '지금 잠그기' }));
     expect(lock).toHaveBeenCalledTimes(1);
 
-    act(() => listener?.({ access: 'locked', dashboard: emptyDashboard, assets: emptyAssets, analytics: emptyAnalytics }));
+    act(() => listener?.({ access: 'locked', dashboard: emptyDashboard, assets: emptyAssets, analytics: emptyAnalytics, calendar: emptyCalendar }));
     expect(screen.getByRole('heading', { name: 'My Diary 잠금 해제' })).toBeInTheDocument();
   });
 
   it('removes recovery confirmation when runtime locks so it cannot bypass the lock', async () => {
     let listener: ((snapshot: RuntimeSnapshot) => void) | undefined;
-    let current: RuntimeSnapshot = { access: 'onboarding', dashboard: emptyDashboard, assets: emptyAssets, analytics: emptyAnalytics };
+    let current: RuntimeSnapshot = { access: 'onboarding', dashboard: emptyDashboard, assets: emptyAssets, analytics: emptyAnalytics, calendar: emptyCalendar };
     const runtime = {
       createProfile: vi.fn().mockImplementation(async () => {
-        current = { access: 'unlocked', dashboard, assets: emptyAssets, analytics: emptyAnalytics };
+        current = { access: 'unlocked', dashboard, assets: emptyAssets, analytics: emptyAnalytics, calendar: emptyCalendar };
         listener?.(current);
         return { recoveryKey: 'RECOVERY_KEY_SAMPLE' };
       }),
@@ -106,7 +106,7 @@ describe('App protected shell', () => {
     await screen.findByText('RECOVERY_KEY_SAMPLE');
 
     act(() => {
-      current = { access: 'locked', dashboard: emptyDashboard, assets: emptyAssets, analytics: emptyAnalytics };
+      current = { access: 'locked', dashboard: emptyDashboard, assets: emptyAssets, analytics: emptyAnalytics, calendar: emptyCalendar };
       listener?.(current);
     });
 
