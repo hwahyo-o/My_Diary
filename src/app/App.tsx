@@ -117,6 +117,7 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
         return runtime.applyVaultImport(bytes, input);
       }}
       cloudEnrolled={runtime.isCloudEnrolled?.() ?? false}
+      cloudConflict={runtime.hasCloudConflict?.() ?? false}
       onEnrollCloud={(input) => {
         if (!runtime.enrollCloud) return Promise.reject(new Error('Cloud sync is not connected.'));
         return runtime.enrollCloud(input);

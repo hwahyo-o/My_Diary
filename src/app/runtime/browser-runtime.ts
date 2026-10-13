@@ -207,11 +207,57 @@ function recordsEqual(a: StoredEncryptedRecord, b: StoredEncryptedRecord): boole
     && equalBytes(a.encryptedPayload, b.encryptedPayload);
 }
 
+function eventsEqual(a: StoredEvent, b: StoredEvent): boolean {
+  return a.eventId === b.eventId
+    && a.recordId === b.recordId
+    && a.recordType === b.recordType
+    && a.action === b.action
+    && a.deviceId === b.deviceId
+    && a.deviceSeq === b.deviceSeq
+    && a.createdAt === b.createdAt
+    && equalBytes(a.encryptedPatch, b.encryptedPatch);
+}
+
+export function reconcileEncryptedCollections(
+  localRecords: readonly StoredEncryptedRecord[],
+  cloudRecords: readonly StoredEncryptedRecord[],
+  localEvents: readonly StoredEvent[],
+  cloudEvents: readonly StoredEvent[],
+): { readonly records: StoredEncryptedRecord[]; readonly events: StoredEvent[]; readonly hardConflicts: number } {
+  const records = new Map(localRecords.map((record) => [record.recordId, record]));
+  let hardConflicts = 0;
+  for (const incoming of cloudRecords) {
+    const existing = records.get(incoming.recordId);
+    if (!existing) {
+      records.set(incoming.recordId, incoming);
+    } else if (!recordsEqual(existing, incoming)) {
+      hardConflicts += 1;
+    }
+  }
+
+  const events = new Map(localEvents.map((event) => [event.eventId, event]));
+  for (const incoming of cloudEvents) {
+    const existing = events.get(incoming.eventId);
+    if (!existing) {
+      events.set(incoming.eventId, incoming);
+    } else if (!eventsEqual(existing, incoming)) {
+      hardConflicts += 1;
+    }
+  }
+
+  return {
+    records: [...records.values()],
+    events: [...events.values()],
+    hardConflicts,
+  };
+}
+
 export class BrowserRuntime {
   private session: VaultSession | null = null;
   private bootstrap: BootstrapMeta | null = null;
   private cloudMeta: CloudEnrollmentMeta | null = null;
   private cloudKek: Uint8Array | null = null;
+  private cloudConflict = false;
   private readonly cloudClient = new CloudSyncClient();
   private snapshot: RuntimeSnapshot = {
     access: 'onboarding',
@@ -258,6 +304,10 @@ export class BrowserRuntime {
 
   isCloudEnrolled(): boolean {
     return this.cloudMeta !== null;
+  }
+
+  hasCloudConflict(): boolean {
+    return this.cloudConflict;
   }
 
   async createProfile(input: { readonly nickname: string; readonly pin: string }): Promise<{ readonly recoveryKey: string }> {
@@ -785,7 +835,6 @@ export class BrowserRuntime {
     if (head.revision < meta.cloudRevision) throw new Error('Cloud sync head moved backwards.');
     const cloudChanged = head.revision > meta.cloudRevision;
 
-    if (localChanged && cloudChanged) throw new Error('Cloud sync conflict requires resolution.');
     if (cloudChanged) {
       const download = await this.cloudClient.downloadSnapshot();
       if (!download) throw new Error('Cloud Vault snapshot is missing.');
@@ -796,6 +845,46 @@ export class BrowserRuntime {
       if (snapshot.accountId !== meta.accountId || snapshot.vaultId !== bootstrap.vaultId) {
         throw new Error('Cloud Vault identity mismatch.');
       }
+
+      if (localChanged) {
+        const [localRecords, localEvents] = await Promise.all([
+          this.repository.listAllRecords(),
+          this.repository.listAllEvents(),
+        ]);
+        const reconciled = reconcileEncryptedCollections(
+          localRecords,
+          snapshot.records,
+          localEvents,
+          snapshot.events,
+        );
+        if (reconciled.hardConflicts > 0) {
+          this.cloudConflict = true;
+          this.setSnapshot({ ...this.snapshot });
+          throw new Error('Cloud sync contains overlapping record edits that require manual resolution.');
+        }
+
+        const mergedRevision = Math.max(localRevision, snapshot.manifest.revision) + 1;
+        await this.repository.replaceVaultData({
+          vaultId: snapshot.vaultId,
+          schemaVersion: Math.max(snapshot.schemaVersion, SCHEMA_VERSION),
+          revision: mergedRevision,
+          records: reconciled.records,
+          events: reconciled.events,
+        });
+        const mergedMeta: CloudEnrollmentMeta = {
+          ...meta,
+          cloudWrap: snapshot.cloudWrap,
+          cloudRevision: download.revision,
+          localRevisionAtSync: -1,
+        };
+        await this.repository.putSecurityMeta(CLOUD_META_KEY, mergedMeta);
+        this.cloudMeta = mergedMeta;
+        this.cloudConflict = false;
+        await this.hydrate();
+        await this.uploadCloudSnapshot(mergedMeta, download.revision);
+        return;
+      }
+
       await this.repository.replaceVaultData({
         vaultId: snapshot.vaultId,
         schemaVersion: snapshot.schemaVersion,
@@ -811,10 +900,12 @@ export class BrowserRuntime {
       };
       await this.repository.putSecurityMeta(CLOUD_META_KEY, nextMeta);
       this.cloudMeta = nextMeta;
+      this.cloudConflict = false;
       await this.hydrate();
       return;
     }
     if (localChanged) await this.uploadCloudSnapshot(meta, head.revision);
+    this.cloudConflict = false;
   }
 
   private async uploadCloudSnapshot(meta: CloudEnrollmentMeta, expectedCloudRevision: number): Promise<void> {

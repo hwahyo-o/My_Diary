@@ -166,6 +166,7 @@ export interface AppRuntimePorts {
   enrollCloud?(input: { readonly pin: string }): Promise<void>;
   loginFromCloud?(input: { readonly nickname: string; readonly pin: string }): Promise<void>;
   isCloudEnrolled?(): boolean;
+  hasCloudConflict?(): boolean;
   lock?(): void;
   getSnapshot?(): RuntimeSnapshot;
   subscribe?(listener: (snapshot: RuntimeSnapshot) => void): () => void;

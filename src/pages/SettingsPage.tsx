@@ -11,6 +11,7 @@ interface SettingsPageProps {
   readonly onApplyVaultImport: (bytes: Uint8Array, input: { readonly recoveryKey: string }) => Promise<void>;
   readonly onDownloadVault: (bytes: Uint8Array, filename: string) => void;
   readonly cloudEnrolled: boolean;
+  readonly cloudConflict: boolean;
   readonly onEnrollCloud: (input: { readonly pin: string }) => Promise<void>;
 }
 
@@ -22,6 +23,7 @@ export function SettingsPage({
   onApplyVaultImport,
   onDownloadVault,
   cloudEnrolled,
+  cloudConflict,
   onEnrollCloud,
 }: SettingsPageProps) {
   const [backupOpen, setBackupOpen] = useState(false);
@@ -147,8 +149,8 @@ export function SettingsPage({
               <h2 id="cloud-sync-settings-title">기기 간 동기화</h2>
               <p>같은 닉네임과 PIN으로 다른 기기에서도 기존 데이터를 이어서 사용합니다.</p>
             </div>
-            <span className={cloudReady ? 'status-chip' : 'status-chip warning'}>
-              {cloudReady ? '연결됨' : '설정 필요'}
+            <span className={cloudConflict ? 'status-chip warning' : cloudReady ? 'status-chip' : 'status-chip warning'}>
+              {cloudConflict ? '충돌 확인 필요' : cloudReady ? '연결됨' : '설정 필요'}
             </span>
           </div>
 
@@ -156,8 +158,10 @@ export function SettingsPage({
             <>
               <div className="backup-status-summary">
                 <span>동기화 상태</span>
-                <strong>암호화 클라우드 동기화 사용 중</strong>
-                <small>PIN, RecoveryKey, 금융 평문은 Cloudflare에 저장하지 않습니다.</small>
+                <strong>{cloudConflict ? '동일 항목의 동시 수정이 감지되었습니다.' : '암호화 클라우드 동기화 사용 중'}</strong>
+                <small>{cloudConflict
+                  ? '서로 다른 신규 거래는 자동 병합되지만, 동일 항목을 양쪽에서 다르게 수정한 경우 자동 덮어쓰지 않습니다.'
+                  : 'PIN, RecoveryKey, 금융 평문은 Cloudflare에 저장하지 않습니다.'}</small>
               </div>
               <p className="settings-footnote">이 기기에서 PIN으로 잠금 해제할 때 클라우드 변경사항을 확인하고, 로컬 변경사항은 암호화된 상태로 동기화합니다.</p>
             </>
