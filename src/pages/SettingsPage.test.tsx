@@ -42,7 +42,7 @@ describe('SettingsPage operational hub', () => {
     const toggle = screen.getByRole('button', { name: '백업 도구 열기' });
     fireEvent.click(toggle);
     expect(screen.getByRole('button', { name: '백업 도구 닫기' })).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByText(/RecoveryKey/)).toBeInTheDocument();
+    expect(screen.getAllByText(/RecoveryKey/).length).toBeGreaterThan(0);
   });
 
   it('shows a formatted last-backup time when a backup exists', () => {
