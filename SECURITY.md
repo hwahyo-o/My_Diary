@@ -36,3 +36,4 @@ The repository uses:
 - CodeQL analysis
 - dependency review on pull requests
 - Dependabot updates for npm and GitHub Actions
+- live Cloudflare production verification after deployments and on a daily schedule
