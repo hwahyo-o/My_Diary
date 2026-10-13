@@ -3,8 +3,11 @@ import {
   constantTimeEqual,
   createSession,
   fromBase64Url,
+  hasAllowedOrigin,
+  isValidNickname,
   json,
   normalizeNickname,
+  readJsonBody,
   nowIso,
   toBase64Url,
 } from '../../_shared/cloud-sync.js';
@@ -14,11 +17,16 @@ const MAX_FAILURES = 10;
 const LOCK_MS = 15 * 60 * 1000;
 
 export async function onRequestPost({ request, env }) {
+  let authSecret;
+  let actual;
+  let expected;
+  let unlockPepper;
   try {
-    const body = await request.json();
+    if (!hasAllowedOrigin(request)) return json({ error: 'Forbidden origin.' }, { status: 403 });
+    const body = await readJsonBody(request);
     const nicknameNorm = normalizeNickname(body?.nickname);
-    const authSecret = fromBase64Url(body?.authSecret);
-    if (!nicknameNorm || authSecret.length !== 32) {
+    authSecret = fromBase64Url(body?.authSecret);
+    if (!isValidNickname(nicknameNorm) || authSecret.length !== 32) {
       return json({ error: 'Authentication failed.' }, { status: 401 });
     }
 
@@ -31,8 +39,8 @@ export async function onRequestPost({ request, env }) {
       return json({ error: 'Authentication temporarily locked.' }, { status: 429 });
     }
 
-    const actual = await authVerifier(env, authSecret);
-    const expected = new Uint8Array(row.auth_verifier);
+    actual = await authVerifier(env, authSecret);
+    expected = new Uint8Array(row.auth_verifier);
     if (!constantTimeEqual(actual, expected)) {
       const failures = Number(row.failed_attempts ?? 0) + 1;
       const lockedUntil = failures >= MAX_FAILURES
@@ -49,7 +57,7 @@ export async function onRequestPost({ request, env }) {
     ).bind(nowIso(), row.account_id).run();
 
     const aad = `my-diary/unlock-pepper/v1/${row.account_id}`;
-    const unlockPepper = await decryptWithMasterKey(
+    unlockPepper = await decryptWithMasterKey(
       env.UNLOCK_MASTER_KEY,
       new Uint8Array(row.unlock_pepper_iv),
       new Uint8Array(row.unlock_pepper_ciphertext),
@@ -69,5 +77,10 @@ export async function onRequestPost({ request, env }) {
     return response;
   } catch {
     return json({ error: 'Authentication failed.' }, { status: 401 });
+  } finally {
+    authSecret?.fill(0);
+    actual?.fill(0);
+    expected?.fill(0);
+    unlockPepper?.fill(0);
   }
 }

@@ -2,8 +2,12 @@ import { fromBase64Url, randomBytes, utf8 } from './cloud-sync.js';
 
 async function importAesKey(base64url) {
   const raw = fromBase64Url(base64url);
-  if (raw.length !== 32) throw new Error('Master key must be 32 bytes.');
-  return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+  try {
+    if (raw.length !== 32) throw new Error('Master key must be 32 bytes.');
+    return await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+  } finally {
+    raw.fill(0);
+  }
 }
 
 export async function encryptWithMasterKey(base64urlKey, plaintext, aadText) {

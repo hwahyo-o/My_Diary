@@ -15,7 +15,7 @@ function secureHeaders() {
     'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
     'cross-origin-opener-policy': 'same-origin',
     'cross-origin-resource-policy': 'same-origin',
-    'strict-transport-security': 'max-age=31536000',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains',
     'x-permitted-cross-domain-policies': 'none',
   });
 }

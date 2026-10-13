@@ -18,6 +18,9 @@ export async function onRequestGet({ request, env }) {
   const headers = new Headers();
   headers.set('content-type', 'application/octet-stream');
   headers.set('cache-control', 'no-store');
+  headers.set('x-content-type-options', 'nosniff');
+  headers.set('referrer-policy', 'no-referrer');
+  headers.set('cross-origin-resource-policy', 'same-origin');
   headers.set('x-my-diary-revision', String(head.revision));
   headers.set('x-my-diary-sha256', String(head.object_sha256));
   return new Response(object.body, { headers });
