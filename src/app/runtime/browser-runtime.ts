@@ -30,7 +30,7 @@ import type {
   SaveLoanInput,
   TransactionSubmission,
 } from '../ui-types';
-import { emptyAnalytics, emptyAssets, emptyDashboard } from '../ui-types';
+import { emptyAnalytics, emptyAssets, emptyCalendar, emptyDashboard } from '../ui-types';
 import {
   base64UrlToBytes,
   createVaultPackage,
@@ -220,6 +220,7 @@ export class BrowserRuntime {
       dashboard: emptyDashboard,
       assets: emptyAssets,
       analytics: emptyAnalytics,
+      calendar: emptyCalendar,
     };
     return runtime;
   }
@@ -320,6 +321,7 @@ export class BrowserRuntime {
         dashboard: emptyDashboard,
         assets: emptyAssets,
         analytics: emptyAnalytics,
+      calendar: emptyCalendar,
       });
       throw error;
     } finally {
@@ -598,6 +600,7 @@ export class BrowserRuntime {
       dashboard: emptyDashboard,
       assets: emptyAssets,
       analytics: emptyAnalytics,
+      calendar: emptyCalendar,
     });
   }
 
@@ -906,6 +909,27 @@ export class BrowserRuntime {
           expenseMinor: report.snapshot.cashFlow.expenseMinor,
           netCashflowMinor: report.snapshot.cashFlow.netCashflowMinor,
         })),
+      },
+      calendar: {
+        transactions: activeTransactions
+          .slice()
+          .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+          .map((transaction) => {
+            const impact = getIncomeExpenseImpact(transaction);
+            const direction = impact.incomeMinor > 0
+              ? 'income' as const
+              : impact.expenseMinor > 0
+                ? 'expense' as const
+                : 'neutral' as const;
+            return {
+              id: transaction.id,
+              occurredAt: transaction.occurredAt,
+              label: transaction.merchant ?? transaction.memo ?? transaction.categoryId ?? '거래',
+              type: transaction.type,
+              amountMinor: transaction.amountMinor,
+              direction,
+            };
+          }),
       },
     });
   }
