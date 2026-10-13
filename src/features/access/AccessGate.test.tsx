@@ -17,13 +17,13 @@ describe('AccessGate', () => {
 
     fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: '예현' } });
     fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '12345' } });
-    fireEvent.click(screen.getByRole('button', { name: '시작하기' }));
+    fireEvent.click(screen.getByRole('button', { name: '새 Vault 만들기' }));
 
     expect(onCreateProfile).not.toHaveBeenCalled();
     expect(screen.getByRole('alert')).toHaveTextContent('10~12자리 숫자');
 
     fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '4829517304' } });
-    fireEvent.click(screen.getByRole('button', { name: '시작하기' }));
+    fireEvent.click(screen.getByRole('button', { name: '새 Vault 만들기' }));
 
     await waitFor(() => expect(onCreateProfile).toHaveBeenCalledWith({ nickname: '예현', pin: '4829517304' }));
     expect(screen.getByText('RECOVERY_KEY_SAMPLE')).toBeInTheDocument();
@@ -31,6 +31,28 @@ describe('AccessGate', () => {
     expect(onAccessGranted).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: '복구 키를 저장했어요' }));
+    expect(onAccessGranted).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs into an existing cloud account from a fresh device', async () => {
+    const onCloudLogin = vi.fn().mockResolvedValue(undefined);
+    const onAccessGranted = vi.fn();
+    render(
+      <AccessGate
+        mode="onboarding"
+        onCreateProfile={vi.fn()}
+        onUnlock={vi.fn()}
+        onCloudLogin={onCloudLogin}
+        onAccessGranted={onAccessGranted}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '기존 계정으로 로그인' }));
+    fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: '예현' } });
+    fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '4829517304' } });
+    fireEvent.click(screen.getByRole('button', { name: '기존 계정 로그인' }));
+
+    await waitFor(() => expect(onCloudLogin).toHaveBeenCalledWith({ nickname: '예현', pin: '4829517304' }));
     expect(onAccessGranted).toHaveBeenCalledTimes(1);
   });
 
@@ -47,7 +69,7 @@ describe('AccessGate', () => {
 
     fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: '예현' } });
     fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '1234567890' } });
-    fireEvent.click(screen.getByRole('button', { name: '시작하기' }));
+    fireEvent.click(screen.getByRole('button', { name: '새 Vault 만들기' }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('너무 단순합니다'));
   });
