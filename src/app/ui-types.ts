@@ -163,6 +163,9 @@ export interface AppRuntimePorts {
   inspectVaultImport?(bytes: Uint8Array, input: { readonly recoveryKey: string }): Promise<VaultImportInspectionViewModel>;
   applyVaultImport?(bytes: Uint8Array, input: { readonly recoveryKey: string }): Promise<void>;
   recoverFromVault?(input: { readonly packageBytes: Uint8Array; readonly recoveryKey: string; readonly pin: string }): Promise<void>;
+  enrollCloud?(input: { readonly pin: string }): Promise<void>;
+  loginFromCloud?(input: { readonly nickname: string; readonly pin: string }): Promise<void>;
+  isCloudEnrolled?(): boolean;
   lock?(): void;
   getSnapshot?(): RuntimeSnapshot;
   subscribe?(listener: (snapshot: RuntimeSnapshot) => void): () => void;
