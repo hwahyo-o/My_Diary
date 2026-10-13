@@ -218,7 +218,7 @@ function eventsEqual(a: StoredEvent, b: StoredEvent): boolean {
     && equalBytes(a.encryptedPatch, b.encryptedPatch);
 }
 
-function reconcileEncryptedCollections(
+export function reconcileEncryptedCollections(
   localRecords: readonly StoredEncryptedRecord[],
   cloudRecords: readonly StoredEncryptedRecord[],
   localEvents: readonly StoredEvent[],
