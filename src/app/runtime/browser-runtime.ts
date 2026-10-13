@@ -256,6 +256,10 @@ export class BrowserRuntime {
     return () => this.listeners.delete(listener);
   }
 
+  isCloudEnrolled(): boolean {
+    return this.cloudMeta !== null;
+  }
+
   async createProfile(input: { readonly nickname: string; readonly pin: string }): Promise<{ readonly recoveryKey: string }> {
     if (this.bootstrap) throw new Error('A local vault is already configured.');
     assertStrongPin(input.pin);
