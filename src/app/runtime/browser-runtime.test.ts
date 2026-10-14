@@ -75,7 +75,7 @@ describe('BrowserRuntime composition', () => {
       await runtime.createProfile({ nickname: '예현', pin: '4829517304' });
       await runtime.submitTransaction({ mode: 'direct', amountMinor: 13000, memo: '점심' });
       await runtime.submitTransaction({ mode: 'quick', text: '택시 18000' });
-      await runtime.submitTransaction({ mode: 'quick', text: '수입 50000' });
+      await runtime.submitTransaction({ mode: 'quick', text: '월급 50000' });
 
       const dashboard = runtime.getSnapshot().dashboard;
       expect(dashboard.incomeMinor).toBe(50000);
@@ -87,7 +87,7 @@ describe('BrowserRuntime composition', () => {
       const serialized = JSON.stringify(records);
       expect(serialized).not.toContain('점심');
       expect(serialized).not.toContain('택시');
-      expect(serialized).not.toContain('수입');
+      expect(serialized).not.toContain('월급');
     } finally {
       runtime.close();
     }

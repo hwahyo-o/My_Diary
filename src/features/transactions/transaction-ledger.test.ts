@@ -123,6 +123,19 @@ describe('T20 quick input parser', () => {
     expect(parseQuickInput('간식 2500원', now).amountMinor).toBe(2500);
   });
 
+  it('classifies income keywords directly in Quick input drafts', () => {
+    const salary = quickCandidateToDraft(parseQuickInput('월급 2,000,000원', now), { accountId });
+    expect(salary.type).toBe('income');
+    expect(salary.amountMinor).toBe(2000000);
+
+    const sideIncome = quickCandidateToDraft(parseQuickInput('부수입 디자인 50000', now), { accountId });
+    expect(sideIncome.type).toBe('income');
+    expect(sideIncome.merchant).toBe('디자인');
+
+    const pointSpend = quickCandidateToDraft(parseQuickInput('포인트 사용 3000', now), { accountId });
+    expect(pointSpend.type).toBe('expense');
+  });
+
   it('parses yesterday and transport hints', () => {
     const parsed = parseQuickInput('어제 택시 18000', now);
     expect(parsed.amountMinor).toBe(18000);

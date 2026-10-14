@@ -37,6 +37,41 @@ describe('transaction classification engine foundation', () => {
     });
   });
 
+  it('classifies the requested income keywords as income', () => {
+    for (const keyword of ['월급', '급여', '부수입', '용돈', '마일리지', '포인트', '리워드', '캐시백', '환급', '상여금', '보너스', '이자']) {
+      const result = classifyTransactionText(`${keyword} 50000`, now);
+      expect(result.transactionType.value, keyword).toBe('income');
+      expect(result.transactionType.source, keyword).toBe('keyword');
+    }
+  });
+
+  it('does not misclassify point or mileage spending phrases as income', () => {
+    for (const text of [
+      '포인트 사용 3000',
+      '포인트 차감 3000',
+      '포인트 결제 3000',
+      '마일리지 사용 5000',
+      '마일리지 차감 5000',
+      '리워드 사용 2000',
+      '리워드 결제 2000',
+      '대출이자 12000',
+      '이자 납부 12000',
+    ]) {
+      expect(classifyTransactionText(text, now).transactionType.value, text).toBe('expense');
+    }
+  });
+
+  it('lets an explicit type override automatic income keywords', () => {
+    expect(classifyTransactionText('지출 월급 10000', now).transactionType).toMatchObject({
+      value: 'expense',
+      source: 'explicit',
+    });
+    expect(classifyTransactionText('수입 포인트 사용 3000', now).transactionType).toMatchObject({
+      value: 'income',
+      source: 'explicit',
+    });
+  });
+
   it('keeps legacy food/transport/date rules compatible', () => {
     const food = classifyTransactionText('어제 점심 13000', now);
     expect(food.categoryId.value).toBe('food');
