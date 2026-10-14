@@ -99,6 +99,20 @@ function containsKeyword(text: string, keyword: string): boolean {
   return text.includes(normalizeText(keyword));
 }
 
+function containsExplicitToken(text: string, keyword: string): boolean {
+  const target = normalizeText(keyword);
+  return text
+    .split(/[\s,.:;!?()[\]{}]+/u)
+    .filter(Boolean)
+    .includes(target);
+}
+
+function matchesTypeRule(text: string, rule: TypeKeywordRule): boolean {
+  return rule.source === 'explicit'
+    ? containsExplicitToken(text, rule.keyword)
+    : containsKeyword(text, rule.keyword);
+}
+
 function minusCalendarDays(now: ISODateTime, days: number): ISODateTime {
   const date = new Date(now);
   date.setUTCDate(date.getUTCDate() - days);
@@ -124,7 +138,7 @@ function resolveTransactionType(
   reviewReasons: string[],
 ): ClassificationDecision<TransactionType> {
   const matches = rules.typeKeywords
-    .filter((rule) => containsKeyword(normalizedText, rule.keyword))
+    .filter((rule) => matchesTypeRule(normalizedText, rule))
     .filter((rule) => !(rule.excludeWhen ?? []).some((phrase) => containsKeyword(normalizedText, phrase)))
     .map((rule) => ({ ...rule, resolvedSource: rule.source ?? 'keyword' as ClassificationSource }));
   const highestRank = matches.reduce((rank, rule) => Math.max(rank, sourceRank(rule.resolvedSource)), 0);
