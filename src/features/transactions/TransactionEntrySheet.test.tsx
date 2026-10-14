@@ -29,6 +29,60 @@ describe('TransactionEntrySheet', () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
+  it('shows the same classification result that will be saved', () => {
+    render(
+      <TransactionEntrySheet
+        open
+        onClose={vi.fn()}
+        onSubmitTransaction={vi.fn()}
+        onPreviewQuickTransaction={() => ({
+          amountMinor: 4500,
+          occurredAt: '2026-10-12T10:00:00.000+09:00',
+          transactionType: 'expense',
+          categoryId: 'food',
+          categoryLabel: '식비',
+          fixedVariable: 'variable',
+          needsReview: false,
+          unresolvedAmount: false,
+        })}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('빠른 입력'), { target: { value: '그제 커피 4500' } });
+
+    expect(screen.getByText('자동 분류 미리보기')).toBeInTheDocument();
+    expect(screen.getByText('식비')).toBeInTheDocument();
+    expect(screen.getByText('변동')).toBeInTheDocument();
+    expect(screen.getByText('₩4,500')).toBeInTheDocument();
+    expect(screen.getByText('저장 가능')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '빠른 입력 저장' })).toBeEnabled();
+  });
+
+  it('blocks saving when the preview reports a classification conflict', () => {
+    render(
+      <TransactionEntrySheet
+        open
+        onClose={vi.fn()}
+        onSubmitTransaction={vi.fn()}
+        onPreviewQuickTransaction={() => ({
+          amountMinor: 4500,
+          occurredAt: '2026-10-14T10:00:00.000+09:00',
+          transactionType: 'expense',
+          categoryId: 'uncategorized',
+          categoryLabel: '미분류',
+          fixedVariable: 'mixed',
+          needsReview: true,
+          unresolvedAmount: false,
+        })}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('빠른 입력'), { target: { value: '충돌 입력 4500' } });
+
+    expect(screen.getByText('확인 필요')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '빠른 입력 저장' })).toBeDisabled();
+  });
+
   it('shows a visible error and stays open when persistence fails', async () => {
     const onClose = vi.fn();
     const onSubmitTransaction = vi.fn().mockRejectedValue(new Error('storage failed'));
