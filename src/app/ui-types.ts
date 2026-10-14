@@ -146,9 +146,12 @@ export interface QuickTransactionCorrection {
   readonly occurredAt: string;
 }
 
+export interface QuickBatchPreview { readonly entries: readonly (QuickTransactionPreviewViewModel & { readonly text: string })[]; readonly valid: boolean; }
+
 export type TransactionSubmission =
   | { readonly mode: 'quick'; readonly text: string; readonly correction?: QuickTransactionCorrection }
-  | { readonly mode: 'direct'; readonly amountMinor: number; readonly memo: string };
+  | { readonly mode: 'direct'; readonly amountMinor: number; readonly memo: string }
+  | { readonly mode: 'batch'; readonly text: string };
 
 export interface UpdateTransactionInput {
   readonly id: string;
@@ -194,6 +197,7 @@ export interface AppRuntimePorts {
   unlock(pin: string): Promise<void>;
   submitTransaction(input: TransactionSubmission): Promise<void>;
   previewQuickTransaction?(text: string): QuickTransactionPreviewViewModel;
+  previewQuickBatch?(text: string): QuickBatchPreview;
   updateTransaction?(input: UpdateTransactionInput): Promise<void>;
   deleteTransaction?(id: string): Promise<void>;
   restoreTransaction?(id: string): Promise<void>;

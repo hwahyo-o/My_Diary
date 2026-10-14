@@ -155,6 +155,38 @@ describe('BrowserRuntime composition', () => {
     }
   });
 
+  it('previews and atomically saves two distinct quick entries', async () => {
+    const runtime = await BrowserRuntime.open({
+      dbName: `batch-${crypto.randomUUID()}`, argon2Profile: 'test',
+      now: () => new Date('2026-10-14T01:00:00.000Z'),
+    });
+    try {
+      await runtime.createProfile({ nickname: '일괄 입력', pin: '4829517304' });
+      const text = '그제 점심 8000원, 오늘 커피 4500원';
+      const preview = runtime.previewQuickBatch(text);
+      expect(preview.valid).toBe(true);
+      expect(preview.entries).toHaveLength(2);
+      expect(preview.entries.map((item) => item.amountMinor)).toEqual([8000, 4500]);
+      await runtime.submitTransaction({ mode: 'batch', text });
+      expect(runtime.getSnapshot().calendar.transactions).toHaveLength(2);
+      expect(runtime.getSnapshot().dashboard.expenseMinor).toBe(12500);
+    } finally { runtime.close(); }
+  });
+
+  it('rejects an invalid batch without partial writes', async () => {
+    const runtime = await BrowserRuntime.open({
+      dbName: `batch-invalid-${crypto.randomUUID()}`, argon2Profile: 'test',
+      now: () => new Date('2026-10-14T01:00:00.000Z'),
+    });
+    try {
+      await runtime.createProfile({ nickname: '검증 테스트', pin: '4829517304' });
+      const text = '오늘 커피 4500원; 알수없는구매';
+      expect(runtime.previewQuickBatch(text).valid).toBe(false);
+      await expect(runtime.submitTransaction({ mode: 'batch', text })).rejects.toThrow();
+      expect(runtime.getSnapshot().calendar.transactions).toHaveLength(0);
+    } finally { runtime.close(); }
+  });
+
   it('stores quick relative dates using Korea calendar dates around UTC day boundaries', async () => {
     const dbName = `runtime-kst-date-${crypto.randomUUID()}`;
     const runtime = await BrowserRuntime.open({

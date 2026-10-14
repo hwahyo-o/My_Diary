@@ -97,6 +97,13 @@ function isStructuralToken(
   return matched.some((keyword) => token.includes(keyword));
 }
 
+export function splitQuickEntries(text: string): string[] {
+  // Only explicit line/semicolon boundaries or comma after a completed won amount.
+  // Never split the thousands separator in e.g. 4,500원.
+  return text.split(/(?:[;；\n]+|(?<=원)[,，]\s*|(?<=\d)[,，]\s*(?=(?:오늘|어제|그제|그저께)\s))/u)
+    .map((part) => part.trim()).filter(Boolean);
+}
+
 export function parseQuickInput(
   rawText: string,
   now: ISODateTime,

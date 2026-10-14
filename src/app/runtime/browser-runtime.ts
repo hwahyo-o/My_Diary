@@ -14,7 +14,7 @@ import { generateMonthlyReport, generatePeriodReport } from '../../domain/report
 import { parseISODate, parseISODateTime, parseUUID, type ISODate, type ISODateTime, type UUID } from '../../domain/shared/types';
 import { getIncomeExpenseImpact } from '../../domain/transactions/accounting';
 import type { Transaction } from '../../domain/transactions/types';
-import { quickCandidateToDraft, parseQuickInput } from '../../features/transactions/quick-parser';
+import { quickCandidateToDraft, parseQuickInput, splitQuickEntries } from '../../features/transactions/quick-parser';
 import {
   DEFAULT_CLASSIFICATION_SETTINGS,
   addCategoryKeyword,
@@ -44,6 +44,7 @@ import { decryptRecord, encryptRecord, type EncryptedRecordEnvelope, type Record
 import { VaultSession } from '../../vault/session';
 import type {
   QuickTransactionPreviewViewModel,
+  QuickBatchPreview,
   RuntimeSnapshot,
   SaveAccountInput,
   SaveHoldingInput,
@@ -577,7 +578,38 @@ export class BrowserRuntime {
     };
   }
 
+  previewQuickBatch(text: string): QuickBatchPreview {
+    const parts = splitQuickEntries(text);
+    const entries = parts.map((part) => ({ ...this.previewQuickTransaction(part), text: part }));
+    return {
+      entries,
+      valid: entries.length >= 2 && entries.length <= 20 && entries.every((entry) =>
+        !entry.needsReview && !entry.unresolvedAmount && !entry.multipleAmounts && entry.amountMinor !== null),
+    };
+  }
+
   async submitTransaction(input: TransactionSubmission): Promise<void> {
+    if (input.mode === 'batch') {
+      const session = this.session;
+      const bootstrap = this.bootstrap;
+      if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
+      const preview = this.previewQuickBatch(input.text);
+      if (!preview.valid) throw new Error('Batch requires 2–20 individually valid entries.');
+      const rules = rulesWithClassificationSettings(this.classificationSettings);
+      const now = toKstIso(this.options.now());
+      const drafts = preview.entries.map((entry) =>
+        quickCandidateToDraft(parseQuickInput(entry.text, now, rules), { accountId: bootstrap.defaultAccountId }));
+      const service = new TransactionLedgerService({
+        repository: this.repository, session, vaultId: bootstrap.vaultId,
+        schemaVersion: SCHEMA_VERSION, deviceId: bootstrap.deviceId,
+        newTransactionId: newUuid, newEventId: newUuid, now: () => toIso(this.options.now()),
+      });
+      const revision = await this.repository.getRevision(bootstrap.vaultId);
+      await service.saveDraftBatch(drafts, revision);
+      await this.hydrate();
+      void this.syncCloudBestEffort();
+      return;
+    }
     const session = this.session;
     const bootstrap = this.bootstrap;
     if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
