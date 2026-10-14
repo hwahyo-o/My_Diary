@@ -6,6 +6,7 @@ import type {
   BackupStatusViewModel,
   CalendarViewModel,
   DashboardViewModel,
+  QuickTransactionPreviewViewModel,
   SaveAccountInput,
   SaveHoldingInput,
   SaveLoanInput,
@@ -31,6 +32,7 @@ interface AppShellProps {
   readonly calendar: CalendarViewModel;
   readonly classificationSettings: ClassificationSettingsViewModel;
   readonly onSubmitTransaction: (input: TransactionSubmission) => Promise<void>;
+  readonly onPreviewQuickTransaction?: (text: string) => QuickTransactionPreviewViewModel;
   readonly onUpdateTransaction: (input: UpdateTransactionInput) => Promise<void>;
   readonly onDeleteTransaction: (id: string) => Promise<void>;
   readonly onRestoreTransaction: (id: string) => Promise<void>;
@@ -63,6 +65,7 @@ export function AppShell({
   calendar,
   classificationSettings,
   onSubmitTransaction,
+  onPreviewQuickTransaction,
   onUpdateTransaction,
   onDeleteTransaction,
   onRestoreTransaction,
@@ -138,6 +141,7 @@ export function AppShell({
         open={entryOpen}
         onClose={() => setEntryOpen(false)}
         onSubmitTransaction={onSubmitTransaction}
+        {...(onPreviewQuickTransaction ? { onPreviewQuickTransaction } : {})}
         returnFocusTo={quickAddButtonRef.current}
       />
     </main>

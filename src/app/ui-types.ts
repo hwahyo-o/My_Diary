@@ -117,6 +117,17 @@ export interface VaultImportInspectionViewModel {
   readonly conflicts: number;
 }
 
+export interface QuickTransactionPreviewViewModel {
+  readonly amountMinor: number | null;
+  readonly occurredAt: string;
+  readonly transactionType: string;
+  readonly categoryId: string;
+  readonly categoryLabel: string;
+  readonly fixedVariable: 'fixed' | 'variable' | 'mixed';
+  readonly needsReview: boolean;
+  readonly unresolvedAmount: boolean;
+}
+
 export type TransactionSubmission =
   | { readonly mode: 'quick'; readonly text: string }
   | { readonly mode: 'direct'; readonly amountMinor: number; readonly memo: string };
@@ -164,6 +175,7 @@ export interface AppRuntimePorts {
   createProfile(input: { readonly nickname: string; readonly pin: string }): Promise<void | { readonly recoveryKey: string }>;
   unlock(pin: string): Promise<void>;
   submitTransaction(input: TransactionSubmission): Promise<void>;
+  previewQuickTransaction?(text: string): QuickTransactionPreviewViewModel;
   updateTransaction?(input: UpdateTransactionInput): Promise<void>;
   deleteTransaction?(id: string): Promise<void>;
   restoreTransaction?(id: string): Promise<void>;
