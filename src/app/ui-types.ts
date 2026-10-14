@@ -128,8 +128,15 @@ export interface QuickTransactionPreviewViewModel {
   readonly unresolvedAmount: boolean;
 }
 
+export interface QuickTransactionCorrection {
+  readonly transactionType: 'income' | 'expense';
+  readonly categoryId: string;
+  readonly fixedVariable: 'fixed' | 'variable' | 'mixed';
+  readonly occurredAt: string;
+}
+
 export type TransactionSubmission =
-  | { readonly mode: 'quick'; readonly text: string }
+  | { readonly mode: 'quick'; readonly text: string; readonly correction?: QuickTransactionCorrection }
   | { readonly mode: 'direct'; readonly amountMinor: number; readonly memo: string };
 
 export interface UpdateTransactionInput {

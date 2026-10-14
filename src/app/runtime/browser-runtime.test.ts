@@ -201,6 +201,37 @@ describe('BrowserRuntime composition', () => {
     }
   });
 
+  it('applies reviewed Quick Add corrections to the stored transaction', async () => {
+    const dbName = `runtime-quick-correction-${crypto.randomUUID()}`;
+    const runtime = await BrowserRuntime.open({
+      dbName,
+      argon2Profile: 'test',
+      now: () => new Date('2026-10-14T01:00:00.000Z'),
+    });
+
+    try {
+      await runtime.createProfile({ nickname: '수정 테스트', pin: '4829517304' });
+      await runtime.submitTransaction({
+        mode: 'quick',
+        text: '월급 4500',
+        correction: {
+          transactionType: 'expense',
+          categoryId: 'food',
+          fixedVariable: 'fixed',
+          occurredAt: '2026-10-13T12:00:00.000+09:00',
+        },
+      });
+
+      const snapshot = runtime.getSnapshot();
+      expect(snapshot.dashboard.incomeMinor).toBe(0);
+      expect(snapshot.dashboard.expenseMinor).toBe(4500);
+      expect(snapshot.analytics.fixedMinor).toBe(4500);
+      expect(snapshot.calendar.transactions[0]?.occurredAt).toContain('2026-10-13');
+    } finally {
+      runtime.close();
+    }
+  });
+
   it('round-trips an encrypted backup into a fresh runtime and unlocks with a new PIN', async () => {
     const sourceDbName = `runtime-source-${crypto.randomUUID()}`;
     const targetDbName = `runtime-target-${crypto.randomUUID()}`;
