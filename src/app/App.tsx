@@ -146,6 +146,18 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
         if (!runtime.saveFixedVariableRule) return Promise.reject(new Error('Classification settings runtime is not connected.'));
         return runtime.saveFixedVariableRule(input);
       }}
+      onAddCategoryKeyword={(input) => {
+        if (!runtime.addCategoryKeyword) return Promise.reject(new Error('Classification keyword runtime is not connected.'));
+        return runtime.addCategoryKeyword(input);
+      }}
+      onRemoveCategoryKeyword={(input) => {
+        if (!runtime.removeCategoryKeyword) return Promise.reject(new Error('Classification keyword runtime is not connected.'));
+        return runtime.removeCategoryKeyword(input);
+      }}
+      onRestoreCategoryKeywords={(input) => {
+        if (!runtime.restoreCategoryKeywords) return Promise.reject(new Error('Classification keyword runtime is not connected.'));
+        return runtime.restoreCategoryKeywords(input);
+      }}
       onLock={() => runtime.lock?.()}
     />
     </>
