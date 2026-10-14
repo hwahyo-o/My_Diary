@@ -102,6 +102,16 @@ function toIso(now: Date): ISODateTime {
   return parseISODateTime(now.toISOString());
 }
 
+function toKstIso(now: Date): ISODateTime {
+  const shifted = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const pad = (value: number, width = 2) => String(value).padStart(width, '0');
+  return parseISODateTime(
+    `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`
+    + `T${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}:${pad(shifted.getUTCSeconds())}`
+    + `.${pad(shifted.getUTCMilliseconds(), 3)}+09:00`,
+  );
+}
+
 function newUuid(): UUID {
   return parseUUID(crypto.randomUUID());
 }
@@ -528,7 +538,7 @@ export class BrowserRuntime {
     const bootstrap = this.bootstrap;
     if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
 
-    const now = toIso(this.options.now());
+    const now = toKstIso(this.options.now());
     const draft = input.mode === 'quick'
       ? (() => {
           const candidate = parseQuickInput(input.text, now);
