@@ -13,6 +13,13 @@ const baseProps = {
   cloudConflict: false,
   onEnrollCloud: vi.fn().mockResolvedValue(undefined),
   onResetAllData: vi.fn().mockResolvedValue(undefined),
+  classificationSettings: {
+    categories: [
+      { id: 'food', label: '식비', defaultFixedVariable: 'variable', mode: 'auto' },
+      { id: 'subscription', label: '구독', defaultFixedVariable: 'fixed', mode: 'auto' },
+    ],
+  },
+  onSaveFixedVariableRule: vi.fn().mockResolvedValue(undefined),
 };
 
 describe('SettingsPage operational hub', () => {
@@ -29,12 +36,25 @@ describe('SettingsPage operational hub', () => {
     expect(screen.getByText('백업 필요')).toBeInTheDocument();
 
     expect(screen.getByRole('heading', { name: '분류 규칙' })).toBeInTheDocument();
-    expect(screen.getByText('‘어제’ 입력 시 전날 거래로 기록')).toBeInTheDocument();
-    expect(screen.getByText('점심 · 식사')).toBeInTheDocument();
+    expect(screen.getByText('오늘 · 어제 · 그제 · 그저께 · n일 전')).toBeInTheDocument();
+    expect(screen.getByText(/아침 · 점심 · 저녁/)).toBeInTheDocument();
+    expect(screen.getByText('편집 가능')).toBeInTheDocument();
 
     expect(screen.getByRole('heading', { name: '표시 및 앱 상태' })).toBeInTheDocument();
     expect(screen.getByText('Local-first PWA')).toBeInTheDocument();
     expect(screen.getByText('Cloudflare Pages')).toBeInTheDocument();
+  });
+
+  it('saves a category fixed-variable override from the rule editor', async () => {
+    const onSaveFixedVariableRule = vi.fn().mockResolvedValue(undefined);
+    render(<SettingsPage {...baseProps} onSaveFixedVariableRule={onSaveFixedVariableRule} />);
+
+    fireEvent.change(screen.getByLabelText('식비 고정 변동 규칙'), { target: { value: 'fixed' } });
+
+    await waitFor(() => expect(onSaveFixedVariableRule).toHaveBeenCalledWith({
+      categoryId: 'food',
+      mode: 'fixed',
+    }));
   });
 
   it('enrolls the current Vault into encrypted cloud sync with the current PIN', async () => {
