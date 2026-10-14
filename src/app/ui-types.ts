@@ -157,7 +157,7 @@ export interface RuntimeSnapshot {
   readonly assets: AssetsViewModel;
   readonly analytics: AnalyticsViewModel;
   readonly calendar: CalendarViewModel;
-  readonly classificationSettings: ClassificationSettingsViewModel;
+  readonly classificationSettings?: ClassificationSettingsViewModel;
 }
 
 export interface AppRuntimePorts {
