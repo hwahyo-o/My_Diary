@@ -179,7 +179,7 @@ export function SettingsPage({
                 <input aria-label="RecoveryKey 재발급 PIN" type="password" inputMode="numeric" autoComplete="off"
                   value={rotationPin} onChange={(event) => setRotationPin(event.currentTarget.value)} />
               </label>
-              <p className="settings-footnote">재발급 즉시 이전 RecoveryKey는 사용할 수 없게 됩니다. 반드시 새 키를 안전한 장소에 보관하세요.</p>
+              <p className="settings-footnote">기존 Vault의 복구 키가 교체됩니다. 과거에 만든 백업 파일은 기존 키로 열릴 수 있습니다. 새 키를 보관하고 백업을 다시 생성하세요.</p>
               <button type="button" className="primary-button" disabled={rotationBusy || !/^\d{10,12}$/.test(rotationPin)}
                 onClick={() => {
                   setRotationBusy(true);
@@ -192,7 +192,7 @@ export function SettingsPage({
             </div>
           ) : (
             <div className="settings-card-actions">
-              <p role="status">새 RecoveryKey가 생성되었습니다. 안전한 곳에 복사하고 다시 입력하지 않도록 별도로 보관하세요.</p>
+              <p role="status">새 RecoveryKey가 생성되었습니다. 안전한 곳에 별도로 보관한 후, 이 키로 새로운 .vault 백업 파일을 반드시 생성하세요.</p>
               <code style={{ overflowWrap: 'anywhere' }}>{rotationKey}</code>
               <button type="button" className="secondary-button" onClick={() => void navigator.clipboard.writeText(rotationKey)}>RecoveryKey 복사</button>
               <label><input type="checkbox" checked={rotationConfirmed}
