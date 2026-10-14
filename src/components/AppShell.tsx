@@ -48,6 +48,7 @@ interface AppShellProps {
   readonly cloudEnrolled: boolean;
   readonly cloudConflict: boolean;
   readonly onEnrollCloud: (input: { readonly pin: string }) => Promise<void>;
+  readonly onRotateRecoveryKey: (input: { readonly pin: string }) => Promise<string>;
   readonly onResetAllData: (input: { readonly pin: string }) => Promise<void>;
   readonly onSaveFixedVariableRule: (input: { readonly categoryId: string; readonly mode: FixedVariableMode }) => Promise<void>;
   readonly onAcceptCorrectionSuggestion: (input: { readonly categoryId: string; readonly keyword: string }) => Promise<void>;
@@ -84,6 +85,7 @@ export function AppShell({
   cloudEnrolled,
   cloudConflict,
   onEnrollCloud,
+  onRotateRecoveryKey,
   onResetAllData,
   onSaveFixedVariableRule,
   onAcceptCorrectionSuggestion,
@@ -126,6 +128,7 @@ export function AppShell({
           cloudEnrolled={cloudEnrolled}
           cloudConflict={cloudConflict}
           onEnrollCloud={onEnrollCloud}
+          onRotateRecoveryKey={onRotateRecoveryKey}
           onResetAllData={onResetAllData}
           classificationSettings={classificationSettings}
           onSaveFixedVariableRule={onSaveFixedVariableRule}
