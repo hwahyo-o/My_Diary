@@ -239,44 +239,77 @@ function resolveFixedVariable(
   };
 }
 
+interface RelativeDateMatch {
+  readonly daysAgo: number;
+  readonly label: string;
+  readonly source: ClassificationSource;
+}
+
+function findRelativeDateMatches(normalizedText: string): RelativeDateMatch[] {
+  const matches: RelativeDateMatch[] = [];
+
+  if (containsExplicitToken(normalizedText, '오늘')) {
+    matches.push({ daysAgo: 0, label: '오늘', source: 'explicit' });
+  }
+  if (containsExplicitToken(normalizedText, '어제')) {
+    matches.push({ daysAgo: 1, label: '어제', source: 'keyword' });
+  }
+  if (containsExplicitToken(normalizedText, '그제')) {
+    matches.push({ daysAgo: 2, label: '그제', source: 'keyword' });
+  }
+  if (containsExplicitToken(normalizedText, '그저께')) {
+    matches.push({ daysAgo: 2, label: '그저께', source: 'keyword' });
+  }
+
+  const relativePattern = /(?:^|\s)(\d{1,4})\s*일\s*전(?=\s|$|[,.:;!?])/gu;
+  for (const match of normalizedText.matchAll(relativePattern)) {
+    const rawDays = match[1];
+    if (!rawDays) continue;
+    const daysAgo = Number(rawDays);
+    if (!Number.isSafeInteger(daysAgo) || daysAgo < 1 || daysAgo > 3650) continue;
+    matches.push({
+      daysAgo,
+      label: `${daysAgo}일 전`,
+      source: 'keyword',
+    });
+  }
+
+  return matches;
+}
+
 function resolveDate(
   normalizedText: string,
   now: ISODateTime,
   reviewReasons: string[],
 ): ClassificationDecision<ISODateTime> {
-  const hasToday = containsKeyword(normalizedText, '오늘');
-  const hasYesterday = containsKeyword(normalizedText, '어제');
+  const matches = findRelativeDateMatches(normalizedText);
+  const uniqueOffsets = [...new Set(matches.map((match) => match.daysAgo))];
 
-  if (hasToday && hasYesterday) {
+  if (uniqueOffsets.length > 1) {
     reviewReasons.push('date-conflict');
     return {
       value: now,
       source: 'default',
       confidence: 'low',
-      matchedKeywords: ['오늘', '어제'],
+      matchedKeywords: matches.map((match) => match.label),
     };
   }
-  if (hasYesterday) {
-    return {
-      value: minusCalendarDays(now, 1),
-      source: 'keyword',
-      confidence: 'high',
-      matchedKeywords: ['어제'],
-    };
-  }
-  if (hasToday) {
+
+  const selected = matches[0];
+  if (!selected) {
     return {
       value: now,
-      source: 'explicit',
-      confidence: 'high',
-      matchedKeywords: ['오늘'],
+      source: 'default',
+      confidence: 'low',
+      matchedKeywords: [],
     };
   }
+
   return {
-    value: now,
-    source: 'default',
-    confidence: 'low',
-    matchedKeywords: [],
+    value: selected.daysAgo === 0 ? now : minusCalendarDays(now, selected.daysAgo),
+    source: selected.source,
+    confidence: 'high',
+    matchedKeywords: matches.map((match) => match.label),
   };
 }
 
