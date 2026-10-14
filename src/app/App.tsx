@@ -149,6 +149,14 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
         if (!runtime.saveFixedVariableRule) return Promise.reject(new Error('Classification settings runtime is not connected.'));
         return runtime.saveFixedVariableRule(input);
       }}
+      onAcceptCorrectionSuggestion={(input) => {
+        if (!runtime.acceptCorrectionSuggestion) return Promise.reject(new Error('Suggestion runtime is not connected.'));
+        return runtime.acceptCorrectionSuggestion(input);
+      }}
+      onDismissCorrectionSuggestion={(input) => {
+        if (!runtime.dismissCorrectionSuggestion) return Promise.reject(new Error('Suggestion runtime is not connected.'));
+        return runtime.dismissCorrectionSuggestion(input);
+      }}
       onAddCategoryKeyword={(input) => {
         if (!runtime.addCategoryKeyword) return Promise.reject(new Error('Classification keyword runtime is not connected.'));
         return runtime.addCategoryKeyword(input);
