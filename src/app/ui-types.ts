@@ -242,4 +242,4 @@ export const defaultBackupStatus: BackupStatusViewModel = {
   reminderDue: true,
 };
 
-export const emptyClassificationSettings: ClassificationSettingsViewModel = { categories: [] };
+export const emptyClassificationSettings: ClassificationSettingsViewModel = { incomeKeywords: [], hasIncomeKeywordChanges: false, categories: [] };
