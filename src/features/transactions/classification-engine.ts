@@ -113,10 +113,40 @@ function matchesTypeRule(text: string, rule: TypeKeywordRule): boolean {
     : containsKeyword(text, rule.keyword);
 }
 
+function offsetMinutesFromIso(value: ISODateTime): number {
+  if (value.endsWith('Z')) return 0;
+  const match = value.match(/([+-])(\d{2}):(\d{2})$/u);
+  if (!match) return 0;
+  const [, sign, hours, minutes] = match;
+  const total = Number(hours) * 60 + Number(minutes);
+  return sign === '-' ? -total : total;
+}
+
+function formatWithOffset(instantMs: number, offsetMinutes: number): ISODateTime {
+  const shifted = new Date(instantMs + offsetMinutes * 60_000);
+  const pad = (value: number, width = 2) => String(value).padStart(width, '0');
+  const sign = offsetMinutes < 0 ? '-' : '+';
+  const absoluteOffset = Math.abs(offsetMinutes);
+  const offsetHours = Math.floor(absoluteOffset / 60);
+  const offsetRemainder = absoluteOffset % 60;
+  const suffix = offsetMinutes === 0
+    ? 'Z'
+    : `${sign}${pad(offsetHours)}:${pad(offsetRemainder)}`;
+
+  return parseISODateTime(
+    `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`
+    + `T${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}:${pad(shifted.getUTCSeconds())}`
+    + `.${pad(shifted.getUTCMilliseconds(), 3)}${suffix}`,
+  );
+}
+
 function minusCalendarDays(now: ISODateTime, days: number): ISODateTime {
-  const date = new Date(now);
-  date.setUTCDate(date.getUTCDate() - days);
-  return parseISODateTime(date.toISOString());
+  const offsetMinutes = offsetMinutesFromIso(now);
+  const localInstant = Date.parse(now) + offsetMinutes * 60_000;
+  const localDate = new Date(localInstant);
+  localDate.setUTCDate(localDate.getUTCDate() - days);
+  const shiftedInstant = localDate.getTime() - offsetMinutes * 60_000;
+  return formatWithOffset(shiftedInstant, offsetMinutes);
 }
 
 function sourceRank(source: ClassificationSource): number {
