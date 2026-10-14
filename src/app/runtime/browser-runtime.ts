@@ -584,8 +584,22 @@ export class BrowserRuntime {
     const draft = input.mode === 'quick'
       ? (() => {
           const candidate = parseQuickInput(input.text, now, rulesWithClassificationSettings(this.classificationSettings));
-          if (candidate.classification.needsReview) {
+          const correction = input.correction;
+          if (candidate.classification.needsReview && !correction) {
             throw new Error('Quick input classification requires review.');
+          }
+          if (correction) {
+            if (!BUILTIN_CATEGORY_IDS.includes(correction.categoryId as (typeof BUILTIN_CATEGORY_IDS)[number])) {
+              throw new TypeError('Unknown transaction category.');
+            }
+            const corrected = {
+              ...candidate,
+              transactionType: correction.transactionType,
+              categoryId: correction.categoryId,
+              fixedVariable: correction.fixedVariable,
+              occurredAt: parseISODateTime(correction.occurredAt),
+            };
+            return quickCandidateToDraft(corrected, { accountId: bootstrap.defaultAccountId });
           }
           return quickCandidateToDraft(candidate, { accountId: bootstrap.defaultAccountId });
         })()
