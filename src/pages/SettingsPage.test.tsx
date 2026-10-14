@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, vi } from 'vitest';
 import { SettingsPage } from './SettingsPage';
+import type { ClassificationSettingsViewModel } from '../features/transactions/classification-settings';
 
 const baseProps = {
   onLock: vi.fn(),
@@ -18,7 +19,7 @@ const baseProps = {
       { id: 'food', label: '식비', defaultFixedVariable: 'variable', mode: 'auto' },
       { id: 'subscription', label: '구독', defaultFixedVariable: 'fixed', mode: 'auto' },
     ],
-  },
+  } satisfies ClassificationSettingsViewModel,
   onSaveFixedVariableRule: vi.fn().mockResolvedValue(undefined),
 };
 
