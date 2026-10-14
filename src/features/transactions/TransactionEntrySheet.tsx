@@ -68,6 +68,10 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPr
       return;
     }
 
+    if (preview?.multipleAmounts) {
+      setError('금액이 여러 개 감지되었습니다. 각 거래를 나누어 입력해주세요.');
+      return;
+    }
     if (preview?.needsReview && !correction) {
       setError('자동 분류 결과가 충돌합니다. 분류 수정을 완료해주세요.');
       return;
@@ -151,7 +155,7 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPr
                 <div className="quick-preview-heading">
                   <strong>{correction ? '수정된 분류' : '자동 분류 미리보기'}</strong>
                   <span className={preview.needsReview && !correction ? 'status-chip warning' : 'status-chip'}>
-                    {preview.needsReview && !correction ? '확인 필요' : preview.unresolvedAmount ? '금액 필요' : correction ? '수정 완료' : '저장 가능'}
+                    {preview.multipleAmounts ? '여러 거래 감지' : preview.needsReview && !correction ? '확인 필요' : preview.unresolvedAmount ? '금액 필요' : correction ? '수정 완료' : '저장 가능'}
                   </span>
                 </div>
 
@@ -226,8 +230,9 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPr
                 )}
               </div>
             ) : null}
+            {preview?.multipleAmounts ? <p role="alert" className="form-error">여러 금액이 감지되었습니다. 거래별로 나누어 입력해야 안전하게 저장할 수 있습니다.</p> : null}
             {error ? <p role="alert" className="form-error">{error}</p> : null}
-            <button className="primary-button" type="submit" disabled={busy || (!!preview?.needsReview && !correction) || !!preview?.unresolvedAmount}>빠른 입력 저장</button>
+            <button className="primary-button" type="submit" disabled={busy || !!preview?.multipleAmounts || (!!preview?.needsReview && !correction) || !!preview?.unresolvedAmount}>빠른 입력 저장</button>
           </form>
         ) : (
           <form className="entry-form" onSubmit={submitDirect}>
