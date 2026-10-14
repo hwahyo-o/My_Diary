@@ -29,7 +29,7 @@ import {
   type ClassificationSettings,
   type FixedVariableMode,
 } from '../../features/transactions/classification-settings';
-import { BUILTIN_CATEGORY_IDS } from '../../features/transactions/category-catalog';
+import { BUILTIN_CATEGORY_IDS, getBuiltinCategory } from '../../features/transactions/category-catalog';
 import { TransactionLedgerService } from '../../features/transactions/transaction-service';
 import { createDirectDraft } from '../../features/transactions/validation';
 import { openVaultDatabase } from '../../storage/database';
@@ -42,6 +42,7 @@ import { deriveRecoveryKek } from '../../vault/recovery';
 import { decryptRecord, encryptRecord, type EncryptedRecordEnvelope, type RecordAad } from '../../vault/record-crypto';
 import { VaultSession } from '../../vault/session';
 import type {
+  QuickTransactionPreviewViewModel,
   RuntimeSnapshot,
   SaveAccountInput,
   SaveHoldingInput,
@@ -550,6 +551,28 @@ export class BrowserRuntime {
       vaultKey?.fill(0);
       deviceKek.fill(0);
     }
+  }
+
+  previewQuickTransaction(text: string): QuickTransactionPreviewViewModel {
+    const session = this.session;
+    const bootstrap = this.bootstrap;
+    if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
+
+    const candidate = parseQuickInput(
+      text.trim(),
+      toKstIso(this.options.now()),
+      rulesWithClassificationSettings(this.classificationSettings),
+    );
+    return {
+      amountMinor: candidate.amountMinor ?? null,
+      occurredAt: candidate.occurredAt,
+      transactionType: candidate.transactionType,
+      categoryId: candidate.categoryId,
+      categoryLabel: getBuiltinCategory(candidate.categoryId)?.label ?? candidate.categoryId,
+      fixedVariable: candidate.fixedVariable,
+      needsReview: candidate.classification.needsReview,
+      unresolvedAmount: candidate.unresolved.includes('amount'),
+    };
   }
 
   async submitTransaction(input: TransactionSubmission): Promise<void> {
