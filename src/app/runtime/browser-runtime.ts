@@ -529,8 +529,13 @@ export class BrowserRuntime {
     if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
 
     const now = toIso(this.options.now());
-    const draft = input.mode === 'quick'
-      ? quickCandidateToDraft(parseQuickInput(input.text, now), { accountId: bootstrap.defaultAccountId, type: 'expense' })
+    const quickCandidate = input.mode === 'quick' ? parseQuickInput(input.text, now) : null;
+    if (quickCandidate?.classification.needsReview) {
+      throw new Error('Quick input classification requires review.');
+    }
+
+    const draft = quickCandidate
+      ? quickCandidateToDraft(quickCandidate, { accountId: bootstrap.defaultAccountId })
       : createDirectDraft({
           type: 'expense',
           accountId: bootstrap.defaultAccountId,
