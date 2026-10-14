@@ -71,13 +71,28 @@ function parseKoreanAmount(token: string): number | undefined {
   return parseBelow10000(normalized);
 }
 
-function isStructuralToken(token: string, classification: TransactionClassification): boolean {
-  if (token === '오늘' || token === '어제') return true;
+function isRelativeDateToken(tokens: readonly string[], index: number): boolean {
+  const token = tokens[index];
+  if (!token) return false;
+  if (token === '오늘' || token === '어제' || token === '그제' || token === '그저께') return true;
+  if (/^\d{1,4}일전$/u.test(token)) return true;
+  if (/^\d{1,4}일$/u.test(token) && tokens[index + 1] === '전') return true;
+  if (token === '전' && /^\d{1,4}일$/u.test(tokens[index - 1] ?? '')) return true;
+  return false;
+}
+
+function isStructuralToken(
+  tokens: readonly string[],
+  index: number,
+  classification: TransactionClassification,
+): boolean {
+  const token = tokens[index];
+  if (!token) return false;
+  if (isRelativeDateToken(tokens, index)) return true;
   if (parseKoreanAmount(token) !== undefined) return true;
 
   const matched = [
     ...classification.transactionType.matchedKeywords,
-    ...classification.occurredAt.matchedKeywords,
   ];
   return matched.some((keyword) => token.includes(keyword));
 }
@@ -97,7 +112,7 @@ export function parseQuickInput(
   }
 
   const merchantText = tokens
-    .filter((token) => !isStructuralToken(token, classification))
+    .filter((_token, index) => !isStructuralToken(tokens, index, classification))
     .join(' ');
 
   const categoryHint = classification.categoryId.value === 'food'

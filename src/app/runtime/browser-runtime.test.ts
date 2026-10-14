@@ -93,6 +93,25 @@ describe('BrowserRuntime composition', () => {
     }
   });
 
+  it('stores quick relative dates using Korea calendar dates around UTC day boundaries', async () => {
+    const dbName = `runtime-kst-date-${crypto.randomUUID()}`;
+    const runtime = await BrowserRuntime.open({
+      dbName,
+      argon2Profile: 'test',
+      now: () => new Date('2026-10-13T15:30:00.000Z'),
+    });
+
+    try {
+      await runtime.createProfile({ nickname: '날짜 테스트', pin: '4829517304' });
+      await runtime.submitTransaction({ mode: 'quick', text: '그제 점심 8000' });
+
+      const [transaction] = runtime.getSnapshot().calendar.transactions;
+      expect(transaction?.occurredAt).toContain('2026-10-12');
+    } finally {
+      runtime.close();
+    }
+  });
+
   it('round-trips an encrypted backup into a fresh runtime and unlocks with a new PIN', async () => {
     const sourceDbName = `runtime-source-${crypto.randomUUID()}`;
     const targetDbName = `runtime-target-${crypto.randomUUID()}`;

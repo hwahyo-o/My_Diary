@@ -72,6 +72,30 @@ describe('transaction classification engine foundation', () => {
     });
   });
 
+  it('parses 그제, 그저께, and n일 전 as relative dates', () => {
+    const base = parseISODateTime('2026-03-01T00:30:00+09:00');
+
+    expect(classifyTransactionText('그제 커피 4500', base).occurredAt).toMatchObject({
+      value: expect.stringContaining('2026-02-27'),
+      confidence: 'high',
+    });
+    expect(classifyTransactionText('그저께 점심 8000', base).occurredAt.value).toContain('2026-02-27');
+    expect(classifyTransactionText('3일 전 교통 1500', base).occurredAt.value).toContain('2026-02-26');
+    expect(classifyTransactionText('7일전 식사 9000', base).occurredAt.value).toContain('2026-02-22');
+  });
+
+  it('fails closed when different relative dates appear together', () => {
+    const result = classifyTransactionText('어제 3일 전 커피 4500', now);
+    expect(result.needsReview).toBe(true);
+    expect(result.reviewReasons).toContain('date-conflict');
+  });
+
+  it('treats 그제 and 그저께 as the same date rather than a conflict', () => {
+    const result = classifyTransactionText('그제 그저께 커피 4500', now);
+    expect(result.needsReview).toBe(false);
+    expect(result.occurredAt.value).toContain('2026-10-12');
+  });
+
   it('keeps legacy food/transport/date rules compatible', () => {
     const food = classifyTransactionText('어제 점심 13000', now);
     expect(food.categoryId.value).toBe('food');
