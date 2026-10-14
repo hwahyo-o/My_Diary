@@ -171,6 +171,36 @@ describe('BrowserRuntime composition', () => {
     }
   });
 
+  it('previews Quick Add with the exact runtime rules without mutating the ledger', async () => {
+    const dbName = `runtime-quick-preview-${crypto.randomUUID()}`;
+    const runtime = await BrowserRuntime.open({
+      dbName,
+      argon2Profile: 'test',
+      now: () => new Date('2026-10-14T01:00:00.000Z'),
+    });
+
+    try {
+      await runtime.createProfile({ nickname: '미리보기 테스트', pin: '4829517304' });
+      await runtime.addIncomeKeyword({ keyword: '원고료' });
+      const preview = runtime.previewQuickTransaction('그제 원고료 120000');
+
+      expect(preview).toMatchObject({
+        amountMinor: 120000,
+        transactionType: 'income',
+        categoryId: 'uncategorized',
+        categoryLabel: '미분류',
+        fixedVariable: 'variable',
+        needsReview: false,
+        unresolvedAmount: false,
+      });
+      expect(preview.occurredAt).toContain('2026-10-12');
+      expect(runtime.getSnapshot().dashboard.incomeMinor).toBe(0);
+      expect(runtime.getSnapshot().calendar.transactions).toHaveLength(0);
+    } finally {
+      runtime.close();
+    }
+  });
+
   it('round-trips an encrypted backup into a fresh runtime and unlocks with a new PIN', async () => {
     const sourceDbName = `runtime-source-${crypto.randomUUID()}`;
     const targetDbName = `runtime-target-${crypto.randomUUID()}`;
