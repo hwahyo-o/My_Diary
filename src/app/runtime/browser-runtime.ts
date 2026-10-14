@@ -18,9 +18,12 @@ import { quickCandidateToDraft, parseQuickInput } from '../../features/transacti
 import {
   DEFAULT_CLASSIFICATION_SETTINGS,
   addCategoryKeyword,
+  addIncomeKeyword,
   normalizeClassificationSettings,
+  removeIncomeKeyword,
   removeCategoryKeyword,
   restoreCategoryKeywords,
+  restoreIncomeKeywords,
   rulesWithClassificationSettings,
   toClassificationSettingsViewModel,
   type ClassificationSettings,
@@ -677,6 +680,24 @@ export class BrowserRuntime {
         [input.categoryId]: input.mode,
       },
     }));
+  }
+
+  async addIncomeKeyword(input: { readonly keyword: string }): Promise<void> {
+    await this.persistClassificationSettings(
+      addIncomeKeyword(this.classificationSettings, input.keyword),
+    );
+  }
+
+  async removeIncomeKeyword(input: { readonly keyword: string }): Promise<void> {
+    await this.persistClassificationSettings(
+      removeIncomeKeyword(this.classificationSettings, input.keyword),
+    );
+  }
+
+  async restoreIncomeKeywords(): Promise<void> {
+    await this.persistClassificationSettings(
+      restoreIncomeKeywords(this.classificationSettings),
+    );
   }
 
   async addCategoryKeyword(input: { readonly categoryId: string; readonly keyword: string }): Promise<void> {
