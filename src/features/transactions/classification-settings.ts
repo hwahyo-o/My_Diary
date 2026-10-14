@@ -2,6 +2,7 @@ import type { FixedVariable } from '../../domain/transactions/types';
 import { BUILTIN_CATEGORIES, type BuiltinCategoryId } from './category-catalog';
 import {
   DEFAULT_CLASSIFICATION_RULES,
+  DEFAULT_INCOME_KEYWORDS,
   type CategoryKeywordRule,
   type ClassificationRuleSet,
   type FixedVariableRule,
@@ -18,9 +19,16 @@ export interface ClassificationSettings {
   readonly fixedVariableByCategory: Readonly<Partial<Record<BuiltinCategoryId, FixedVariableMode>>>;
   readonly customCategoryKeywords?: readonly CustomCategoryKeyword[];
   readonly disabledDefaultCategoryKeywords?: readonly string[];
+  readonly customIncomeKeywords?: readonly string[];
+  readonly disabledDefaultIncomeKeywords?: readonly string[];
 }
 
 export interface ClassificationSettingsViewModel {
+  readonly incomeKeywords: readonly {
+    readonly value: string;
+    readonly source: 'default' | 'custom';
+  }[];
+  readonly hasIncomeKeywordChanges: boolean;
   readonly categories: readonly {
     readonly id: BuiltinCategoryId;
     readonly label: string;
@@ -38,6 +46,8 @@ export const DEFAULT_CLASSIFICATION_SETTINGS: ClassificationSettings = {
   fixedVariableByCategory: {},
   customCategoryKeywords: [],
   disabledDefaultCategoryKeywords: [],
+  customIncomeKeywords: [],
+  disabledDefaultIncomeKeywords: [],
 };
 
 function hasControlCharacters(value: string): boolean {
@@ -89,10 +99,18 @@ export function normalizeClassificationSettings(input: ClassificationSettings): 
   const disabled = [...new Set(input.disabledDefaultCategoryKeywords ?? [])]
     .filter((key) => validDefaultKeys.has(key));
 
+  const defaultIncomeSet = new Set(DEFAULT_INCOME_KEYWORDS.map((keyword) => normalizeKeyword(keyword)));
+  const customIncome = [...new Set((input.customIncomeKeywords ?? []).map((keyword) => normalizeKeyword(keyword)))]
+    .filter((keyword) => !defaultIncomeSet.has(keyword));
+  const disabledIncome = [...new Set((input.disabledDefaultIncomeKeywords ?? []).map((keyword) => normalizeKeyword(keyword)))]
+    .filter((keyword) => defaultIncomeSet.has(keyword));
+
   return {
     fixedVariableByCategory: fixed,
     customCategoryKeywords: [...customMap.values()],
     disabledDefaultCategoryKeywords: disabled,
+    customIncomeKeywords: customIncome,
+    disabledDefaultIncomeKeywords: disabledIncome,
   };
 }
 
@@ -193,13 +211,82 @@ export function restoreCategoryKeywords(
   });
 }
 
+export function addIncomeKeyword(
+  settings: ClassificationSettings,
+  rawKeyword: string,
+): ClassificationSettings {
+  const keyword = normalizeKeyword(rawKeyword);
+  if (keyword === '수입' || keyword === '지출') {
+    throw new Error('Keyword is reserved for explicit transaction type input.');
+  }
+
+  const normalized = normalizeClassificationSettings(settings);
+  const defaultIncomeSet = new Set(DEFAULT_INCOME_KEYWORDS.map((item) => normalizeKeyword(item)));
+  if (defaultIncomeSet.has(keyword)) {
+    return normalizeClassificationSettings({
+      ...normalized,
+      disabledDefaultIncomeKeywords: (normalized.disabledDefaultIncomeKeywords ?? [])
+        .filter((item) => item !== keyword),
+    });
+  }
+
+  if ((normalized.customIncomeKeywords ?? []).includes(keyword)) return normalized;
+  return normalizeClassificationSettings({
+    ...normalized,
+    customIncomeKeywords: [...(normalized.customIncomeKeywords ?? []), keyword],
+  });
+}
+
+export function removeIncomeKeyword(
+  settings: ClassificationSettings,
+  rawKeyword: string,
+): ClassificationSettings {
+  const keyword = normalizeKeyword(rawKeyword);
+  const normalized = normalizeClassificationSettings(settings);
+  const custom = normalized.customIncomeKeywords ?? [];
+  if (custom.includes(keyword)) {
+    return normalizeClassificationSettings({
+      ...normalized,
+      customIncomeKeywords: custom.filter((item) => item !== keyword),
+    });
+  }
+
+  const defaultIncomeSet = new Set(DEFAULT_INCOME_KEYWORDS.map((item) => normalizeKeyword(item)));
+  if (!defaultIncomeSet.has(keyword)) return normalized;
+  return normalizeClassificationSettings({
+    ...normalized,
+    disabledDefaultIncomeKeywords: [
+      ...(normalized.disabledDefaultIncomeKeywords ?? []),
+      keyword,
+    ],
+  });
+}
+
+export function restoreIncomeKeywords(settings: ClassificationSettings): ClassificationSettings {
+  const normalized = normalizeClassificationSettings(settings);
+  return normalizeClassificationSettings({
+    ...normalized,
+    customIncomeKeywords: [],
+    disabledDefaultIncomeKeywords: [],
+  });
+}
+
 export function toClassificationSettingsViewModel(
   settings: ClassificationSettings,
 ): ClassificationSettingsViewModel {
   const normalized = normalizeClassificationSettings(settings);
   const disabled = new Set(normalized.disabledDefaultCategoryKeywords ?? []);
+  const disabledIncome = new Set(normalized.disabledDefaultIncomeKeywords ?? []);
+  const defaultIncome = DEFAULT_INCOME_KEYWORDS
+    .map((keyword) => normalizeKeyword(keyword))
+    .filter((keyword) => !disabledIncome.has(keyword))
+    .map((value) => ({ value, source: 'default' as const }));
+  const customIncome = (normalized.customIncomeKeywords ?? [])
+    .map((value) => ({ value, source: 'custom' as const }));
 
   return {
+    incomeKeywords: [...defaultIncome, ...customIncome],
+    hasIncomeKeywordChanges: customIncome.length > 0 || disabledIncome.size > 0,
     categories: BUILTIN_CATEGORIES
       .filter((category) => category.id !== 'uncategorized')
       .map((category) => {
@@ -246,9 +333,24 @@ export function rulesWithClassificationSettings(
       categoryId: rule.categoryId,
       source: 'user-rule' as const,
     }));
+  const disabledIncome = new Set(normalized.disabledDefaultIncomeKeywords ?? []);
+  const defaultIncomeSet = new Set(DEFAULT_INCOME_KEYWORDS.map((keyword) => normalizeKeyword(keyword)));
+  const defaultTypeKeywords = DEFAULT_CLASSIFICATION_RULES.typeKeywords.filter((rule) => {
+    const keyword = normalizeKeyword(rule.keyword);
+    return !defaultIncomeSet.has(keyword) || !disabledIncome.has(keyword);
+  });
+  const customIncomeTypeKeywords = (normalized.customIncomeKeywords ?? []).map((keyword) => ({
+    keyword,
+    type: 'income' as const,
+    source: 'user-rule' as const,
+  }));
 
   return {
     ...DEFAULT_CLASSIFICATION_RULES,
+    typeKeywords: [
+      ...customIncomeTypeKeywords,
+      ...defaultTypeKeywords,
+    ],
     categoryKeywords: [
       ...customCategoryKeywords,
       ...defaultCategoryKeywords,

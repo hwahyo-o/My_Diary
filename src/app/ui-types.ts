@@ -184,6 +184,9 @@ export interface AppRuntimePorts {
   addCategoryKeyword?(input: { readonly categoryId: string; readonly keyword: string }): Promise<void>;
   removeCategoryKeyword?(input: { readonly categoryId: string; readonly keyword: string }): Promise<void>;
   restoreCategoryKeywords?(input: { readonly categoryId: string }): Promise<void>;
+  addIncomeKeyword?(input: { readonly keyword: string }): Promise<void>;
+  removeIncomeKeyword?(input: { readonly keyword: string }): Promise<void>;
+  restoreIncomeKeywords?(): Promise<void>;
   lock?(): void;
   getSnapshot?(): RuntimeSnapshot;
   subscribe?(listener: (snapshot: RuntimeSnapshot) => void): () => void;
@@ -239,4 +242,4 @@ export const defaultBackupStatus: BackupStatusViewModel = {
   reminderDue: true,
 };
 
-export const emptyClassificationSettings: ClassificationSettingsViewModel = { categories: [] };
+export const emptyClassificationSettings: ClassificationSettingsViewModel = { incomeKeywords: [], hasIncomeKeywordChanges: false, categories: [] };

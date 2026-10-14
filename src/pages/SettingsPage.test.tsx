@@ -15,6 +15,11 @@ const baseProps = {
   onEnrollCloud: vi.fn().mockResolvedValue(undefined),
   onResetAllData: vi.fn().mockResolvedValue(undefined),
   classificationSettings: {
+    incomeKeywords: [
+      { value: '월급', source: 'default' },
+      { value: '부수입', source: 'default' },
+    ],
+    hasIncomeKeywordChanges: false,
     categories: [
       {
         id: 'food',
@@ -38,6 +43,9 @@ const baseProps = {
   onAddCategoryKeyword: vi.fn().mockResolvedValue(undefined),
   onRemoveCategoryKeyword: vi.fn().mockResolvedValue(undefined),
   onRestoreCategoryKeywords: vi.fn().mockResolvedValue(undefined),
+  onAddIncomeKeyword: vi.fn().mockResolvedValue(undefined),
+  onRemoveIncomeKeyword: vi.fn().mockResolvedValue(undefined),
+  onRestoreIncomeKeywords: vi.fn().mockResolvedValue(undefined),
 };
 
 describe('SettingsPage operational hub', () => {
@@ -75,6 +83,25 @@ describe('SettingsPage operational hub', () => {
     }));
   });
 
+  it('adds and removes income keywords from settings', async () => {
+    const onAddIncomeKeyword = vi.fn().mockResolvedValue(undefined);
+    const onRemoveIncomeKeyword = vi.fn().mockResolvedValue(undefined);
+    render(
+      <SettingsPage
+        {...baseProps}
+        onAddIncomeKeyword={onAddIncomeKeyword}
+        onRemoveIncomeKeyword={onRemoveIncomeKeyword}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('새 수입 키워드'), { target: { value: '원고료' } });
+    fireEvent.click(screen.getAllByRole('button', { name: '추가' })[0]!);
+    await waitFor(() => expect(onAddIncomeKeyword).toHaveBeenCalledWith({ keyword: '원고료' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '월급' }));
+    await waitFor(() => expect(onRemoveIncomeKeyword).toHaveBeenCalledWith({ keyword: '월급' }));
+  });
+
   it('adds and removes category keywords from settings', async () => {
     const onAddCategoryKeyword = vi.fn().mockResolvedValue(undefined);
     const onRemoveCategoryKeyword = vi.fn().mockResolvedValue(undefined);
@@ -86,8 +113,11 @@ describe('SettingsPage operational hub', () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText('식비 새 키워드'), { target: { value: '샌드위치' } });
-    fireEvent.click(screen.getAllByRole('button', { name: '추가' })[0]!);
+    const foodKeywordInput = screen.getByLabelText('식비 새 키워드');
+    fireEvent.change(foodKeywordInput, { target: { value: '샌드위치' } });
+    const foodAddButton = foodKeywordInput.parentElement?.querySelector('button');
+    if (!foodAddButton) throw new Error('식비 키워드 추가 버튼을 찾을 수 없습니다.');
+    fireEvent.click(foodAddButton);
     await waitFor(() => expect(onAddCategoryKeyword).toHaveBeenCalledWith({
       categoryId: 'food',
       keyword: '샌드위치',

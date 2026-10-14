@@ -152,6 +152,20 @@ describe('BrowserRuntime composition', () => {
       const encryptedAfterKeywords = JSON.stringify(await dumpStore(dbName, STORE_NAMES.records));
       expect(encryptedAfterKeywords).not.toContain('샌드위치');
       expect(encryptedAfterKeywords).not.toContain('customCategoryKeywords');
+
+      await runtime.addIncomeKeyword({ keyword: '원고료' });
+      expect(runtime.getSnapshot().classificationSettings?.incomeKeywords)
+        .toEqual(expect.arrayContaining([{ value: '원고료', source: 'custom' }]));
+      await runtime.submitTransaction({ mode: 'quick', text: '원고료 120000' });
+      expect(runtime.getSnapshot().dashboard.incomeMinor).toBe(120000);
+
+      await runtime.removeIncomeKeyword({ keyword: '월급' });
+      expect(runtime.getSnapshot().classificationSettings?.incomeKeywords)
+        .not.toEqual(expect.arrayContaining([{ value: '월급', source: 'default' }]));
+
+      const encryptedAfterIncomeKeywords = JSON.stringify(await dumpStore(dbName, STORE_NAMES.records));
+      expect(encryptedAfterIncomeKeywords).not.toContain('원고료');
+      expect(encryptedAfterIncomeKeywords).not.toContain('customIncomeKeywords');
     } finally {
       runtime.close();
     }

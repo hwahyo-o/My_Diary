@@ -49,6 +49,9 @@ interface AppShellProps {
   readonly onAddCategoryKeyword: (input: { readonly categoryId: string; readonly keyword: string }) => Promise<void>;
   readonly onRemoveCategoryKeyword: (input: { readonly categoryId: string; readonly keyword: string }) => Promise<void>;
   readonly onRestoreCategoryKeywords: (input: { readonly categoryId: string }) => Promise<void>;
+  readonly onAddIncomeKeyword: (input: { readonly keyword: string }) => Promise<void>;
+  readonly onRemoveIncomeKeyword: (input: { readonly keyword: string }) => Promise<void>;
+  readonly onRestoreIncomeKeywords: () => Promise<void>;
   readonly onLock: () => void;
 }
 
@@ -78,6 +81,9 @@ export function AppShell({
   onAddCategoryKeyword,
   onRemoveCategoryKeyword,
   onRestoreCategoryKeywords,
+  onAddIncomeKeyword,
+  onRemoveIncomeKeyword,
+  onRestoreIncomeKeywords,
   onLock,
 }: AppShellProps) {
   const [page, setPage] = useState<AppPage>('home');
@@ -116,6 +122,9 @@ export function AppShell({
           onAddCategoryKeyword={onAddCategoryKeyword}
           onRemoveCategoryKeyword={onRemoveCategoryKeyword}
           onRestoreCategoryKeywords={onRestoreCategoryKeywords}
+          onAddIncomeKeyword={onAddIncomeKeyword}
+          onRemoveIncomeKeyword={onRemoveIncomeKeyword}
+          onRestoreIncomeKeywords={onRestoreIncomeKeywords}
         />
       );
       break;

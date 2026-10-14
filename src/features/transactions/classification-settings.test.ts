@@ -3,8 +3,11 @@ import {
   DEFAULT_CLASSIFICATION_SETTINGS,
   normalizeClassificationSettings,
   addCategoryKeyword,
+  addIncomeKeyword,
   removeCategoryKeyword,
+  removeIncomeKeyword,
   restoreCategoryKeywords,
+  restoreIncomeKeywords,
   rulesWithClassificationSettings,
   toClassificationSettingsViewModel,
 } from './classification-settings';
@@ -25,6 +28,24 @@ describe('classification settings', () => {
       defaultFixedVariable: 'fixed',
       mode: 'auto',
     });
+  });
+
+  it('adds, removes, restores, and protects income keywords', () => {
+    const withCustom = addIncomeKeyword(DEFAULT_CLASSIFICATION_SETTINGS, '원고료');
+    expect(classifyTransactionText('원고료 120000', now, rulesWithClassificationSettings(withCustom)).transactionType).toMatchObject({
+      value: 'income',
+      source: 'user-rule',
+    });
+
+    const withoutSalary = removeIncomeKeyword(withCustom, '월급');
+    expect(classifyTransactionText('월급 2000000', now, rulesWithClassificationSettings(withoutSalary)).transactionType.value).toBe('expense');
+
+    const restored = restoreIncomeKeywords(withoutSalary);
+    expect(classifyTransactionText('월급 2000000', now, rulesWithClassificationSettings(restored)).transactionType.value).toBe('income');
+    expect(classifyTransactionText('원고료 120000', now, rulesWithClassificationSettings(restored)).transactionType.value).toBe('expense');
+
+    expect(() => addIncomeKeyword(DEFAULT_CLASSIFICATION_SETTINGS, '수입')).toThrow(/reserved/i);
+    expect(() => addIncomeKeyword(DEFAULT_CLASSIFICATION_SETTINGS, '지출')).toThrow(/reserved/i);
   });
 
   it('adds, removes, restores, and validates category keywords', () => {
