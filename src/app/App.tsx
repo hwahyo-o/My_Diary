@@ -92,6 +92,9 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
       classificationSettings={classificationSettingsState}
       backup={defaultBackupStatus}
       onSubmitTransaction={(input) => runtime.submitTransaction(input)}
+      {...(runtime.previewQuickTransaction
+        ? { onPreviewQuickTransaction: (text: string) => runtime.previewQuickTransaction!(text) }
+        : {})}
       onUpdateTransaction={(input) => {
         if (!runtime.updateTransaction) return Promise.reject(new Error('Transaction edit runtime is not connected.'));
         return runtime.updateTransaction(input);
