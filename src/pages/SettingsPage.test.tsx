@@ -14,6 +14,7 @@ const baseProps = {
   cloudConflict: false,
   onEnrollCloud: vi.fn().mockResolvedValue(undefined),
   onResetAllData: vi.fn().mockResolvedValue(undefined),
+  onRotateRecoveryKey: vi.fn().mockResolvedValue('test-recovery-key'),
   classificationSettings: {
     incomeKeywords: [
       { value: '월급', source: 'default' },
