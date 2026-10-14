@@ -136,6 +136,24 @@ describe('T20 quick input parser', () => {
     expect(pointSpend.type).toBe('expense');
   });
 
+  it('keeps relative-day numbers separate from monetary amounts and labels', () => {
+    const threeDaysAgo = parseQuickInput('3일 전 커피 4500', now);
+    expect(threeDaysAgo.amountMinor).toBe(4500);
+    expect(threeDaysAgo.merchantText).toBe('커피');
+    expect(threeDaysAgo.occurredAt).toContain('2026-09-29');
+
+    const noSpace = parseQuickInput('7일전 식사 9000', now);
+    expect(noSpace.amountMinor).toBe(9000);
+    expect(noSpace.merchantText).toBe('식사');
+    expect(noSpace.occurredAt).toContain('2026-09-25');
+
+    const dayBeforeYesterday = parseQuickInput('그제 부수입 30000', now);
+    expect(dayBeforeYesterday.amountMinor).toBe(30000);
+    expect(dayBeforeYesterday.transactionType).toBe('income');
+    expect(dayBeforeYesterday.merchantText).toBeUndefined();
+    expect(dayBeforeYesterday.occurredAt).toContain('2026-09-30');
+  });
+
   it('parses yesterday and transport hints', () => {
     const parsed = parseQuickInput('어제 택시 18000', now);
     expect(parsed.amountMinor).toBe(18000);
