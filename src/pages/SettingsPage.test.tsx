@@ -20,6 +20,7 @@ const baseProps = {
       { value: '부수입', source: 'default' },
     ],
     hasIncomeKeywordChanges: false,
+    correctionSuggestions: [],
     categories: [
       {
         id: 'food',
@@ -40,6 +41,8 @@ const baseProps = {
     ],
   } satisfies ClassificationSettingsViewModel,
   onSaveFixedVariableRule: vi.fn().mockResolvedValue(undefined),
+  onAcceptCorrectionSuggestion: vi.fn().mockResolvedValue(undefined),
+  onDismissCorrectionSuggestion: vi.fn().mockResolvedValue(undefined),
   onAddCategoryKeyword: vi.fn().mockResolvedValue(undefined),
   onRemoveCategoryKeyword: vi.fn().mockResolvedValue(undefined),
   onRestoreCategoryKeywords: vi.fn().mockResolvedValue(undefined),
