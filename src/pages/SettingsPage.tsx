@@ -20,6 +20,9 @@ interface SettingsPageProps {
   readonly onAddCategoryKeyword: (input: { readonly categoryId: string; readonly keyword: string }) => Promise<void>;
   readonly onRemoveCategoryKeyword: (input: { readonly categoryId: string; readonly keyword: string }) => Promise<void>;
   readonly onRestoreCategoryKeywords: (input: { readonly categoryId: string }) => Promise<void>;
+  readonly onAddIncomeKeyword: (input: { readonly keyword: string }) => Promise<void>;
+  readonly onRemoveIncomeKeyword: (input: { readonly keyword: string }) => Promise<void>;
+  readonly onRestoreIncomeKeywords: () => Promise<void>;
 }
 
 export function SettingsPage({
@@ -38,6 +41,9 @@ export function SettingsPage({
   onAddCategoryKeyword,
   onRemoveCategoryKeyword,
   onRestoreCategoryKeywords,
+  onAddIncomeKeyword,
+  onRemoveIncomeKeyword,
+  onRestoreIncomeKeywords,
 }: SettingsPageProps) {
   const [backupOpen, setBackupOpen] = useState(false);
   const [backupState, setBackupState] = useState<BackupStatusViewModel>(() =>
@@ -54,6 +60,7 @@ export function SettingsPage({
   const [ruleBusy, setRuleBusy] = useState<string | null>(null);
   const [ruleError, setRuleError] = useState<string | null>(null);
   const [keywordDrafts, setKeywordDrafts] = useState<Record<string, string>>({});
+  const [incomeKeywordDraft, setIncomeKeywordDraft] = useState('');
 
   async function enableCloudSync() {
     setCloudError(null);
@@ -248,6 +255,77 @@ export function SettingsPage({
             <li><strong>식비</strong><span>아침 · 점심 · 저녁 · 식사 · 간식 · 커피 · 음료 · 디저트 · 도시락 등</span></li>
             <li><strong>교통</strong><span>대중교통 · 택시 · 버스 · 지하철 · 기차 · 주차 · 주유 등</span></li>
           </ul>
+
+          <div className="classification-rule-editor" aria-labelledby="income-keywords-title">
+            <div className="settings-card-heading">
+              <div>
+                <h3 id="income-keywords-title">수입 자동분류 키워드</h3>
+                <p>아래 단어가 포함된 빠른 입력은 수입으로 분류합니다. ‘수입’과 ‘지출’ 직접 입력 명령은 항상 유지됩니다.</p>
+              </div>
+            </div>
+            <div className="keyword-editor">
+              <div className="keyword-chip-list" aria-label="수입 키워드 목록">
+                {classificationSettings.incomeKeywords.map((keyword) => (
+                  <button
+                    key={`${keyword.source}:${keyword.value}`}
+                    type="button"
+                    className="keyword-chip"
+                    title={keyword.source === 'default' ? '기본 수입 키워드 제거' : '사용자 수입 키워드 제거'}
+                    disabled={ruleBusy === 'income'}
+                    onClick={() => {
+                      setRuleError(null);
+                      setRuleBusy('income');
+                      void onRemoveIncomeKeyword({ keyword: keyword.value })
+                        .catch(() => setRuleError('수입 키워드를 삭제하지 못했습니다.'))
+                        .finally(() => setRuleBusy(null));
+                    }}
+                  >
+                    {keyword.value}<span aria-hidden="true"> ×</span>
+                  </button>
+                ))}
+              </div>
+              <div className="keyword-add-row">
+                <input
+                  aria-label="새 수입 키워드"
+                  maxLength={40}
+                  placeholder="예: 원고료"
+                  value={incomeKeywordDraft}
+                  onChange={(event) => setIncomeKeywordDraft(event.currentTarget.value)}
+                />
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={ruleBusy === 'income' || !incomeKeywordDraft.trim()}
+                  onClick={() => {
+                    const keyword = incomeKeywordDraft.trim();
+                    if (!keyword) return;
+                    setRuleError(null);
+                    setRuleBusy('income');
+                    void onAddIncomeKeyword({ keyword })
+                      .then(() => setIncomeKeywordDraft(''))
+                      .catch(() => setRuleError('예약어이거나 저장할 수 없는 수입 키워드입니다.'))
+                      .finally(() => setRuleBusy(null));
+                  }}
+                >
+                  추가
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={ruleBusy === 'income' || !classificationSettings.hasIncomeKeywordChanges}
+                  onClick={() => {
+                    setRuleError(null);
+                    setRuleBusy('income');
+                    void onRestoreIncomeKeywords()
+                      .catch(() => setRuleError('기본 수입 키워드로 복원하지 못했습니다.'))
+                      .finally(() => setRuleBusy(null));
+                  }}
+                >
+                  기본값 복원
+                </button>
+              </div>
+            </div>
+          </div>
 
           <div className="classification-rule-editor" aria-labelledby="fixed-variable-rules-title">
             <div className="settings-card-heading">
