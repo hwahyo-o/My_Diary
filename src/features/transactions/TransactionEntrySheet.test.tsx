@@ -83,6 +83,50 @@ describe('TransactionEntrySheet', () => {
     expect(screen.getByRole('button', { name: '빠른 입력 저장' })).toBeDisabled();
   });
 
+  it('lets the user correct a conflicting classification before saving', async () => {
+    const onSubmitTransaction = vi.fn().mockResolvedValue(undefined);
+    render(
+      <TransactionEntrySheet
+        open
+        onClose={vi.fn()}
+        onSubmitTransaction={onSubmitTransaction}
+        onPreviewQuickTransaction={() => ({
+          amountMinor: 4500,
+          occurredAt: '2026-10-14T10:00:00.000+09:00',
+          transactionType: 'expense',
+          categoryId: 'uncategorized',
+          categoryLabel: '미분류',
+          fixedVariable: 'mixed',
+          needsReview: true,
+          unresolvedAmount: false,
+        })}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('빠른 입력'), { target: { value: '충돌 입력 4500' } });
+    fireEvent.click(screen.getByRole('button', { name: '분류 수정' }));
+    fireEvent.change(screen.getByLabelText('거래 유형 수정'), { target: { value: 'income' } });
+    fireEvent.change(screen.getByLabelText('카테고리 수정'), { target: { value: 'food' } });
+    fireEvent.change(screen.getByLabelText('고정 변동 수정'), { target: { value: 'variable' } });
+    fireEvent.change(screen.getByLabelText('거래 날짜 수정'), { target: { value: '2026-10-13' } });
+
+    expect(screen.getByText('수정 완료')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '빠른 입력 저장' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: '빠른 입력 저장' }));
+
+    await waitFor(() => expect(onSubmitTransaction).toHaveBeenCalledWith({
+      mode: 'quick',
+      text: '충돌 입력 4500',
+      correction: {
+        transactionType: 'income',
+        categoryId: 'food',
+        fixedVariable: 'variable',
+        occurredAt: '2026-10-13T12:00:00.000+09:00',
+      },
+    }));
+  });
+
   it('shows a visible error and stays open when persistence fails', async () => {
     const onClose = vi.fn();
     const onSubmitTransaction = vi.fn().mockRejectedValue(new Error('storage failed'));
