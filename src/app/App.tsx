@@ -158,6 +158,18 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
         if (!runtime.restoreCategoryKeywords) return Promise.reject(new Error('Classification keyword runtime is not connected.'));
         return runtime.restoreCategoryKeywords(input);
       }}
+      onAddIncomeKeyword={(input) => {
+        if (!runtime.addIncomeKeyword) return Promise.reject(new Error('Income keyword runtime is not connected.'));
+        return runtime.addIncomeKeyword(input);
+      }}
+      onRemoveIncomeKeyword={(input) => {
+        if (!runtime.removeIncomeKeyword) return Promise.reject(new Error('Income keyword runtime is not connected.'));
+        return runtime.removeIncomeKeyword(input);
+      }}
+      onRestoreIncomeKeywords={() => {
+        if (!runtime.restoreIncomeKeywords) return Promise.reject(new Error('Income keyword runtime is not connected.'));
+        return runtime.restoreIncomeKeywords();
+      }}
       onLock={() => runtime.lock?.()}
     />
     </>
