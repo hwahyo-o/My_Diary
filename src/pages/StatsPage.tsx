@@ -44,6 +44,15 @@ export function StatsPage({
         <article className="dashboard-card"><span className="card-label">변동 지출</span><strong>{won.format(analytics.variableMinor)}</strong></article>
       </div>
 
+      {analytics.classificationCoverage ? (
+        <article className="dashboard-card" aria-labelledby="classification-coverage-title">
+          <h2 id="classification-coverage-title">빠른 입력 분류 현황</h2>
+          <p>카테고리 지정률 {analytics.classificationCoverage.coveragePercent}% · 분류됨 {analytics.classificationCoverage.categorizedQuickCount}건 / 전체 {analytics.classificationCoverage.totalQuickCount}건</p>
+          <p>미분류 {analytics.classificationCoverage.uncategorizedQuickCount}건 · 누적 수동 카테고리 수정 근거 {analytics.classificationCoverage.correctionObservations}회 · 미승인 규칙 제안 {analytics.classificationCoverage.pendingSuggestionCount}건</p>
+          <p className="assistive-copy">카테고리가 저장된 거래의 비율입니다. 자동분류 정답률과는 다르며, 기존 기록에서는 수정 내역 전체를 복원할 수 없습니다.</p>
+        </article>
+      ) : null}
+
       <article className="dashboard-card">
         <h2>월 예산</h2>
         <p>{Math.round(budget.usagePercent)}% 사용 · {won.format(budget.remainingMinor)} 남음</p>
