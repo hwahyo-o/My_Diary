@@ -144,6 +144,10 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
         if (!runtime.enrollCloud) return Promise.reject(new Error('Cloud sync is not connected.'));
         return runtime.enrollCloud(input);
       }}
+      onRotateRecoveryKey={(input) => {
+        if (!runtime.rotateRecoveryKey) return Promise.reject(new Error('Recovery rotation is unavailable.'));
+        return runtime.rotateRecoveryKey(input);
+      }}
       onResetAllData={(input) => {
         if (!runtime.resetAllData) return Promise.reject(new Error('Reset runtime is not connected.'));
         return runtime.resetAllData(input);
