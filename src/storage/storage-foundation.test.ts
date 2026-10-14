@@ -112,6 +112,51 @@ describe('EncryptedRepository atomic writes', () => {
   });
 });
 
+describe('Atomic encrypted batch failure isolation', () => {
+  const pair = (id: string) => ({
+    record: record(id),
+    event: { ...event('event-' + id), recordId: id },
+  });
+
+  it('commits all batch entries and advances revision by the number of entries', async () => {
+    const db = await openVaultDatabase(nextDbName());
+    try {
+      const repo = new EncryptedRepository(db);
+      expect(await repo.commitRecordEventBatch('vault-1', [pair('a'), pair('b')], 0)).toBe(2);
+      expect((await repo.listAllRecords()).map((item) => item.recordId).sort()).toEqual(['a', 'b']);
+      expect((await repo.listAllEvents()).length).toBe(2);
+      expect(await repo.getRevision('vault-1')).toBe(2);
+    } finally { db.close(); }
+  });
+
+  it('rolls back every entry and the revision when a later event ID collides', async () => {
+    const db = await openVaultDatabase(nextDbName());
+    try {
+      const repo = new EncryptedRepository(db);
+      await repo.commitRecordEventBatch('vault-1', [pair('a'), pair('b')], 0);
+      const bad = { record: record('d'), event: { ...event('event-b'), recordId: 'd' } };
+      await expect(repo.commitRecordEventBatch('vault-1', [pair('c'), bad], 2)).rejects.toThrow();
+      expect((await repo.listAllRecords()).map((item) => item.recordId).sort()).toEqual(['a', 'b']);
+      expect((await repo.listAllEvents()).length).toBe(2);
+      expect(await repo.getRevision('vault-1')).toBe(2);
+    } finally { db.close(); }
+  });
+
+  it('rejects a stale revision across two repository instances without partial writes', async () => {
+    const db = await openVaultDatabase(nextDbName());
+    try {
+      const first = new EncryptedRepository(db);
+      const second = new EncryptedRepository(db);
+      const staleRevision = await first.getRevision('vault-1');
+      await first.commitRecordEventBatch('vault-1', [pair('a'), pair('b')], staleRevision);
+      await expect(second.commitRecordEventBatch('vault-1', [pair('c'), pair('d')], staleRevision))
+        .rejects.toThrow(/revision/i);
+      expect((await first.listAllRecords()).map((item) => item.recordId).sort()).toEqual(['a', 'b']);
+      expect(await first.getRevision('vault-1')).toBe(2);
+    } finally { db.close(); }
+  });
+});
+
 describe('encrypted repository reset', () => {
   it('clears records, events, metadata, snapshots, and security state atomically', async () => {
     const db = await openVaultDatabase(nextDbName());
