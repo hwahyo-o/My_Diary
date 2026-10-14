@@ -74,13 +74,30 @@ function minusCalendarDays(now: ISODateTime, days: number): ISODateTime {
   return parseISODateTime(date.toISOString());
 }
 
+function sourceRank(source: ClassificationSource): number {
+  switch (source) {
+    case 'explicit':
+      return 4;
+    case 'user-rule':
+      return 3;
+    case 'keyword':
+      return 2;
+    case 'default':
+      return 1;
+  }
+}
+
 function resolveTransactionType(
   normalizedText: string,
   rules: ClassificationRuleSet,
   reviewReasons: string[],
 ): ClassificationDecision<TransactionType> {
-  const matches = rules.typeKeywords.filter((rule) => containsKeyword(normalizedText, rule.keyword));
-  const uniqueTypes = [...new Set(matches.map((rule) => rule.type))];
+  const matches = rules.typeKeywords
+    .filter((rule) => containsKeyword(normalizedText, rule.keyword))
+    .map((rule) => ({ ...rule, resolvedSource: rule.source ?? 'keyword' as ClassificationSource }));
+  const highestRank = matches.reduce((rank, rule) => Math.max(rank, sourceRank(rule.resolvedSource)), 0);
+  const topMatches = matches.filter((rule) => sourceRank(rule.resolvedSource) === highestRank);
+  const uniqueTypes = [...new Set(topMatches.map((rule) => rule.type))];
 
   if (uniqueTypes.length > 1) {
     reviewReasons.push('transaction-type-conflict');
@@ -88,15 +105,15 @@ function resolveTransactionType(
       value: 'expense',
       source: 'default',
       confidence: 'low',
-      matchedKeywords: matches.map((rule) => rule.keyword),
+      matchedKeywords: topMatches.map((rule) => rule.keyword),
     };
   }
-  if (matches[0]) {
+  if (topMatches[0]) {
     return {
-      value: matches[0].type,
-      source: matches[0].source ?? 'keyword',
-      confidence: matches[0].source === 'explicit' ? 'high' : 'medium',
-      matchedKeywords: matches.map((rule) => rule.keyword),
+      value: topMatches[0].type,
+      source: topMatches[0].resolvedSource,
+      confidence: topMatches[0].resolvedSource === 'explicit' || topMatches[0].resolvedSource === 'user-rule' ? 'high' : 'medium',
+      matchedKeywords: topMatches.map((rule) => rule.keyword),
     };
   }
   return {
@@ -112,8 +129,12 @@ function resolveCategory(
   rules: ClassificationRuleSet,
   reviewReasons: string[],
 ): ClassificationDecision<string> {
-  const matches = rules.categoryKeywords.filter((rule) => containsKeyword(normalizedText, rule.keyword));
-  const categoryIds = [...new Set(matches.map((rule) => rule.categoryId))];
+  const matches = rules.categoryKeywords
+    .filter((rule) => containsKeyword(normalizedText, rule.keyword))
+    .map((rule) => ({ ...rule, resolvedSource: rule.source ?? 'keyword' as ClassificationSource }));
+  const highestRank = matches.reduce((rank, rule) => Math.max(rank, sourceRank(rule.resolvedSource)), 0);
+  const topMatches = matches.filter((rule) => sourceRank(rule.resolvedSource) === highestRank);
+  const categoryIds = [...new Set(topMatches.map((rule) => rule.categoryId))];
 
   if (categoryIds.length > 1) {
     reviewReasons.push('category-conflict');
@@ -121,15 +142,15 @@ function resolveCategory(
       value: 'uncategorized',
       source: 'default',
       confidence: 'low',
-      matchedKeywords: matches.map((rule) => rule.keyword),
+      matchedKeywords: topMatches.map((rule) => rule.keyword),
     };
   }
-  if (matches[0]) {
+  if (topMatches[0]) {
     return {
-      value: matches[0].categoryId,
-      source: matches[0].source ?? 'keyword',
-      confidence: matches[0].source === 'user-rule' ? 'high' : 'medium',
-      matchedKeywords: matches.map((rule) => rule.keyword),
+      value: topMatches[0].categoryId,
+      source: topMatches[0].resolvedSource,
+      confidence: topMatches[0].resolvedSource === 'user-rule' ? 'high' : 'medium',
+      matchedKeywords: topMatches.map((rule) => rule.keyword),
     };
   }
   return {
