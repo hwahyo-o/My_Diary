@@ -1,5 +1,6 @@
 import type { AccountKind, AccountPurpose } from '../domain/accounts/types';
 import type { ReportType, Confidence } from '../domain/reports/types';
+import type { ClassificationSettingsViewModel, FixedVariableMode } from '../features/transactions/classification-settings';
 
 export type AccessState = 'onboarding' | 'locked' | 'unlocked';
 export type AppPage = 'home' | 'calendar' | 'stats' | 'assets' | 'settings';
@@ -156,6 +157,7 @@ export interface RuntimeSnapshot {
   readonly assets: AssetsViewModel;
   readonly analytics: AnalyticsViewModel;
   readonly calendar: CalendarViewModel;
+  readonly classificationSettings: ClassificationSettingsViewModel;
 }
 
 export interface AppRuntimePorts {
@@ -178,6 +180,7 @@ export interface AppRuntimePorts {
   isCloudEnrolled?(): boolean;
   hasCloudConflict?(): boolean;
   resetAllData?(input: { readonly pin: string }): Promise<void>;
+  saveFixedVariableRule?(input: { readonly categoryId: string; readonly mode: FixedVariableMode }): Promise<void>;
   lock?(): void;
   getSnapshot?(): RuntimeSnapshot;
   subscribe?(listener: (snapshot: RuntimeSnapshot) => void): () => void;
@@ -232,3 +235,5 @@ export const defaultBackupStatus: BackupStatusViewModel = {
   lastExportedAt: null,
   reminderDue: true,
 };
+
+export const emptyClassificationSettings: ClassificationSettingsViewModel = { categories: [] };
