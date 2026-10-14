@@ -154,6 +154,24 @@ describe('T20 quick input parser', () => {
     expect(dayBeforeYesterday.occurredAt).toContain('2026-09-30');
   });
 
+  it('applies expanded category and fixed-variable classification to Quick drafts', () => {
+    const coffee = quickCandidateToDraft(parseQuickInput('커피 4500', now), { accountId });
+    expect(coffee.categoryId).toBe('food');
+    expect(coffee.fixedVariable).toBe('variable');
+
+    const transit = quickCandidateToDraft(parseQuickInput('대중교통 1500', now), { accountId });
+    expect(transit.categoryId).toBe('transport');
+    expect(transit.fixedVariable).toBe('variable');
+
+    const rent = quickCandidateToDraft(parseQuickInput('월세 600000', now), { accountId });
+    expect(rent.categoryId).toBe('housing');
+    expect(rent.fixedVariable).toBe('fixed');
+
+    const subscription = quickCandidateToDraft(parseQuickInput('구독 17000', now), { accountId });
+    expect(subscription.categoryId).toBe('subscription');
+    expect(subscription.fixedVariable).toBe('fixed');
+  });
+
   it('parses yesterday and transport hints', () => {
     const parsed = parseQuickInput('어제 택시 18000', now);
     expect(parsed.amountMinor).toBe(18000);
