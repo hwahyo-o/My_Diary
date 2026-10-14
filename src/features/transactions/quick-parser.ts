@@ -1,5 +1,10 @@
-import { parseISODateTime, type ISODateTime, type UUID } from '../../domain/shared/types';
-import type { TransactionType } from '../../domain/transactions/types';
+import { type ISODateTime, type UUID } from '../../domain/shared/types';
+import type { FixedVariable, TransactionType } from '../../domain/transactions/types';
+import {
+  classifyTransactionText,
+  type ClassificationRuleSet,
+  type TransactionClassification,
+} from './classification-engine';
 import type { TransactionDraft } from './types';
 import { validateTransactionDraft } from './validation';
 
@@ -9,6 +14,10 @@ export interface QuickInputCandidate {
   readonly occurredAt: ISODateTime;
   readonly merchantText?: string;
   readonly categoryHint?: 'food' | 'transport';
+  readonly transactionType: TransactionType;
+  readonly categoryId: string;
+  readonly fixedVariable: FixedVariable;
+  readonly classification: TransactionClassification;
   readonly unresolved: readonly ('amount')[];
 }
 
@@ -62,34 +71,48 @@ function parseKoreanAmount(token: string): number | undefined {
   return parseBelow10000(normalized);
 }
 
-function previousDay(now: ISODateTime): ISODateTime {
-  const date = new Date(Date.parse(now) - 86_400_000);
-  return parseISODateTime(date.toISOString());
+function isStructuralToken(token: string, classification: TransactionClassification): boolean {
+  if (token === '오늘' || token === '어제') return true;
+  if (parseKoreanAmount(token) !== undefined) return true;
+
+  const matched = [
+    ...classification.transactionType.matchedKeywords,
+    ...classification.occurredAt.matchedKeywords,
+  ];
+  return matched.some((keyword) => token.includes(keyword));
 }
 
-export function parseQuickInput(rawText: string, now: ISODateTime): QuickInputCandidate {
+export function parseQuickInput(
+  rawText: string,
+  now: ISODateTime,
+  rules?: ClassificationRuleSet,
+): QuickInputCandidate {
   const tokens = rawText.trim().split(/\s+/).filter(Boolean);
+  const classification = classifyTransactionText(rawText, now, rules);
   let amountMinor: number | undefined;
-  let occurredAt = now;
-  let categoryHint: QuickInputCandidate['categoryHint'];
 
   for (const token of tokens) {
     const parsed = parseKoreanAmount(token);
     if (parsed !== undefined && parsed > 0) amountMinor = parsed;
-    if (token === '어제') occurredAt = previousDay(now);
-    if (token.includes('점심') || token.includes('식사')) categoryHint = 'food';
-    if (token.includes('택시') || token.includes('버스') || token.includes('지하철')) categoryHint = 'transport';
   }
 
-  const merchantText = tokens.filter((token) => {
-    if (token === '오늘' || token === '어제') return false;
-    if (parseKoreanAmount(token) !== undefined) return false;
-    return true;
-  }).join(' ');
+  const merchantText = tokens
+    .filter((token) => !isStructuralToken(token, classification))
+    .join(' ');
+
+  const categoryHint = classification.categoryId.value === 'food'
+    ? 'food' as const
+    : classification.categoryId.value === 'transport'
+      ? 'transport' as const
+      : undefined;
 
   return {
     rawText,
-    occurredAt,
+    occurredAt: classification.occurredAt.value,
+    transactionType: classification.transactionType.value,
+    categoryId: classification.categoryId.value,
+    fixedVariable: classification.fixedVariable.value,
+    classification,
     unresolved: amountMinor === undefined ? ['amount'] : [],
     ...(amountMinor === undefined ? {} : { amountMinor }),
     ...(merchantText ? { merchantText } : {}),
@@ -99,16 +122,19 @@ export function parseQuickInput(rawText: string, now: ISODateTime): QuickInputCa
 
 export function quickCandidateToDraft(
   candidate: QuickInputCandidate,
-  options: { readonly accountId: UUID; readonly type: TransactionType },
+  options: { readonly accountId: UUID; readonly type?: TransactionType },
 ): TransactionDraft {
   if (candidate.amountMinor === undefined) throw new TypeError('Quick input amount is unresolved.');
+  const type = options.type ?? candidate.transactionType;
+
   return validateTransactionDraft({
-    type: options.type,
+    type,
     accountId: options.accountId,
     amountMinor: candidate.amountMinor,
     occurredAt: candidate.occurredAt,
     source: 'quick',
+    fixedVariable: candidate.fixedVariable,
     ...(candidate.merchantText ? { merchant: candidate.merchantText } : {}),
-    ...(candidate.categoryHint ? { categoryId: candidate.categoryHint } : {}),
+    ...(candidate.categoryId === 'uncategorized' ? {} : { categoryId: candidate.categoryId }),
   });
 }

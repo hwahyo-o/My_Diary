@@ -530,7 +530,13 @@ export class BrowserRuntime {
 
     const now = toIso(this.options.now());
     const draft = input.mode === 'quick'
-      ? quickCandidateToDraft(parseQuickInput(input.text, now), { accountId: bootstrap.defaultAccountId, type: 'expense' })
+      ? (() => {
+          const candidate = parseQuickInput(input.text, now);
+          if (candidate.classification.needsReview) {
+            throw new Error('Quick input classification requires review.');
+          }
+          return quickCandidateToDraft(candidate, { accountId: bootstrap.defaultAccountId });
+        })()
       : createDirectDraft({
           type: 'expense',
           accountId: bootstrap.defaultAccountId,
