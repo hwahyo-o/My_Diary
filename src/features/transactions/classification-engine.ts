@@ -25,6 +25,7 @@ export interface TypeKeywordRule {
   readonly keyword: string;
   readonly type: TransactionType;
   readonly source?: Exclude<ClassificationSource, 'default'>;
+  readonly excludeWhen?: readonly string[];
 }
 
 export interface CategoryKeywordRule {
@@ -45,10 +46,40 @@ export interface ClassificationRuleSet {
   readonly fixedVariableByCategory: readonly FixedVariableRule[];
 }
 
+export const DEFAULT_INCOME_KEYWORDS = [
+  '월급',
+  '급여',
+  '부수입',
+  '용돈',
+  '마일리지',
+  '포인트',
+  '리워드',
+  '캐시백',
+  '환급',
+  '상여금',
+  '보너스',
+  '이자',
+] as const;
+
+const DEFAULT_INCOME_EXCLUSIONS: Readonly<Record<string, readonly string[]>> = {
+  마일리지: ['마일리지 사용', '마일리지 차감', '마일리지 결제'],
+  포인트: ['포인트 사용', '포인트 차감', '포인트 결제'],
+  리워드: ['리워드 사용', '리워드 차감', '리워드 결제'],
+  이자: ['대출이자', '대출 이자', '이자 납부', '이자 지출'],
+};
+
 export const DEFAULT_CLASSIFICATION_RULES: ClassificationRuleSet = {
   typeKeywords: [
     { keyword: '수입', type: 'income', source: 'explicit' },
     { keyword: '지출', type: 'expense', source: 'explicit' },
+    ...DEFAULT_INCOME_KEYWORDS.map((keyword) => ({
+      keyword,
+      type: 'income' as const,
+      source: 'keyword' as const,
+      ...(DEFAULT_INCOME_EXCLUSIONS[keyword]
+        ? { excludeWhen: DEFAULT_INCOME_EXCLUSIONS[keyword] }
+        : {}),
+    })),
   ],
   categoryKeywords: [
     { keyword: '점심', categoryId: 'food' },
@@ -94,6 +125,7 @@ function resolveTransactionType(
 ): ClassificationDecision<TransactionType> {
   const matches = rules.typeKeywords
     .filter((rule) => containsKeyword(normalizedText, rule.keyword))
+    .filter((rule) => !(rule.excludeWhen ?? []).some((phrase) => containsKeyword(normalizedText, phrase)))
     .map((rule) => ({ ...rule, resolvedSource: rule.source ?? 'keyword' as ClassificationSource }));
   const highestRank = matches.reduce((rank, rule) => Math.max(rank, sourceRank(rule.resolvedSource)), 0);
   const topMatches = matches.filter((rule) => sourceRank(rule.resolvedSource) === highestRank);
