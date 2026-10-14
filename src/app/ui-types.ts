@@ -84,7 +84,17 @@ export interface ReportSummaryViewModel {
   readonly netCashflowMinor: number;
 }
 
+export interface ClassificationCoverageViewModel {
+  readonly totalQuickCount: number;
+  readonly categorizedQuickCount: number;
+  readonly uncategorizedQuickCount: number;
+  readonly coveragePercent: number;
+  readonly correctionObservations: number;
+  readonly pendingSuggestionCount: number;
+}
+
 export interface AnalyticsViewModel {
+  readonly classificationCoverage?: ClassificationCoverageViewModel;
   readonly fixedMinor: number;
   readonly variableMinor: number;
   readonly mixedMinor: number;

@@ -1455,6 +1455,18 @@ export class BrowserRuntime {
     ))));
     const activeTransactions = transactions.filter((transaction) => !transaction.deletedAt);
     const coreAnalytics = selectCoreAnalytics(activeTransactions);
+    const quickTransactions = activeTransactions.filter((transaction) => transaction.source === 'quick');
+    const categorizedQuickCount = quickTransactions.filter((transaction) =>
+      !!transaction.categoryId && transaction.categoryId !== 'uncategorized').length;
+    const classificationCoverage = {
+      totalQuickCount: quickTransactions.length,
+      categorizedQuickCount,
+      uncategorizedQuickCount: quickTransactions.length - categorizedQuickCount,
+      coveragePercent: quickTransactions.length === 0 ? 0 : Math.round(categorizedQuickCount / quickTransactions.length * 100),
+      correctionObservations: (this.classificationSettings.correctionObservations ?? [])
+        .reduce((total, item) => total + item.count, 0),
+      pendingSuggestionCount: toClassificationSettingsViewModel(this.classificationSettings).correctionSuggestions.length,
+    };
     const now = this.options.now();
     const today = parseISODate(toIso(now).slice(0, 10));
     const monthStart = currentMonthStart(now);
@@ -1594,6 +1606,7 @@ export class BrowserRuntime {
         accountPurpose,
       },
       analytics: {
+        classificationCoverage,
         fixedMinor: coreAnalytics.fixedMinor,
         variableMinor: coreAnalytics.variableMinor,
         mixedMinor: coreAnalytics.mixedMinor,
