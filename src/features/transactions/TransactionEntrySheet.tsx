@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import type { QuickTransactionCorrection, QuickTransactionPreviewViewModel, TransactionSubmission } from '../../app/ui-types';
+import type { QuickTransactionCorrection, QuickTransactionPreviewViewModel, QuickBatchPreview, TransactionSubmission } from '../../app/ui-types';
 import { BUILTIN_CATEGORIES } from './category-catalog';
 
 interface TransactionEntrySheetProps {
   readonly open: boolean;
   readonly onClose: () => void;
   readonly onSubmitTransaction: (input: TransactionSubmission) => void | Promise<void>;
+  readonly onPreviewQuickBatch?: (text: string) => QuickBatchPreview;
   readonly onPreviewQuickTransaction?: (text: string) => QuickTransactionPreviewViewModel;
   readonly returnFocusTo?: HTMLElement | null;
 }
@@ -32,7 +33,7 @@ function correctionFromPreview(preview: QuickTransactionPreviewViewModel): Quick
   };
 }
 
-export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPreviewQuickTransaction, returnFocusTo }: TransactionEntrySheetProps) {
+export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPreviewQuickTransaction, onPreviewQuickBatch, returnFocusTo }: TransactionEntrySheetProps) {
   const [tab, setTab] = useState<'quick' | 'direct'>('quick');
   const [quickText, setQuickText] = useState('');
   const [amount, setAmount] = useState('');
@@ -40,7 +41,9 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPr
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [correction, setCorrection] = useState<QuickTransactionCorrection | null>(null);
-  const preview = quickText.trim() && onPreviewQuickTransaction
+  const batch = quickText.trim() && onPreviewQuickBatch ? onPreviewQuickBatch(quickText) : null;
+  const isBatch = (batch?.entries.length ?? 0) > 1;
+  const preview = !isBatch && quickText.trim() && onPreviewQuickTransaction
     ? onPreviewQuickTransaction(quickText)
     : null;
 
@@ -68,6 +71,18 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPr
       return;
     }
 
+    if (isBatch) {
+      if (!batch?.valid) { setError('일괄 입력에 확인이 필요한 거래가 있습니다. 각 입력을 확인해주세요.'); return; }
+      setBusy(true);
+      try {
+        await onSubmitTransaction({ mode: 'batch', text });
+        setQuickText('');
+        onClose();
+      } catch {
+        setError('일괄 거래를 저장하지 못했습니다. 다시 확인해주세요.');
+      } finally { setBusy(false); }
+      return;
+    }
     if (preview?.multipleAmounts) {
       setError('금액이 여러 개 감지되었습니다. 각 거래를 나누어 입력해주세요.');
       return;
@@ -150,6 +165,19 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPr
                 autoFocus
               />
             </label>
+            {isBatch && batch ? (
+              <div className="quick-preview" aria-live="polite">
+                <strong>거래 {batch.entries.length}건 일괄 미리보기</strong>
+                {batch.entries.map((entry, index) => (
+                  <div className="quick-preview-heading" key={index}>
+                    <span>{entry.text} · {entry.categoryLabel} · {entry.occurredAt.slice(0, 10)}</span>
+                    <strong>{entry.amountMinor === null ? '금액 확인' : `₩${entry.amountMinor.toLocaleString('ko-KR')}`}</strong>
+                    {entry.needsReview || entry.unresolvedAmount || entry.multipleAmounts ? <span>확인 필요</span> : null}
+                  </div>
+                ))}
+                <strong>합계 ₩{batch.entries.reduce((sum, item) => sum + (item.amountMinor ?? 0), 0).toLocaleString('ko-KR')}</strong>
+              </div>
+            ) : null}
             {preview ? (
               <div className={preview.needsReview && !correction ? 'quick-preview warning' : 'quick-preview'} aria-live="polite">
                 <div className="quick-preview-heading">
@@ -232,7 +260,7 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPr
             ) : null}
             {preview?.multipleAmounts ? <p role="alert" className="form-error">여러 금액이 감지되었습니다. 거래별로 나누어 입력해야 안전하게 저장할 수 있습니다.</p> : null}
             {error ? <p role="alert" className="form-error">{error}</p> : null}
-            <button className="primary-button" type="submit" disabled={busy || !!preview?.multipleAmounts || (!!preview?.needsReview && !correction) || !!preview?.unresolvedAmount}>빠른 입력 저장</button>
+            <button className="primary-button" type="submit" disabled={busy || (isBatch && !batch?.valid) || !!preview?.multipleAmounts || (!!preview?.needsReview && !correction) || !!preview?.unresolvedAmount}>{isBatch ? '거래 전체 저장' : '빠른 입력 저장'}</button>
           </form>
         ) : (
           <form className="entry-form" onSubmit={submitDirect}>
