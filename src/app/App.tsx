@@ -92,6 +92,9 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
       classificationSettings={classificationSettingsState}
       backup={defaultBackupStatus}
       onSubmitTransaction={(input) => runtime.submitTransaction(input)}
+      {...(runtime.previewQuickBatch
+        ? { onPreviewQuickBatch: (text: string) => runtime.previewQuickBatch!(text) }
+        : {})}
       {...(runtime.previewQuickTransaction
         ? { onPreviewQuickTransaction: (text: string) => runtime.previewQuickTransaction!(text) }
         : {})}
