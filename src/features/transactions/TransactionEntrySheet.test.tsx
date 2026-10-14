@@ -127,6 +127,31 @@ describe('TransactionEntrySheet', () => {
     }));
   });
 
+  it('allows editing an individual batch entry and submits corrected values', async () => {
+    const onSubmitTransaction = vi.fn().mockResolvedValue(undefined);
+    render(<TransactionEntrySheet open onClose={vi.fn()} onSubmitTransaction={onSubmitTransaction}
+      onPreviewQuickBatch={() => ({
+        valid: true,
+        entries: [
+          { text: '점심 8000원', amountMinor: 8000, occurredAt: '2026-10-14T10:00:00.000+09:00', transactionType: 'expense', categoryId: 'food', categoryLabel: '식비', fixedVariable: 'variable', needsReview: false, unresolvedAmount: false },
+          { text: '커피 4500원', amountMinor: 4500, occurredAt: '2026-10-14T10:00:00.000+09:00', transactionType: 'expense', categoryId: 'food', categoryLabel: '식비', fixedVariable: 'variable', needsReview: false, unresolvedAmount: false },
+        ],
+      })} />);
+    fireEvent.change(screen.getByLabelText('빠른 입력'), { target: { value: '점심 8000원; 커피 4500원' } });
+    fireEvent.click(screen.getByRole('button', { name: '거래별 수정' }));
+    fireEvent.change(screen.getByLabelText('거래 2 금액'), { target: { value: '5500' } });
+    fireEvent.change(screen.getByLabelText('거래 1 유형'), { target: { value: 'income' } });
+    fireEvent.click(screen.getByRole('button', { name: '거래 전체 저장' }));
+    await waitFor(() => expect(onSubmitTransaction).toHaveBeenCalledWith({
+      mode: 'batch',
+      text: '점심 8000원; 커피 4500원',
+      entries: [
+        expect.objectContaining({ amountMinor: 8000, transactionType: 'income' }),
+        expect.objectContaining({ amountMinor: 5500, transactionType: 'expense' }),
+      ],
+    }));
+  });
+
   it('shows a visible error and stays open when persistence fails', async () => {
     const onClose = vi.fn();
     const onSubmitTransaction = vi.fn().mockRejectedValue(new Error('storage failed'));
