@@ -101,6 +101,44 @@ export class EncryptedRepository {
     });
   }
 
+  async commitRecordEventBatch(
+    vaultId: string,
+    batch: readonly { readonly record: StoredEncryptedRecord; readonly event: StoredEvent }[],
+    expectedRevision: number,
+  ): Promise<number> {
+    if (batch.length < 2 || batch.length > 20) throw new TypeError('Invalid batch size.');
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction(
+        [STORE_NAMES.records, STORE_NAMES.events, STORE_NAMES.vaultMeta], 'readwrite',
+      );
+      const records = tx.objectStore(STORE_NAMES.records);
+      const events = tx.objectStore(STORE_NAMES.events);
+      const meta = tx.objectStore(STORE_NAMES.vaultMeta);
+      let conflict: Error | undefined;
+      const request = meta.get(vaultId);
+      request.onerror = () => tx.abort();
+      request.onsuccess = () => {
+        const current = request.result as VaultMeta | undefined;
+        const revision = current?.revision ?? 0;
+        if (revision !== expectedRevision) {
+          conflict = new Error(`Revision conflict: expected ${expectedRevision}, found ${revision}`);
+          tx.abort();
+          return;
+        }
+        for (const item of batch) {
+          records.add(item.record);
+          events.add(item.event);
+        }
+        meta.put({
+          vaultId, revision: revision + batch.length, schemaVersion: current?.schemaVersion ?? 1,
+        } satisfies VaultMeta);
+      };
+      tx.oncomplete = () => resolve(expectedRevision + batch.length);
+      tx.onerror = () => undefined;
+      tx.onabort = () => reject(conflict ?? tx.error ?? new Error('Atomic batch write failed'));
+    });
+  }
+
   async getRecord(recordId: string): Promise<StoredEncryptedRecord | undefined> {
     const tx = this.db.transaction(STORE_NAMES.records, 'readonly');
     return requestValue(tx.objectStore(STORE_NAMES.records).get(recordId));
