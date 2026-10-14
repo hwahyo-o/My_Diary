@@ -18,7 +18,7 @@ export interface QuickInputCandidate {
   readonly categoryId: string;
   readonly fixedVariable: FixedVariable;
   readonly classification: TransactionClassification;
-  readonly unresolved: readonly ('amount')[];
+  readonly unresolved: readonly ('amount' | 'multiple-amounts')[];
 }
 
 const KOREAN_DIGIT: Record<string, number> = {
@@ -105,10 +105,14 @@ export function parseQuickInput(
   const tokens = rawText.trim().split(/\s+/).filter(Boolean);
   const classification = classifyTransactionText(rawText, now, rules);
   let amountMinor: number | undefined;
+  let amountCount = 0;
 
   for (const token of tokens) {
-    const parsed = parseKoreanAmount(token);
-    if (parsed !== undefined && parsed > 0) amountMinor = parsed;
+    const parsed = parseKoreanAmount(token.replace(/[.!?;:,]+$/u, ''));
+    if (parsed !== undefined && parsed > 0) {
+      amountMinor = parsed;
+      amountCount += 1;
+    }
   }
 
   const merchantText = tokens
@@ -128,7 +132,7 @@ export function parseQuickInput(
     categoryId: classification.categoryId.value,
     fixedVariable: classification.fixedVariable.value,
     classification,
-    unresolved: amountMinor === undefined ? ['amount'] : [],
+    unresolved: amountCount > 1 ? ['multiple-amounts'] : amountMinor === undefined ? ['amount'] : [],
     ...(amountMinor === undefined ? {} : { amountMinor }),
     ...(merchantText ? { merchantText } : {}),
     ...(categoryHint ? { categoryHint } : {}),
@@ -139,6 +143,7 @@ export function quickCandidateToDraft(
   candidate: QuickInputCandidate,
   options: { readonly accountId: UUID; readonly type?: TransactionType },
 ): TransactionDraft {
+  if (candidate.unresolved.includes('multiple-amounts')) throw new TypeError('Multiple monetary amounts require separate entries.');
   if (candidate.amountMinor === undefined) throw new TypeError('Quick input amount is unresolved.');
   const type = options.type ?? candidate.transactionType;
 
