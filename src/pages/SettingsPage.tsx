@@ -17,6 +17,9 @@ interface SettingsPageProps {
   readonly onResetAllData: (input: { readonly pin: string }) => Promise<void>;
   readonly classificationSettings: ClassificationSettingsViewModel;
   readonly onSaveFixedVariableRule: (input: { readonly categoryId: string; readonly mode: FixedVariableMode }) => Promise<void>;
+  readonly onAddCategoryKeyword: (input: { readonly categoryId: string; readonly keyword: string }) => Promise<void>;
+  readonly onRemoveCategoryKeyword: (input: { readonly categoryId: string; readonly keyword: string }) => Promise<void>;
+  readonly onRestoreCategoryKeywords: (input: { readonly categoryId: string }) => Promise<void>;
 }
 
 export function SettingsPage({
@@ -32,6 +35,9 @@ export function SettingsPage({
   onResetAllData,
   classificationSettings,
   onSaveFixedVariableRule,
+  onAddCategoryKeyword,
+  onRemoveCategoryKeyword,
+  onRestoreCategoryKeywords,
 }: SettingsPageProps) {
   const [backupOpen, setBackupOpen] = useState(false);
   const [backupState, setBackupState] = useState<BackupStatusViewModel>(() =>
@@ -47,6 +53,7 @@ export function SettingsPage({
   const [resetError, setResetError] = useState<string | null>(null);
   const [ruleBusy, setRuleBusy] = useState<string | null>(null);
   const [ruleError, setRuleError] = useState<string | null>(null);
+  const [keywordDrafts, setKeywordDrafts] = useState<Record<string, string>>({});
 
   async function enableCloudSync() {
     setCloudError(null);
@@ -252,35 +259,102 @@ export function SettingsPage({
 
             <div className="classification-rule-grid">
               {classificationSettings.categories.map((category) => (
-                <label key={category.id} className="classification-rule-row">
-                  <span>
-                    <strong>{category.label}</strong>
-                    <small>
-                      기본값 {category.defaultFixedVariable === 'fixed'
-                        ? '고정'
-                        : category.defaultFixedVariable === 'variable'
-                          ? '변동'
-                          : '혼합'}
-                    </small>
-                  </span>
-                  <select
-                    aria-label={`${category.label} 고정 변동 규칙`}
-                    value={category.mode}
-                    disabled={ruleBusy === category.id}
-                    onChange={(event) => {
-                      const mode = event.currentTarget.value as FixedVariableMode;
-                      setRuleError(null);
-                      setRuleBusy(category.id);
-                      void onSaveFixedVariableRule({ categoryId: category.id, mode })
-                        .catch(() => setRuleError('분류 규칙을 저장하지 못했습니다. 잠금 상태나 동기화 상태를 확인해주세요.'))
-                        .finally(() => setRuleBusy(null));
-                    }}
-                  >
-                    <option value="auto">자동</option>
-                    <option value="fixed">항상 고정</option>
-                    <option value="variable">항상 변동</option>
-                  </select>
-                </label>
+                <div key={category.id} className="classification-rule-row classification-rule-row-expanded">
+                  <div className="classification-rule-main">
+                    <span>
+                      <strong>{category.label}</strong>
+                      <small>
+                        기본값 {category.defaultFixedVariable === 'fixed'
+                          ? '고정'
+                          : category.defaultFixedVariable === 'variable'
+                            ? '변동'
+                            : '혼합'}
+                      </small>
+                    </span>
+                    <select
+                      aria-label={`${category.label} 고정 변동 규칙`}
+                      value={category.mode}
+                      disabled={ruleBusy === category.id}
+                      onChange={(event) => {
+                        const mode = event.currentTarget.value as FixedVariableMode;
+                        setRuleError(null);
+                        setRuleBusy(category.id);
+                        void onSaveFixedVariableRule({ categoryId: category.id, mode })
+                          .catch(() => setRuleError('분류 규칙을 저장하지 못했습니다. 잠금 상태나 동기화 상태를 확인해주세요.'))
+                          .finally(() => setRuleBusy(null));
+                      }}
+                    >
+                      <option value="auto">자동</option>
+                      <option value="fixed">항상 고정</option>
+                      <option value="variable">항상 변동</option>
+                    </select>
+                  </div>
+
+                  <div className="keyword-editor">
+                    <div className="keyword-chip-list" aria-label={`${category.label} 키워드 목록`}>
+                      {category.keywords.map((keyword) => (
+                        <button
+                          key={`${keyword.source}:${keyword.value}`}
+                          type="button"
+                          className="keyword-chip"
+                          title={keyword.source === 'default' ? '기본 키워드 제거' : '사용자 키워드 제거'}
+                          onClick={() => {
+                            setRuleError(null);
+                            setRuleBusy(category.id);
+                            void onRemoveCategoryKeyword({ categoryId: category.id, keyword: keyword.value })
+                              .catch(() => setRuleError('키워드를 삭제하지 못했습니다.'))
+                              .finally(() => setRuleBusy(null));
+                          }}
+                        >
+                          {keyword.value}<span aria-hidden="true"> ×</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="keyword-add-row">
+                      <input
+                        aria-label={`${category.label} 새 키워드`}
+                        maxLength={40}
+                        placeholder="새 키워드"
+                        value={keywordDrafts[category.id] ?? ''}
+                        onChange={(event) => setKeywordDrafts((current) => ({
+                          ...current,
+                          [category.id]: event.currentTarget.value,
+                        }))}
+                      />
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        disabled={ruleBusy === category.id || !(keywordDrafts[category.id] ?? '').trim()}
+                        onClick={() => {
+                          const keyword = (keywordDrafts[category.id] ?? '').trim();
+                          if (!keyword) return;
+                          setRuleError(null);
+                          setRuleBusy(category.id);
+                          void onAddCategoryKeyword({ categoryId: category.id, keyword })
+                            .then(() => setKeywordDrafts((current) => ({ ...current, [category.id]: '' })))
+                            .catch(() => setRuleError('이미 다른 카테고리에 사용 중인 키워드이거나 저장할 수 없는 키워드입니다.'))
+                            .finally(() => setRuleBusy(null));
+                        }}
+                      >
+                        추가
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        disabled={ruleBusy === category.id || !category.hasKeywordChanges}
+                        onClick={() => {
+                          setRuleError(null);
+                          setRuleBusy(category.id);
+                          void onRestoreCategoryKeywords({ categoryId: category.id })
+                            .catch(() => setRuleError('기본 키워드로 복원하지 못했습니다.'))
+                            .finally(() => setRuleBusy(null));
+                        }}
+                      >
+                        기본값 복원
+                      </button>
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
             {ruleError ? <p role="alert" className="form-error">{ruleError}</p> : null}
