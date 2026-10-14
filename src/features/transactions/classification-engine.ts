@@ -280,43 +280,50 @@ function resolveFixedVariable(
   rules: ClassificationRuleSet,
   reviewReasons: string[],
 ): ClassificationDecision<FixedVariable> {
-  const keywordMatches = (rules.fixedVariableKeywords ?? [])
+  const keywordCandidates = (rules.fixedVariableKeywords ?? [])
     .filter((rule) => containsKeyword(normalizedText, rule.keyword))
-    .map((rule) => ({ ...rule, resolvedSource: rule.source ?? 'keyword' as ClassificationSource }));
-  const highestRank = keywordMatches.reduce(
-    (rank, rule) => Math.max(rank, sourceRank(rule.resolvedSource)),
+    .map((rule) => ({
+      value: rule.value,
+      source: rule.source ?? 'keyword' as ClassificationSource,
+      matchedKeywords: [rule.keyword] as readonly string[],
+    }));
+
+  const categoryRule = rules.fixedVariableByCategory.find((rule) => rule.categoryId === categoryId);
+  const categoryCandidates = categoryRule
+    ? [{
+        value: categoryRule.value,
+        source: categoryRule.source ?? 'user-rule' as ClassificationSource,
+        matchedKeywords: [] as readonly string[],
+      }]
+    : [];
+
+  const candidates = [...keywordCandidates, ...categoryCandidates];
+  const highestRank = candidates.reduce(
+    (rank, candidate) => Math.max(rank, sourceRank(candidate.source)),
     0,
   );
-  const topKeywordMatches = keywordMatches.filter(
-    (rule) => sourceRank(rule.resolvedSource) === highestRank,
+  const topCandidates = candidates.filter(
+    (candidate) => sourceRank(candidate.source) === highestRank,
   );
-  const keywordValues = [...new Set(topKeywordMatches.map((rule) => rule.value))];
+  const values = [...new Set(topCandidates.map((candidate) => candidate.value))];
 
-  if (keywordValues.length > 1) {
+  if (values.length > 1) {
     reviewReasons.push('fixed-variable-conflict');
     return {
       value: 'mixed',
       source: 'default',
       confidence: 'low',
-      matchedKeywords: topKeywordMatches.map((rule) => rule.keyword),
-    };
-  }
-  if (topKeywordMatches[0]) {
-    return {
-      value: topKeywordMatches[0].value,
-      source: topKeywordMatches[0].resolvedSource,
-      confidence: topKeywordMatches[0].resolvedSource === 'user-rule' ? 'high' : 'medium',
-      matchedKeywords: topKeywordMatches.map((rule) => rule.keyword),
+      matchedKeywords: topCandidates.flatMap((candidate) => candidate.matchedKeywords),
     };
   }
 
-  const categoryRule = rules.fixedVariableByCategory.find((rule) => rule.categoryId === categoryId);
-  if (categoryRule) {
+  const selected = topCandidates[0];
+  if (selected) {
     return {
-      value: categoryRule.value,
-      source: categoryRule.source ?? 'user-rule',
-      confidence: categoryRule.source === 'user-rule' ? 'high' : 'medium',
-      matchedKeywords: [],
+      value: selected.value,
+      source: selected.source,
+      confidence: selected.source === 'user-rule' || selected.source === 'explicit' ? 'high' : 'medium',
+      matchedKeywords: topCandidates.flatMap((candidate) => candidate.matchedKeywords),
     };
   }
 
