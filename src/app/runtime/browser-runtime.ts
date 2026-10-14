@@ -17,7 +17,10 @@ import type { Transaction } from '../../domain/transactions/types';
 import { quickCandidateToDraft, parseQuickInput } from '../../features/transactions/quick-parser';
 import {
   DEFAULT_CLASSIFICATION_SETTINGS,
+  addCategoryKeyword,
   normalizeClassificationSettings,
+  removeCategoryKeyword,
+  restoreCategoryKeywords,
   rulesWithClassificationSettings,
   toClassificationSettingsViewModel,
   type ClassificationSettings,
@@ -660,9 +663,6 @@ export class BrowserRuntime {
   }
 
   async saveFixedVariableRule(input: { readonly categoryId: string; readonly mode: FixedVariableMode }): Promise<void> {
-    const session = this.session;
-    const bootstrap = this.bootstrap;
-    if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
     if (!BUILTIN_CATEGORY_IDS.includes(input.categoryId as typeof BUILTIN_CATEGORY_IDS[number]) || input.categoryId === 'uncategorized') {
       throw new TypeError('Unknown classification category.');
     }
@@ -670,55 +670,31 @@ export class BrowserRuntime {
       throw new TypeError('Invalid fixed/variable mode.');
     }
 
-    const currentRecord = await this.repository.getRecord(CLASSIFICATION_SETTINGS_RECORD_ID);
-    const nextSettings = normalizeClassificationSettings({
+    await this.persistClassificationSettings(normalizeClassificationSettings({
+      ...this.classificationSettings,
       fixedVariableByCategory: {
         ...this.classificationSettings.fixedVariableByCategory,
         [input.categoryId]: input.mode,
       },
-    });
-    const version = (currentRecord?.recordVersion ?? 0) + 1;
-    const timestamp = toIso(this.options.now());
-    const revision = await this.repository.getRevision(bootstrap.vaultId);
-    const eventId = newUuid();
-    const aad = financeAad(
-      bootstrap.vaultId,
-      CLASSIFICATION_SETTINGS_RECORD_ID,
-      'classification-settings',
-      version,
-    );
-    const envelope = await session.withVaultKey((key) => encryptRecord(key, aad, nextSettings));
-    const eventEnvelope = await session.withVaultKey((key) => encryptRecord(
-      key,
-      financeAad(bootstrap.vaultId, eventId, 'classification-settings', 1),
-      { beforeVersion: currentRecord?.recordVersion ?? null, after: nextSettings },
-    ));
+    }));
+  }
 
-    await this.repository.commitRecordEvent(
-      bootstrap.vaultId,
-      {
-        recordId: CLASSIFICATION_SETTINGS_RECORD_ID,
-        recordType: 'classification-settings',
-        updatedAt: timestamp,
-        recordVersion: version,
-        encryptedPayload: encodeEnvelope(envelope),
-      },
-      {
-        eventId,
-        recordId: CLASSIFICATION_SETTINGS_RECORD_ID,
-        recordType: 'classification-settings',
-        action: currentRecord ? 'update' : 'create',
-        deviceId: bootstrap.deviceId,
-        deviceSeq: revision + 1,
-        createdAt: timestamp,
-        encryptedPatch: encodeEnvelope(eventEnvelope),
-      },
-      revision,
+  async addCategoryKeyword(input: { readonly categoryId: string; readonly keyword: string }): Promise<void> {
+    await this.persistClassificationSettings(
+      addCategoryKeyword(this.classificationSettings, input.categoryId, input.keyword),
     );
+  }
 
-    this.classificationSettings = nextSettings;
-    await this.hydrate();
-    void this.syncCloudBestEffort();
+  async removeCategoryKeyword(input: { readonly categoryId: string; readonly keyword: string }): Promise<void> {
+    await this.persistClassificationSettings(
+      removeCategoryKeyword(this.classificationSettings, input.categoryId, input.keyword),
+    );
+  }
+
+  async restoreCategoryKeywords(input: { readonly categoryId: string }): Promise<void> {
+    await this.persistClassificationSettings(
+      restoreCategoryKeywords(this.classificationSettings, input.categoryId),
+    );
   }
 
   async resetAllData(input: { readonly pin: string }): Promise<void> {
@@ -1214,6 +1190,55 @@ export class BrowserRuntime {
       sameRecords,
       conflicts,
     };
+  }
+
+  private async persistClassificationSettings(nextSettings: ClassificationSettings): Promise<void> {
+    const session = this.session;
+    const bootstrap = this.bootstrap;
+    if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
+
+    const currentRecord = await this.repository.getRecord(CLASSIFICATION_SETTINGS_RECORD_ID);
+    const normalized = normalizeClassificationSettings(nextSettings);
+    const version = (currentRecord?.recordVersion ?? 0) + 1;
+    const timestamp = toIso(this.options.now());
+    const revision = await this.repository.getRevision(bootstrap.vaultId);
+    const eventId = newUuid();
+    const envelope = await session.withVaultKey((key) => encryptRecord(
+      key,
+      financeAad(bootstrap.vaultId, CLASSIFICATION_SETTINGS_RECORD_ID, 'classification-settings', version),
+      normalized,
+    ));
+    const eventEnvelope = await session.withVaultKey((key) => encryptRecord(
+      key,
+      financeAad(bootstrap.vaultId, eventId, 'classification-settings', 1),
+      { beforeVersion: currentRecord?.recordVersion ?? null, after: normalized },
+    ));
+
+    await this.repository.commitRecordEvent(
+      bootstrap.vaultId,
+      {
+        recordId: CLASSIFICATION_SETTINGS_RECORD_ID,
+        recordType: 'classification-settings',
+        updatedAt: timestamp,
+        recordVersion: version,
+        encryptedPayload: encodeEnvelope(envelope),
+      },
+      {
+        eventId,
+        recordId: CLASSIFICATION_SETTINGS_RECORD_ID,
+        recordType: 'classification-settings',
+        action: currentRecord ? 'update' : 'create',
+        deviceId: bootstrap.deviceId,
+        deviceSeq: revision + 1,
+        createdAt: timestamp,
+        encryptedPatch: encodeEnvelope(eventEnvelope),
+      },
+      revision,
+    );
+
+    this.classificationSettings = normalized;
+    await this.hydrate();
+    void this.syncCloudBestEffort();
   }
 
   private async persistProfile(session: VaultSession, vaultId: string, deviceId: UUID, profile: RuntimeProfile): Promise<void> {
