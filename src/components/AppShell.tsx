@@ -46,6 +46,9 @@ interface AppShellProps {
   readonly onEnrollCloud: (input: { readonly pin: string }) => Promise<void>;
   readonly onResetAllData: (input: { readonly pin: string }) => Promise<void>;
   readonly onSaveFixedVariableRule: (input: { readonly categoryId: string; readonly mode: FixedVariableMode }) => Promise<void>;
+  readonly onAddCategoryKeyword: (input: { readonly categoryId: string; readonly keyword: string }) => Promise<void>;
+  readonly onRemoveCategoryKeyword: (input: { readonly categoryId: string; readonly keyword: string }) => Promise<void>;
+  readonly onRestoreCategoryKeywords: (input: { readonly categoryId: string }) => Promise<void>;
   readonly onLock: () => void;
 }
 
@@ -72,6 +75,9 @@ export function AppShell({
   onEnrollCloud,
   onResetAllData,
   onSaveFixedVariableRule,
+  onAddCategoryKeyword,
+  onRemoveCategoryKeyword,
+  onRestoreCategoryKeywords,
   onLock,
 }: AppShellProps) {
   const [page, setPage] = useState<AppPage>('home');
@@ -107,6 +113,9 @@ export function AppShell({
           onResetAllData={onResetAllData}
           classificationSettings={classificationSettings}
           onSaveFixedVariableRule={onSaveFixedVariableRule}
+          onAddCategoryKeyword={onAddCategoryKeyword}
+          onRemoveCategoryKeyword={onRemoveCategoryKeyword}
+          onRestoreCategoryKeywords={onRestoreCategoryKeywords}
         />
       );
       break;
