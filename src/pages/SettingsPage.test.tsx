@@ -113,8 +113,11 @@ describe('SettingsPage operational hub', () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText('식비 새 키워드'), { target: { value: '샌드위치' } });
-    fireEvent.click(screen.getAllByRole('button', { name: '추가' })[0]!);
+    const foodKeywordInput = screen.getByLabelText('식비 새 키워드');
+    fireEvent.change(foodKeywordInput, { target: { value: '샌드위치' } });
+    const foodAddButton = foodKeywordInput.parentElement?.querySelector('button');
+    if (!foodAddButton) throw new Error('식비 키워드 추가 버튼을 찾을 수 없습니다.');
+    fireEvent.click(foodAddButton);
     await waitFor(() => expect(onAddCategoryKeyword).toHaveBeenCalledWith({
       categoryId: 'food',
       keyword: '샌드위치',
