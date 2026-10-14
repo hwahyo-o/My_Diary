@@ -200,6 +200,8 @@ export interface AppRuntimePorts {
   hasCloudConflict?(): boolean;
   resetAllData?(input: { readonly pin: string }): Promise<void>;
   saveFixedVariableRule?(input: { readonly categoryId: string; readonly mode: FixedVariableMode }): Promise<void>;
+  acceptCorrectionSuggestion?(input: { readonly categoryId: string; readonly keyword: string }): Promise<void>;
+  dismissCorrectionSuggestion?(input: { readonly categoryId: string; readonly keyword: string }): Promise<void>;
   addCategoryKeyword?(input: { readonly categoryId: string; readonly keyword: string }): Promise<void>;
   removeCategoryKeyword?(input: { readonly categoryId: string; readonly keyword: string }): Promise<void>;
   restoreCategoryKeywords?(input: { readonly categoryId: string }): Promise<void>;
@@ -261,4 +263,4 @@ export const defaultBackupStatus: BackupStatusViewModel = {
   reminderDue: true,
 };
 
-export const emptyClassificationSettings: ClassificationSettingsViewModel = { incomeKeywords: [], hasIncomeKeywordChanges: false, categories: [] };
+export const emptyClassificationSettings: ClassificationSettingsViewModel = { incomeKeywords: [], hasIncomeKeywordChanges: false, correctionSuggestions: [], categories: [] };

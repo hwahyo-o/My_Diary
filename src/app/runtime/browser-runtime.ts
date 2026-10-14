@@ -29,6 +29,7 @@ import {
   type ClassificationSettings,
   type FixedVariableMode,
 } from '../../features/transactions/classification-settings';
+import { recordCorrection } from '../../features/transactions/correction-suggestions';
 import { BUILTIN_CATEGORY_IDS, getBuiltinCategory } from '../../features/transactions/category-catalog';
 import { TransactionLedgerService } from '../../features/transactions/transaction-service';
 import { createDirectDraft } from '../../features/transactions/validation';
@@ -581,6 +582,7 @@ export class BrowserRuntime {
     if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
 
     const now = toKstIso(this.options.now());
+    let correctedObservation: { merchantText: string | undefined; categoryId: string; autoCategoryId: string } | null = null;
     const draft = input.mode === 'quick'
       ? (() => {
           const candidate = parseQuickInput(input.text, now, rulesWithClassificationSettings(this.classificationSettings));
@@ -592,6 +594,7 @@ export class BrowserRuntime {
             if (!BUILTIN_CATEGORY_IDS.includes(correction.categoryId as (typeof BUILTIN_CATEGORY_IDS)[number])) {
               throw new TypeError('Unknown transaction category.');
             }
+            correctedObservation = { merchantText: candidate.merchantText, categoryId: correction.categoryId, autoCategoryId: candidate.categoryId };
             const corrected = {
               ...candidate,
               transactionType: correction.transactionType,
@@ -623,6 +626,17 @@ export class BrowserRuntime {
     });
     const revision = await this.repository.getRevision(bootstrap.vaultId);
     await service.saveDraft(draft, { expectedRevision: revision });
+    if (correctedObservation) {
+      const nextObservations = recordCorrection(
+        this.classificationSettings.correctionObservations ?? [],
+        correctedObservation.merchantText,
+        correctedObservation.categoryId,
+        correctedObservation.autoCategoryId,
+      );
+      if (nextObservations.length > 0 && JSON.stringify(nextObservations) !== JSON.stringify(this.classificationSettings.correctionObservations ?? [])) {
+        await this.persistClassificationSettings({ ...this.classificationSettings, correctionObservations: nextObservations });
+      }
+    }
     await this.hydrate();
     void this.syncCloudBestEffort();
   }
@@ -735,6 +749,26 @@ export class BrowserRuntime {
     await this.persistClassificationSettings(
       restoreIncomeKeywords(this.classificationSettings),
     );
+  }
+
+  async acceptCorrectionSuggestion(input: { readonly categoryId: string; readonly keyword: string }): Promise<void> {
+    const suggestion = toClassificationSettingsViewModel(this.classificationSettings).correctionSuggestions.find(
+      (item) => item.keyword === input.keyword && item.categoryId === input.categoryId,
+    );
+    if (!suggestion) throw new Error('Suggestion is no longer valid.');
+    const next = addCategoryKeyword(this.classificationSettings, input.categoryId, input.keyword);
+    await this.persistClassificationSettings({
+      ...next,
+      correctionObservations: (next.correctionObservations ?? []).filter((item) => item.keyword !== input.keyword),
+    });
+  }
+
+  async dismissCorrectionSuggestion(input: { readonly categoryId: string; readonly keyword: string }): Promise<void> {
+    await this.persistClassificationSettings({
+      ...this.classificationSettings,
+      correctionObservations: (this.classificationSettings.correctionObservations ?? [])
+        .filter((item) => !(item.keyword === input.keyword && item.categoryId === input.categoryId)),
+    });
   }
 
   async addCategoryKeyword(input: { readonly categoryId: string; readonly keyword: string }): Promise<void> {

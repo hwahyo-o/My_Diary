@@ -17,6 +17,8 @@ interface SettingsPageProps {
   readonly onResetAllData: (input: { readonly pin: string }) => Promise<void>;
   readonly classificationSettings: ClassificationSettingsViewModel;
   readonly onSaveFixedVariableRule: (input: { readonly categoryId: string; readonly mode: FixedVariableMode }) => Promise<void>;
+  readonly onAcceptCorrectionSuggestion: (input: { readonly categoryId: string; readonly keyword: string }) => Promise<void>;
+  readonly onDismissCorrectionSuggestion: (input: { readonly categoryId: string; readonly keyword: string }) => Promise<void>;
   readonly onAddCategoryKeyword: (input: { readonly categoryId: string; readonly keyword: string }) => Promise<void>;
   readonly onRemoveCategoryKeyword: (input: { readonly categoryId: string; readonly keyword: string }) => Promise<void>;
   readonly onRestoreCategoryKeywords: (input: { readonly categoryId: string }) => Promise<void>;
@@ -38,6 +40,8 @@ export function SettingsPage({
   onResetAllData,
   classificationSettings,
   onSaveFixedVariableRule,
+  onAcceptCorrectionSuggestion,
+  onDismissCorrectionSuggestion,
   onAddCategoryKeyword,
   onRemoveCategoryKeyword,
   onRestoreCategoryKeywords,
@@ -248,6 +252,35 @@ export function SettingsPage({
             </div>
             <span className="status-chip">편집 가능</span>
           </div>
+
+          {classificationSettings.correctionSuggestions.length > 0 ? (
+            <div className="classification-rule-editor" aria-label="개인화 분류 규칙 제안">
+              <h3>반복 수정으로 발견한 규칙 제안</h3>
+              <p className="settings-footnote">동일한 단어를 3번 이상 같은 카테고리로 수정했어요. 승인하기 전에는 자동 분류에 반영되지 않습니다.</p>
+              {classificationSettings.correctionSuggestions.map((suggestion) => (
+                <div className="classification-rule-row classification-rule-row-expanded" key={suggestion.keyword}>
+                  <strong>{suggestion.keyword} → {suggestion.categoryLabel} ({suggestion.count}회 수정)</strong>
+                  <div className="settings-card-actions">
+                    <button type="button" className="secondary-button" disabled={ruleBusy !== null}
+                      onClick={() => {
+                        setRuleBusy(suggestion.keyword);
+                        setRuleError(null);
+                        void onAcceptCorrectionSuggestion({ keyword: suggestion.keyword, categoryId: suggestion.categoryId })
+                          .catch(() => setRuleError('이 키워드가 다른 카테고리에 이미 지정되어 있을 수 있어요. 기존 규칙을 확인해주세요.'))
+                          .finally(() => setRuleBusy(null));
+                      }}>규칙 추가 승인</button>
+                    <button type="button" className="secondary-button" disabled={ruleBusy !== null}
+                      onClick={() => {
+                        setRuleBusy(suggestion.keyword);
+                        void onDismissCorrectionSuggestion({ keyword: suggestion.keyword, categoryId: suggestion.categoryId })
+                          .catch(() => setRuleError('제안을 해제하지 못했습니다.'))
+                          .finally(() => setRuleBusy(null));
+                      }}>제안 무시</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
 
           <ul className="rule-list">
             <li><strong>수입</strong><span>월급 · 급여 · 부수입 · 용돈 · 마일리지 · 포인트 · 리워드 등</span></li>

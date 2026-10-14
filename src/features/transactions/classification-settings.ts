@@ -1,4 +1,5 @@
 import type { FixedVariable } from '../../domain/transactions/types';
+import { sanitizeCorrectionObservations, suggestCorrections, type CorrectionObservation } from './correction-suggestions';
 import { BUILTIN_CATEGORIES, type BuiltinCategoryId } from './category-catalog';
 import {
   DEFAULT_CLASSIFICATION_RULES,
@@ -21,6 +22,7 @@ export interface ClassificationSettings {
   readonly disabledDefaultCategoryKeywords?: readonly string[];
   readonly customIncomeKeywords?: readonly string[];
   readonly disabledDefaultIncomeKeywords?: readonly string[];
+  readonly correctionObservations?: readonly CorrectionObservation[];
 }
 
 export interface ClassificationSettingsViewModel {
@@ -29,6 +31,7 @@ export interface ClassificationSettingsViewModel {
     readonly source: 'default' | 'custom';
   }[];
   readonly hasIncomeKeywordChanges: boolean;
+  readonly correctionSuggestions: readonly { readonly keyword: string; readonly categoryId: BuiltinCategoryId; readonly categoryLabel: string; readonly count: number }[];
   readonly categories: readonly {
     readonly id: BuiltinCategoryId;
     readonly label: string;
@@ -48,6 +51,7 @@ export const DEFAULT_CLASSIFICATION_SETTINGS: ClassificationSettings = {
   disabledDefaultCategoryKeywords: [],
   customIncomeKeywords: [],
   disabledDefaultIncomeKeywords: [],
+  correctionObservations: [],
 };
 
 function hasControlCharacters(value: string): boolean {
@@ -111,6 +115,7 @@ export function normalizeClassificationSettings(input: ClassificationSettings): 
     disabledDefaultCategoryKeywords: disabled,
     customIncomeKeywords: customIncome,
     disabledDefaultIncomeKeywords: disabledIncome,
+    correctionObservations: sanitizeCorrectionObservations(input.correctionObservations ?? []),
   };
 }
 
@@ -284,8 +289,14 @@ export function toClassificationSettingsViewModel(
   const customIncome = (normalized.customIncomeKeywords ?? [])
     .map((value) => ({ value, source: 'custom' as const }));
 
+  const assignedKeywords = new Set(activeKeywordAssignments(normalized).keys());
   return {
     incomeKeywords: [...defaultIncome, ...customIncome],
+    correctionSuggestions: suggestCorrections(normalized.correctionObservations ?? [], assignedKeywords)
+      .map((suggestion) => ({
+        ...suggestion,
+        categoryLabel: BUILTIN_CATEGORIES.find((category) => category.id === suggestion.categoryId)?.label ?? suggestion.categoryId,
+      })),
     hasIncomeKeywordChanges: customIncome.length > 0 || disabledIncome.size > 0,
     categories: BUILTIN_CATEGORIES
       .filter((category) => category.id !== 'uncategorized')
