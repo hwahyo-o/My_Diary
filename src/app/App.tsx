@@ -3,7 +3,7 @@ import { AppShell } from '../components/AppShell';
 import { AccessGate } from '../features/access/AccessGate';
 import { HostingNotice } from '../components/HostingNotice';
 import type { AccessState, AnalyticsViewModel, AppRuntimePorts, AssetsViewModel, CalendarViewModel, DashboardViewModel } from './ui-types';
-import { defaultBackupStatus, emptyAnalytics, emptyAssets, emptyCalendar, emptyDashboard } from './ui-types';
+import { defaultBackupStatus, emptyAnalytics, emptyAssets, emptyCalendar, emptyClassificationSettings, emptyDashboard } from './ui-types';
 
 const failClosedRuntime: AppRuntimePorts = {
   async createProfile() {
@@ -33,6 +33,7 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
   const [assetsState, setAssetsState] = useState<AssetsViewModel>(assets ?? runtimeSnapshot?.assets ?? emptyAssets);
   const [analyticsState, setAnalyticsState] = useState<AnalyticsViewModel>(analytics ?? runtimeSnapshot?.analytics ?? emptyAnalytics);
   const [calendarState, setCalendarState] = useState<CalendarViewModel>(calendar ?? runtimeSnapshot?.calendar ?? emptyCalendar);
+  const [classificationSettingsState, setClassificationSettingsState] = useState(runtimeSnapshot?.classificationSettings ?? emptyClassificationSettings);
 
   useEffect(() => {
     if (!runtime.subscribe) return;
@@ -41,6 +42,7 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
       setAssetsState(snapshot.assets);
       setAnalyticsState(snapshot.analytics);
       setCalendarState(snapshot.calendar);
+      setClassificationSettingsState(snapshot.classificationSettings ?? emptyClassificationSettings);
       if (snapshot.access !== 'unlocked') setAccess(snapshot.access);
     });
   }, [runtime]);
@@ -68,6 +70,7 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
             setAssetsState(next.assets);
             setAnalyticsState(next.analytics);
             setCalendarState(next.calendar);
+            setClassificationSettingsState(next.classificationSettings ?? emptyClassificationSettings);
             setAccess(next.access);
             return;
           }
@@ -86,6 +89,7 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
       assets={assetsState}
       analytics={analyticsState}
       calendar={calendarState}
+      classificationSettings={classificationSettingsState}
       backup={defaultBackupStatus}
       onSubmitTransaction={(input) => runtime.submitTransaction(input)}
       onUpdateTransaction={(input) => {
@@ -137,6 +141,10 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
       onResetAllData={(input) => {
         if (!runtime.resetAllData) return Promise.reject(new Error('Reset runtime is not connected.'));
         return runtime.resetAllData(input);
+      }}
+      onSaveFixedVariableRule={(input) => {
+        if (!runtime.saveFixedVariableRule) return Promise.reject(new Error('Classification settings runtime is not connected.'));
+        return runtime.saveFixedVariableRule(input);
       }}
       onLock={() => runtime.lock?.()}
     />

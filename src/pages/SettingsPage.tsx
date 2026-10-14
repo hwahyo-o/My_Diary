@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { BackupStatusViewModel, VaultImportInspectionViewModel } from '../app/ui-types';
 import { BackupPanel } from '../features/backup/BackupPanel';
+import type { ClassificationSettingsViewModel, FixedVariableMode } from '../features/transactions/classification-settings';
 import { clearBackupStatus, deriveBackupStatus, formatBackupDateKst, readBackupStatus } from '../features/backup/backup-status';
 
 interface SettingsPageProps {
@@ -14,6 +15,8 @@ interface SettingsPageProps {
   readonly cloudConflict: boolean;
   readonly onEnrollCloud: (input: { readonly pin: string }) => Promise<void>;
   readonly onResetAllData: (input: { readonly pin: string }) => Promise<void>;
+  readonly classificationSettings: ClassificationSettingsViewModel;
+  readonly onSaveFixedVariableRule: (input: { readonly categoryId: string; readonly mode: FixedVariableMode }) => Promise<void>;
 }
 
 export function SettingsPage({
@@ -27,6 +30,8 @@ export function SettingsPage({
   cloudConflict,
   onEnrollCloud,
   onResetAllData,
+  classificationSettings,
+  onSaveFixedVariableRule,
 }: SettingsPageProps) {
   const [backupOpen, setBackupOpen] = useState(false);
   const [backupState, setBackupState] = useState<BackupStatusViewModel>(() =>
@@ -40,6 +45,8 @@ export function SettingsPage({
   const [resetPhrase, setResetPhrase] = useState('');
   const [resetBusy, setResetBusy] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
+  const [ruleBusy, setRuleBusy] = useState<string | null>(null);
+  const [ruleError, setRuleError] = useState<string | null>(null);
 
   async function enableCloudSync() {
     setCloudError(null);
@@ -223,17 +230,62 @@ export function SettingsPage({
             <div>
               <p className="card-kicker">INPUT RULES</p>
               <h2 id="rules-settings-title">분류 규칙</h2>
-              <p>현재 빠른 입력에서 자동으로 이해하는 규칙입니다.</p>
+              <p>빠른 입력의 자동 분류와 카테고리별 고정·변동 기준을 관리합니다.</p>
             </div>
-            <span className="status-chip">읽기 전용</span>
+            <span className="status-chip">편집 가능</span>
           </div>
+
           <ul className="rule-list">
-            <li><strong>금액</strong><span>3,000원 · 2500원 · ₩12,500 · 한글 금액</span></li>
-            <li><strong>날짜</strong><span>‘어제’ 입력 시 전날 거래로 기록</span></li>
-            <li><strong>식비 힌트</strong><span>점심 · 식사</span></li>
-            <li><strong>교통 힌트</strong><span>택시 · 버스 · 지하철</span></li>
+            <li><strong>수입</strong><span>월급 · 급여 · 부수입 · 용돈 · 마일리지 · 포인트 · 리워드 등</span></li>
+            <li><strong>날짜</strong><span>오늘 · 어제 · 그제 · 그저께 · n일 전</span></li>
+            <li><strong>식비</strong><span>아침 · 점심 · 저녁 · 식사 · 간식 · 커피 · 음료 · 디저트 · 도시락 등</span></li>
+            <li><strong>교통</strong><span>대중교통 · 택시 · 버스 · 지하철 · 기차 · 주차 · 주유 등</span></li>
           </ul>
-          <p className="settings-footnote">사용자 정의 규칙 편집은 다음 설정 단계에서 추가 예정입니다.</p>
+
+          <div className="classification-rule-editor" aria-labelledby="fixed-variable-rules-title">
+            <div className="settings-card-heading">
+              <div>
+                <h3 id="fixed-variable-rules-title">고정/변동 지출 기준</h3>
+                <p>자동은 기본 분류를 사용하고, 직접 지정한 값은 기본 키워드보다 우선합니다.</p>
+              </div>
+            </div>
+
+            <div className="classification-rule-grid">
+              {classificationSettings.categories.map((category) => (
+                <label key={category.id} className="classification-rule-row">
+                  <span>
+                    <strong>{category.label}</strong>
+                    <small>
+                      기본값 {category.defaultFixedVariable === 'fixed'
+                        ? '고정'
+                        : category.defaultFixedVariable === 'variable'
+                          ? '변동'
+                          : '혼합'}
+                    </small>
+                  </span>
+                  <select
+                    aria-label={`${category.label} 고정 변동 규칙`}
+                    value={category.mode}
+                    disabled={ruleBusy === category.id}
+                    onChange={(event) => {
+                      const mode = event.currentTarget.value as FixedVariableMode;
+                      setRuleError(null);
+                      setRuleBusy(category.id);
+                      void onSaveFixedVariableRule({ categoryId: category.id, mode })
+                        .catch(() => setRuleError('분류 규칙을 저장하지 못했습니다. 잠금 상태나 동기화 상태를 확인해주세요.'))
+                        .finally(() => setRuleBusy(null));
+                    }}
+                  >
+                    <option value="auto">자동</option>
+                    <option value="fixed">항상 고정</option>
+                    <option value="variable">항상 변동</option>
+                  </select>
+                </label>
+              ))}
+            </div>
+            {ruleError ? <p role="alert" className="form-error">{ruleError}</p> : null}
+            <p className="settings-footnote">이 설정은 Vault 내부에 암호화해 저장하며, 클라우드 동기화를 사용하면 다른 기기에도 암호화된 상태로 전달됩니다.</p>
+          </div>
         </article>
 
         <article className="settings-card" aria-labelledby="reset-settings-title">

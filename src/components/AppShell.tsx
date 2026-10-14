@@ -13,6 +13,7 @@ import type {
   UpdateTransactionInput,
   VaultImportInspectionViewModel,
 } from '../app/ui-types';
+import type { ClassificationSettingsViewModel, FixedVariableMode } from '../features/transactions/classification-settings';
 import { downloadVaultBytes } from '../app/runtime/browser-file-io';
 import { TransactionEntrySheet } from '../features/transactions/TransactionEntrySheet';
 import { AssetsPage } from '../pages/AssetsPage';
@@ -28,6 +29,7 @@ interface AppShellProps {
   readonly analytics: AnalyticsViewModel;
   readonly backup: BackupStatusViewModel;
   readonly calendar: CalendarViewModel;
+  readonly classificationSettings: ClassificationSettingsViewModel;
   readonly onSubmitTransaction: (input: TransactionSubmission) => Promise<void>;
   readonly onUpdateTransaction: (input: UpdateTransactionInput) => Promise<void>;
   readonly onDeleteTransaction: (id: string) => Promise<void>;
@@ -43,6 +45,7 @@ interface AppShellProps {
   readonly cloudConflict: boolean;
   readonly onEnrollCloud: (input: { readonly pin: string }) => Promise<void>;
   readonly onResetAllData: (input: { readonly pin: string }) => Promise<void>;
+  readonly onSaveFixedVariableRule: (input: { readonly categoryId: string; readonly mode: FixedVariableMode }) => Promise<void>;
   readonly onLock: () => void;
 }
 
@@ -52,6 +55,7 @@ export function AppShell({
   analytics,
   backup,
   calendar,
+  classificationSettings,
   onSubmitTransaction,
   onUpdateTransaction,
   onDeleteTransaction,
@@ -67,6 +71,7 @@ export function AppShell({
   cloudConflict,
   onEnrollCloud,
   onResetAllData,
+  onSaveFixedVariableRule,
   onLock,
 }: AppShellProps) {
   const [page, setPage] = useState<AppPage>('home');
@@ -100,6 +105,8 @@ export function AppShell({
           cloudConflict={cloudConflict}
           onEnrollCloud={onEnrollCloud}
           onResetAllData={onResetAllData}
+          classificationSettings={classificationSettings}
+          onSaveFixedVariableRule={onSaveFixedVariableRule}
         />
       );
       break;

@@ -15,6 +15,15 @@ import { parseISODate, parseISODateTime, parseUUID, type ISODate, type ISODateTi
 import { getIncomeExpenseImpact } from '../../domain/transactions/accounting';
 import type { Transaction } from '../../domain/transactions/types';
 import { quickCandidateToDraft, parseQuickInput } from '../../features/transactions/quick-parser';
+import {
+  DEFAULT_CLASSIFICATION_SETTINGS,
+  normalizeClassificationSettings,
+  rulesWithClassificationSettings,
+  toClassificationSettingsViewModel,
+  type ClassificationSettings,
+  type FixedVariableMode,
+} from '../../features/transactions/classification-settings';
+import { BUILTIN_CATEGORY_IDS } from '../../features/transactions/category-catalog';
 import { TransactionLedgerService } from '../../features/transactions/transaction-service';
 import { createDirectDraft } from '../../features/transactions/validation';
 import { openVaultDatabase } from '../../storage/database';
@@ -34,7 +43,7 @@ import type {
   TransactionSubmission,
   UpdateTransactionInput,
 } from '../ui-types';
-import { emptyAnalytics, emptyAssets, emptyCalendar, emptyDashboard } from '../ui-types';
+import { emptyAnalytics, emptyAssets, emptyCalendar, emptyClassificationSettings, emptyDashboard } from '../ui-types';
 import {
   base64UrlToBytes,
   createVaultPackage,
@@ -95,6 +104,7 @@ export interface BrowserRuntimeOptions {
 
 const BOOTSTRAP_KEY = 'device-bootstrap-v1';
 const CLOUD_META_KEY = 'cloud-enrollment-v1';
+const CLASSIFICATION_SETTINGS_RECORD_ID = parseUUID('00000000-0000-4000-8000-000000000052');
 const SCHEMA_VERSION = 1;
 const MAX_PIN_FAILURES = 10;
 
@@ -174,7 +184,7 @@ function transactionAad(vaultId: string, recordId: string, recordVersion: number
 function financeAad(
   vaultId: string,
   recordId: string,
-  recordType: 'account' | 'budget' | 'holding' | 'loan',
+  recordType: 'account' | 'budget' | 'holding' | 'loan' | 'classification-settings',
   recordVersion: number,
 ): RecordAad {
   return {
@@ -269,6 +279,7 @@ export class BrowserRuntime {
   private cloudMeta: CloudEnrollmentMeta | null = null;
   private cloudKek: Uint8Array | null = null;
   private cloudConflict = false;
+  private classificationSettings: ClassificationSettings = DEFAULT_CLASSIFICATION_SETTINGS;
   private readonly cloudClient = new CloudSyncClient();
   private snapshot: RuntimeSnapshot = {
     access: 'onboarding',
@@ -276,6 +287,7 @@ export class BrowserRuntime {
     assets: emptyAssets,
     analytics: emptyAnalytics,
     calendar: emptyCalendar,
+    classificationSettings: emptyClassificationSettings,
   };
   private readonly listeners = new Set<(snapshot: RuntimeSnapshot) => void>();
 
@@ -300,6 +312,7 @@ export class BrowserRuntime {
       assets: emptyAssets,
       analytics: emptyAnalytics,
       calendar: emptyCalendar,
+      classificationSettings: emptyClassificationSettings,
     };
     return runtime;
   }
@@ -541,7 +554,7 @@ export class BrowserRuntime {
     const now = toKstIso(this.options.now());
     const draft = input.mode === 'quick'
       ? (() => {
-          const candidate = parseQuickInput(input.text, now);
+          const candidate = parseQuickInput(input.text, now, rulesWithClassificationSettings(this.classificationSettings));
           if (candidate.classification.needsReview) {
             throw new Error('Quick input classification requires review.');
           }
@@ -646,6 +659,68 @@ export class BrowserRuntime {
     void this.syncCloudBestEffort();
   }
 
+  async saveFixedVariableRule(input: { readonly categoryId: string; readonly mode: FixedVariableMode }): Promise<void> {
+    const session = this.session;
+    const bootstrap = this.bootstrap;
+    if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
+    if (!BUILTIN_CATEGORY_IDS.includes(input.categoryId as typeof BUILTIN_CATEGORY_IDS[number]) || input.categoryId === 'uncategorized') {
+      throw new TypeError('Unknown classification category.');
+    }
+    if (input.mode !== 'auto' && input.mode !== 'fixed' && input.mode !== 'variable') {
+      throw new TypeError('Invalid fixed/variable mode.');
+    }
+
+    const currentRecord = await this.repository.getRecord(CLASSIFICATION_SETTINGS_RECORD_ID);
+    const nextSettings = normalizeClassificationSettings({
+      fixedVariableByCategory: {
+        ...this.classificationSettings.fixedVariableByCategory,
+        [input.categoryId]: input.mode,
+      },
+    });
+    const version = (currentRecord?.recordVersion ?? 0) + 1;
+    const timestamp = toIso(this.options.now());
+    const revision = await this.repository.getRevision(bootstrap.vaultId);
+    const eventId = newUuid();
+    const aad = financeAad(
+      bootstrap.vaultId,
+      CLASSIFICATION_SETTINGS_RECORD_ID,
+      'classification-settings',
+      version,
+    );
+    const envelope = await session.withVaultKey((key) => encryptRecord(key, aad, nextSettings));
+    const eventEnvelope = await session.withVaultKey((key) => encryptRecord(
+      key,
+      financeAad(bootstrap.vaultId, eventId, 'classification-settings', 1),
+      { beforeVersion: currentRecord?.recordVersion ?? null, after: nextSettings },
+    ));
+
+    await this.repository.commitRecordEvent(
+      bootstrap.vaultId,
+      {
+        recordId: CLASSIFICATION_SETTINGS_RECORD_ID,
+        recordType: 'classification-settings',
+        updatedAt: timestamp,
+        recordVersion: version,
+        encryptedPayload: encodeEnvelope(envelope),
+      },
+      {
+        eventId,
+        recordId: CLASSIFICATION_SETTINGS_RECORD_ID,
+        recordType: 'classification-settings',
+        action: currentRecord ? 'update' : 'create',
+        deviceId: bootstrap.deviceId,
+        deviceSeq: revision + 1,
+        createdAt: timestamp,
+        encryptedPatch: encodeEnvelope(eventEnvelope),
+      },
+      revision,
+    );
+
+    this.classificationSettings = nextSettings;
+    await this.hydrate();
+    void this.syncCloudBestEffort();
+  }
+
   async resetAllData(input: { readonly pin: string }): Promise<void> {
     const bootstrap = this.bootstrap;
     const session = this.session;
@@ -677,6 +752,7 @@ export class BrowserRuntime {
       this.cloudMeta = null;
       this.bootstrap = null;
       this.cloudConflict = false;
+      this.classificationSettings = DEFAULT_CLASSIFICATION_SETTINGS;
       this.session?.lock();
       this.session = null;
       this.setSnapshot({
@@ -685,6 +761,7 @@ export class BrowserRuntime {
         assets: emptyAssets,
         analytics: emptyAnalytics,
         calendar: emptyCalendar,
+        classificationSettings: emptyClassificationSettings,
       });
     } finally {
       deviceKek.fill(0);
@@ -1174,7 +1251,7 @@ export class BrowserRuntime {
   }
 
   private async persistFinanceRecord(
-    recordType: 'account' | 'budget' | 'holding' | 'loan',
+    recordType: 'account' | 'budget' | 'holding' | 'loan' | 'classification-settings',
     recordId: UUID,
     recordVersion: number,
     updatedAt: ISODateTime,
@@ -1231,7 +1308,7 @@ export class BrowserRuntime {
       decodeEnvelope(profileRecord.encryptedPayload),
     ));
 
-    const decryptByType = async <T>(recordType: 'account' | 'budget' | 'holding' | 'loan'): Promise<T[]> => {
+    const decryptByType = async <T>(recordType: 'account' | 'budget' | 'holding' | 'loan' | 'classification-settings'): Promise<T[]> => {
       const stored = await this.repository.listRecordsByType(recordType);
       return Promise.all(stored.map((record) => session.withVaultKey((key) => decryptRecord<T>(
         key,
@@ -1240,14 +1317,19 @@ export class BrowserRuntime {
       ))));
     };
 
-    const [storedTransactions, accountPayloads, budgets, holdings, loans, revision] = await Promise.all([
+    const [storedTransactions, accountPayloads, budgets, holdings, loans, classificationSettingsRecords, revision] = await Promise.all([
       this.repository.listRecordsByType('transaction'),
       decryptByType<StoredAccountPayload>('account'),
       decryptByType<Budget>('budget'),
       decryptByType<Holding>('holding'),
       decryptByType<Loan>('loan'),
+      decryptByType<ClassificationSettings>('classification-settings'),
       this.repository.getRevision(bootstrap.vaultId),
     ]);
+
+    this.classificationSettings = normalizeClassificationSettings(
+      classificationSettingsRecords[0] ?? DEFAULT_CLASSIFICATION_SETTINGS,
+    );
 
     const transactions = await Promise.all(storedTransactions.map((stored) => session.withVaultKey((key) => decryptRecord<Transaction>(
       key,
@@ -1429,6 +1511,7 @@ export class BrowserRuntime {
             };
           }),
       },
+      classificationSettings: toClassificationSettingsViewModel(this.classificationSettings),
     });
   }
   private setSnapshot(snapshot: RuntimeSnapshot): void {
