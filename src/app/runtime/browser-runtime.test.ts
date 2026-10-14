@@ -112,6 +112,37 @@ describe('BrowserRuntime composition', () => {
     }
   });
 
+  it('stores fixed-variable category settings encrypted and applies them to Quick Add', async () => {
+    const dbName = `runtime-classification-settings-${crypto.randomUUID()}`;
+    const runtime = await BrowserRuntime.open({
+      dbName,
+      argon2Profile: 'test',
+      now: () => new Date('2026-10-14T01:00:00.000Z'),
+    });
+
+    try {
+      await runtime.createProfile({ nickname: '규칙 테스트', pin: '4829517304' });
+      expect(runtime.getSnapshot().classificationSettings?.categories.find((item) => item.id === 'food')?.mode).toBe('auto');
+
+      await runtime.saveFixedVariableRule({ categoryId: 'food', mode: 'fixed' });
+      expect(runtime.getSnapshot().classificationSettings?.categories.find((item) => item.id === 'food')?.mode).toBe('fixed');
+
+      await runtime.submitTransaction({ mode: 'quick', text: '커피 4500' });
+      expect(runtime.getSnapshot().analytics.fixedMinor).toBe(4500);
+      expect(runtime.getSnapshot().analytics.variableMinor).toBe(0);
+
+      const records = await dumpStore(dbName, STORE_NAMES.records);
+      const serialized = JSON.stringify(records);
+      expect(serialized).not.toContain('fixedVariableByCategory');
+      expect(serialized).not.toContain('"food":"fixed"');
+
+      await runtime.saveFixedVariableRule({ categoryId: 'food', mode: 'auto' });
+      expect(runtime.getSnapshot().classificationSettings?.categories.find((item) => item.id === 'food')?.mode).toBe('auto');
+    } finally {
+      runtime.close();
+    }
+  });
+
   it('round-trips an encrypted backup into a fresh runtime and unlocks with a new PIN', async () => {
     const sourceDbName = `runtime-source-${crypto.randomUUID()}`;
     const targetDbName = `runtime-target-${crypto.randomUUID()}`;
