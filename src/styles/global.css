@@ -157,6 +157,35 @@ h2 { margin-bottom: 0; }
 .rule-list strong { font-size: .82rem; }
 .rule-list span { color: var(--color-ink-muted); text-align: right; line-height: 1.45; }
 .settings-footnote { margin: 0; color: var(--color-ink-muted); font-size: .78rem; line-height: 1.5; }
+.classification-rule-editor { display: grid; gap: var(--space-3); padding-top: var(--space-2); border-top: 1px solid var(--color-border); }
+.classification-rule-editor .settings-card-heading h3 { margin: 0; font-size: 1rem; }
+.classification-rule-grid { display: grid; gap: var(--space-2); }
+.classification-rule-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(8rem, .7fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding: .8rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-soft);
+}
+.classification-rule-row > span { display: grid; gap: .2rem; min-width: 0; }
+.classification-rule-row strong { font-size: .84rem; }
+.classification-rule-row small { color: var(--color-ink-muted); font-size: .7rem; }
+.classification-rule-row select {
+  min-height: 42px;
+  width: 100%;
+  padding: 0 .75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink);
+  background: white;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 800;
+}
+.classification-rule-row select:disabled { cursor: wait; opacity: .6; }
 
 @media (max-width: 760px) {
   .settings-dashboard { grid-template-columns: 1fr; }
@@ -173,6 +202,7 @@ h2 { margin-bottom: 0; }
   .settings-status-list dd,
   .rule-list span { text-align: left; }
   .settings-card-heading { flex-direction: column; }
+  .classification-rule-row { grid-template-columns: 1fr; }
 }
 
 
