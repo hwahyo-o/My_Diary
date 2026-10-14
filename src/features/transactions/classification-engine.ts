@@ -32,6 +32,7 @@ export interface CategoryKeywordRule {
   readonly keyword: string;
   readonly categoryId: string;
   readonly source?: Exclude<ClassificationSource, 'default'>;
+  readonly wholeToken?: boolean;
 }
 
 export interface FixedVariableRule {
@@ -101,8 +102,9 @@ export const DEFAULT_CLASSIFICATION_RULES: ClassificationRuleSet = {
       .map((keyword) => ({ keyword, categoryId: 'telecom' as const })),
     ...['구독', '멤버십', '정기결제']
       .map((keyword) => ({ keyword, categoryId: 'subscription' as const })),
-    ...['병원', '약국', '약', '진료', '미용실', '화장품']
+    ...['병원', '약국', '진료', '미용실', '화장품']
       .map((keyword) => ({ keyword, categoryId: 'health-beauty' as const })),
+    { keyword: '약', categoryId: 'health-beauty', wholeToken: true },
     ...['영화', '공연', '전시', '취미', '선물', '데이트', '모임']
       .map((keyword) => ({ keyword, categoryId: 'leisure-relationships' as const })),
     ...['적금', '예금', '저축']
@@ -239,7 +241,9 @@ function resolveCategory(
   reviewReasons: string[],
 ): ClassificationDecision<string> {
   const matches = rules.categoryKeywords
-    .filter((rule) => containsKeyword(normalizedText, rule.keyword))
+    .filter((rule) => rule.wholeToken
+      ? containsExplicitToken(normalizedText, rule.keyword)
+      : containsKeyword(normalizedText, rule.keyword))
     .map((rule) => ({ ...rule, resolvedSource: rule.source ?? 'keyword' as ClassificationSource }));
   const highestRank = matches.reduce((rank, rule) => Math.max(rank, sourceRank(rule.resolvedSource)), 0);
   const topMatches = matches.filter((rule) => sourceRank(rule.resolvedSource) === highestRank);
