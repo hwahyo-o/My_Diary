@@ -84,6 +84,27 @@ export class TransactionLedgerService {
     return { transaction, revision };
   }
 
+  async saveDraftBatch(draftInputs: readonly TransactionDraft[], expectedRevision: number): Promise<number> {
+    if (draftInputs.length < 2 || draftInputs.length > 20) throw new TypeError('Invalid batch size.');
+    const drafts = draftInputs.map((input) => validateTransactionDraft(input));
+    const timestamp = this.deps.now();
+    const items = await Promise.all(drafts.map(async (draft) => {
+      const transaction: Transaction = { ...draft, id: this.deps.newTransactionId(), createdAt: timestamp, updatedAt: timestamp, version: 1 };
+      const eventId = this.deps.newEventId();
+      const recordAad: RecordAad = { vaultId: this.deps.vaultId, recordId: transaction.id, recordType: 'transaction', schemaVersion: this.deps.schemaVersion, recordVersion: 1 };
+      const eventAad: RecordAad = { vaultId: this.deps.vaultId, recordId: eventId, recordType: 'transaction-event', schemaVersion: this.deps.schemaVersion, recordVersion: 1 };
+      const [recordEnvelope, eventEnvelope] = await this.deps.session.withVaultKey(async (key) => Promise.all([
+        encryptRecord(key, recordAad, transaction),
+        encryptRecord<MutationPatch>(key, eventAad, { before: null, after: transaction }),
+      ]));
+      return {
+        record: { recordId: transaction.id, recordType: 'transaction', updatedAt: timestamp, recordVersion: 1, encryptedPayload: encodeEnvelope(recordEnvelope) },
+        event: { eventId, recordId: transaction.id, recordType: 'transaction', action: 'create' as const, deviceId: this.deps.deviceId, deviceSeq: 1, createdAt: timestamp, encryptedPatch: encodeEnvelope(eventEnvelope) },
+      };
+    }));
+    return this.deps.repository.commitRecordEventBatch(this.deps.vaultId, items, expectedRevision);
+  }
+
   async updateTransaction(
     recordId: UUID,
     input: UpdateTransactionInput,
