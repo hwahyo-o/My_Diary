@@ -573,6 +573,7 @@ export class BrowserRuntime {
       fixedVariable: candidate.fixedVariable,
       needsReview: candidate.classification.needsReview,
       unresolvedAmount: candidate.unresolved.includes('amount'),
+      multipleAmounts: candidate.unresolved.includes('multiple-amounts'),
     };
   }
 
@@ -587,6 +588,9 @@ export class BrowserRuntime {
       ? (() => {
           const candidate = parseQuickInput(input.text, now, rulesWithClassificationSettings(this.classificationSettings));
           const correction = input.correction;
+          if (candidate.unresolved.includes('multiple-amounts')) {
+            throw new Error('Multiple amounts require separate Quick Add entries.');
+          }
           if (candidate.classification.needsReview && !correction) {
             throw new Error('Quick input classification requires review.');
           }

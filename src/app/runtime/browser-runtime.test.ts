@@ -127,6 +127,34 @@ describe('BrowserRuntime composition', () => {
     }
   });
 
+  it('rejects multiple amounts without creating any transaction even with manual correction', async () => {
+    const runtime = await BrowserRuntime.open({
+      dbName: `multi-amount-${crypto.randomUUID()}`,
+      argon2Profile: 'test',
+      now: () => new Date('2026-10-14T01:00:00.000Z'),
+    });
+    try {
+      await runtime.createProfile({ nickname: '복합 입력 검사', pin: '4829517304' });
+      const text = '그제 점심 8000원, 오늘 커피 4500원';
+      expect(runtime.previewQuickTransaction(text).multipleAmounts).toBe(true);
+      await expect(runtime.submitTransaction({ mode: 'quick', text })).rejects.toThrow(/Multiple amounts/);
+      await expect(runtime.submitTransaction({
+        mode: 'quick',
+        text,
+        correction: {
+          transactionType: 'expense',
+          categoryId: 'food',
+          fixedVariable: 'variable',
+          occurredAt: '2026-10-14T12:00:00.000+09:00',
+        },
+      })).rejects.toThrow(/Multiple amounts/);
+      expect(runtime.getSnapshot().calendar.transactions).toHaveLength(0);
+      expect(runtime.getSnapshot().dashboard.expenseMinor).toBe(0);
+    } finally {
+      runtime.close();
+    }
+  });
+
   it('stores quick relative dates using Korea calendar dates around UTC day boundaries', async () => {
     const dbName = `runtime-kst-date-${crypto.randomUUID()}`;
     const runtime = await BrowserRuntime.open({
