@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_CLASSIFICATION_SETTINGS,
   normalizeClassificationSettings,
+  addCategoryKeyword,
+  removeCategoryKeyword,
+  restoreCategoryKeywords,
   rulesWithClassificationSettings,
   toClassificationSettingsViewModel,
 } from './classification-settings';
@@ -22,6 +25,23 @@ describe('classification settings', () => {
       defaultFixedVariable: 'fixed',
       mode: 'auto',
     });
+  });
+
+  it('adds, removes, restores, and validates category keywords', () => {
+    const withCustom = addCategoryKeyword(DEFAULT_CLASSIFICATION_SETTINGS, 'food', '샌드위치');
+    expect(classifyTransactionText('샌드위치 6500', now, rulesWithClassificationSettings(withCustom)).categoryId).toMatchObject({
+      value: 'food',
+      source: 'user-rule',
+    });
+
+    const withoutCoffee = removeCategoryKeyword(withCustom, 'food', '커피');
+    expect(classifyTransactionText('커피 4500', now, rulesWithClassificationSettings(withoutCoffee)).categoryId.value).toBe('uncategorized');
+
+    const restored = restoreCategoryKeywords(withoutCoffee, 'food');
+    expect(classifyTransactionText('커피 4500', now, rulesWithClassificationSettings(restored)).categoryId.value).toBe('food');
+    expect(classifyTransactionText('샌드위치 6500', now, rulesWithClassificationSettings(restored)).categoryId.value).toBe('uncategorized');
+
+    expect(() => addCategoryKeyword(DEFAULT_CLASSIFICATION_SETTINGS, 'transport', '커피')).toThrow(/another category/i);
   });
 
   it('lets a user category rule override built-in keyword defaults', () => {
