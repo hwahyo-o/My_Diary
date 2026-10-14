@@ -93,7 +93,7 @@ describe('SettingsPage operational hub', () => {
       keyword: '샌드위치',
     }));
 
-    fireEvent.click(screen.getByRole('button', { name: '커피 ×' }));
+    fireEvent.click(screen.getByRole('button', { name: '커피' }));
     await waitFor(() => expect(onRemoveCategoryKeyword).toHaveBeenCalledWith({
       categoryId: 'food',
       keyword: '커피',
