@@ -138,6 +138,20 @@ describe('BrowserRuntime composition', () => {
 
       await runtime.saveFixedVariableRule({ categoryId: 'food', mode: 'auto' });
       expect(runtime.getSnapshot().classificationSettings?.categories.find((item) => item.id === 'food')?.mode).toBe('auto');
+
+      await runtime.addCategoryKeyword({ categoryId: 'food', keyword: '샌드위치' });
+      expect(runtime.getSnapshot().classificationSettings?.categories.find((item) => item.id === 'food')?.keywords)
+        .toEqual(expect.arrayContaining([{ value: '샌드위치', source: 'custom' }]));
+      await runtime.submitTransaction({ mode: 'quick', text: '샌드위치 6500' });
+      expect(runtime.getSnapshot().analytics.variableMinor).toBe(6500);
+
+      await runtime.removeCategoryKeyword({ categoryId: 'food', keyword: '커피' });
+      expect(runtime.getSnapshot().classificationSettings?.categories.find((item) => item.id === 'food')?.keywords)
+        .not.toEqual(expect.arrayContaining([{ value: '커피', source: 'default' }]));
+
+      const encryptedAfterKeywords = JSON.stringify(await dumpStore(dbName, STORE_NAMES.records));
+      expect(encryptedAfterKeywords).not.toContain('샌드위치');
+      expect(encryptedAfterKeywords).not.toContain('customCategoryKeywords');
     } finally {
       runtime.close();
     }
