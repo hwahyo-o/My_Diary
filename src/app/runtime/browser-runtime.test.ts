@@ -187,6 +187,27 @@ describe('BrowserRuntime composition', () => {
     } finally { runtime.close(); }
   });
 
+  it('stores edited batch values and rejects an invalid entry atomically', async () => {
+    const runtime = await BrowserRuntime.open({ dbName: `batch-edit-${crypto.randomUUID()}`, argon2Profile: 'test', now: () => new Date('2026-10-14T01:00:00.000Z') });
+    try {
+      await runtime.createProfile({ nickname: '일괄 수정', pin: '4829517304' });
+      const text = '점심 8000원; 커피 4500원';
+      const entries = runtime.previewQuickBatch(text).entries.map((entry) => ({
+        text: entry.text,
+        amountMinor: entry.amountMinor ?? 0,
+        transactionType: 'expense' as const,
+        categoryId: 'food',
+        fixedVariable: 'variable' as const,
+        occurredAt: '2026-10-13T12:00:00.000+09:00',
+      }));
+      await expect(runtime.submitTransaction({ mode: 'batch', text, entries: [{ ...entries[0]!, amountMinor: -1 }, entries[1]!] })).rejects.toThrow();
+      expect(runtime.getSnapshot().calendar.transactions).toHaveLength(0);
+      await runtime.submitTransaction({ mode: 'batch', text, entries: [{ ...entries[0]!, amountMinor: 9000 }, { ...entries[1]!, amountMinor: 5500 }] });
+      expect(runtime.getSnapshot().dashboard.expenseMinor).toBe(14500);
+      expect(runtime.getSnapshot().calendar.transactions).toHaveLength(2);
+    } finally { runtime.close(); }
+  });
+
   it('stores quick relative dates using Korea calendar dates around UTC day boundaries', async () => {
     const dbName = `runtime-kst-date-${crypto.randomUUID()}`;
     const runtime = await BrowserRuntime.open({

@@ -594,11 +594,41 @@ export class BrowserRuntime {
       const bootstrap = this.bootstrap;
       if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
       const preview = this.previewQuickBatch(input.text);
-      if (!preview.valid) throw new Error('Batch requires 2–20 individually valid entries.');
+      const correctedEntries = input.entries;
+      if (preview.entries.length < 2 || preview.entries.length > 20) throw new Error('Invalid batch size.');
+      if (correctedEntries && (
+        correctedEntries.length !== preview.entries.length
+        || correctedEntries.some((entry, index) => entry.text !== preview.entries[index]?.text)
+      )) throw new Error('Batch entries do not match the submitted text.');
+      if (!correctedEntries && !preview.valid) throw new Error('Batch requires individually valid entries.');
       const rules = rulesWithClassificationSettings(this.classificationSettings);
       const now = toKstIso(this.options.now());
-      const drafts = preview.entries.map((entry) =>
-        quickCandidateToDraft(parseQuickInput(entry.text, now, rules), { accountId: bootstrap.defaultAccountId }));
+      const drafts = preview.entries.map((entry, index) => {
+        const candidate = parseQuickInput(entry.text, now, rules);
+        if (candidate.unresolved.includes('multiple-amounts')) throw new Error('Ambiguous monetary amounts.');
+        const correction = correctedEntries?.[index];
+        if (!correction && (candidate.unresolved.includes('amount') || candidate.classification.needsReview)) {
+          throw new Error('Each batch entry requires review.');
+        }
+        if (!correction) return quickCandidateToDraft(candidate, { accountId: bootstrap.defaultAccountId });
+        if (!Number.isSafeInteger(correction.amountMinor) || correction.amountMinor <= 0
+          || !['income', 'expense'].includes(correction.transactionType)
+          || !['fixed', 'variable', 'mixed'].includes(correction.fixedVariable)
+          || !BUILTIN_CATEGORY_IDS.includes(correction.categoryId as (typeof BUILTIN_CATEGORY_IDS)[number])) {
+          throw new TypeError('Invalid corrected batch entry.');
+        }
+        const correctedDate = parseISODateTime(correction.occurredAt);
+        if (Number.isNaN(new Date(correctedDate).getTime())) throw new TypeError('Invalid transaction date.');
+        return quickCandidateToDraft({
+          ...candidate,
+          amountMinor: correction.amountMinor,
+          unresolved: [],
+          transactionType: correction.transactionType,
+          categoryId: correction.categoryId,
+          fixedVariable: correction.fixedVariable,
+          occurredAt: correctedDate,
+        }, { accountId: bootstrap.defaultAccountId });
+      });
       const service = new TransactionLedgerService({
         repository: this.repository, session, vaultId: bootstrap.vaultId,
         schemaVersion: SCHEMA_VERSION, deviceId: bootstrap.deviceId,

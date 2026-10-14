@@ -146,12 +146,14 @@ export interface QuickTransactionCorrection {
   readonly occurredAt: string;
 }
 
+export interface QuickBatchEntryCorrection extends QuickTransactionCorrection { readonly text: string; readonly amountMinor: number; }
+
 export interface QuickBatchPreview { readonly entries: readonly (QuickTransactionPreviewViewModel & { readonly text: string })[]; readonly valid: boolean; }
 
 export type TransactionSubmission =
   | { readonly mode: 'quick'; readonly text: string; readonly correction?: QuickTransactionCorrection }
   | { readonly mode: 'direct'; readonly amountMinor: number; readonly memo: string }
-  | { readonly mode: 'batch'; readonly text: string };
+  | { readonly mode: 'batch'; readonly text: string; readonly entries?: readonly QuickBatchEntryCorrection[] };
 
 export interface UpdateTransactionInput {
   readonly id: string;

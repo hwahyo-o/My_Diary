@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import type { QuickTransactionCorrection, QuickTransactionPreviewViewModel, QuickBatchPreview, TransactionSubmission } from '../../app/ui-types';
+import type { QuickTransactionCorrection, QuickTransactionPreviewViewModel, QuickBatchPreview, QuickBatchEntryCorrection, TransactionSubmission } from '../../app/ui-types';
 import { BUILTIN_CATEGORIES } from './category-catalog';
 
 interface TransactionEntrySheetProps {
@@ -40,6 +40,7 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPr
   const [memo, setMemo] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [batchEdits, setBatchEdits] = useState<QuickBatchEntryCorrection[] | null>(null);
   const [correction, setCorrection] = useState<QuickTransactionCorrection | null>(null);
   const batch = quickText.trim() && onPreviewQuickBatch ? onPreviewQuickBatch(quickText) : null;
   const isBatch = (batch?.entries.length ?? 0) > 1;
@@ -72,10 +73,11 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPr
     }
 
     if (isBatch) {
-      if (!batch?.valid) { setError('일괄 입력에 확인이 필요한 거래가 있습니다. 각 입력을 확인해주세요.'); return; }
+      if (!batch || (!batchEdits && !batch.valid) || (batchEdits && batchEdits.length !== batch.entries.length)) { setError('거래별 수정값을 확인해주세요.'); return; }
       setBusy(true);
       try {
-        await onSubmitTransaction({ mode: 'batch', text });
+        await onSubmitTransaction({ mode: 'batch', text, ...(batchEdits ? { entries: batchEdits } : {}) });
+        setBatchEdits(null);
         setQuickText('');
         onClose();
       } catch {
@@ -159,6 +161,7 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPr
                 onChange={(event) => {
                   setQuickText(event.currentTarget.value);
                   setCorrection(null);
+                  setBatchEdits(null);
                   setError(null);
                 }}
                 placeholder="예: 그제 커피 4,500원"
@@ -168,14 +171,44 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPr
             {isBatch && batch ? (
               <div className="quick-preview" aria-live="polite">
                 <strong>거래 {batch.entries.length}건 일괄 미리보기</strong>
-                {batch.entries.map((entry, index) => (
-                  <div className="quick-preview-heading" key={index}>
-                    <span>{entry.text} · {entry.categoryLabel} · {entry.occurredAt.slice(0, 10)}</span>
-                    <strong>{entry.amountMinor === null ? '금액 확인' : `₩${entry.amountMinor.toLocaleString('ko-KR')}`}</strong>
-                    {entry.needsReview || entry.unresolvedAmount || entry.multipleAmounts ? <span>확인 필요</span> : null}
-                  </div>
-                ))}
-                <strong>합계 ₩{batch.entries.reduce((sum, item) => sum + (item.amountMinor ?? 0), 0).toLocaleString('ko-KR')}</strong>
+                {batch.entries.map((entry, index) => {
+                  const edit = batchEdits?.[index];
+                  const update = (changes: Partial<QuickBatchEntryCorrection>) => {
+                    setBatchEdits((current) => current?.map((value, position) =>
+                      position === index ? { ...value, ...changes } : value) ?? null);
+                  };
+                  return (
+                    <div className="quick-batch-entry" key={index}>
+                      <strong>{index + 1}. {entry.text}</strong>
+                      {edit ? (
+                        <div className="quick-correction-grid">
+                          <label>금액<input aria-label={`거래 ${index + 1} 금액`} type="number" min="1" step="1" value={edit.amountMinor}
+                            onChange={(event) => update({ amountMinor: Number(event.currentTarget.value) })} /></label>
+                          <label>유형<select aria-label={`거래 ${index + 1} 유형`} value={edit.transactionType}
+                            onChange={(event) => update({ transactionType: event.currentTarget.value as 'income' | 'expense' })}>
+                            <option value="expense">지출</option><option value="income">수입</option></select></label>
+                          <label>카테고리<select aria-label={`거래 ${index + 1} 카테고리`} value={edit.categoryId}
+                            onChange={(event) => update({ categoryId: event.currentTarget.value })}>
+                            {BUILTIN_CATEGORIES.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}
+                          </select></label>
+                          <label>고정/변동<select aria-label={`거래 ${index + 1} 고정 변동`} value={edit.fixedVariable}
+                            onChange={(event) => update({ fixedVariable: event.currentTarget.value as QuickBatchEntryCorrection['fixedVariable'] })}>
+                            <option value="fixed">고정</option><option value="variable">변동</option><option value="mixed">혼합</option></select></label>
+                          <label>날짜<input aria-label={`거래 ${index + 1} 날짜`} type="date" value={toDateInputValue(edit.occurredAt)}
+                            onChange={(event) => update({ occurredAt: `${event.currentTarget.value}T12:00:00.000+09:00` })} /></label>
+                        </div>
+                      ) : (
+                        <p>{entry.categoryLabel} · {entry.occurredAt.slice(0, 10)} · {entry.amountMinor === null ? '금액 확인' : `₩${entry.amountMinor.toLocaleString('ko-KR')}`}</p>
+                      )}
+                    </div>
+                  );
+                })}
+                <button type="button" className="secondary-button" onClick={() => setBatchEdits((current) =>
+                  current ? null : batch.entries.map((entry) => ({
+                    text: entry.text, amountMinor: entry.amountMinor ?? 0,
+                    ...correctionFromPreview(entry),
+                  })))}>{batchEdits ? '자동 분류로 되돌리기' : '거래별 수정'}</button>
+                <strong>합계 ₩{(batchEdits ?? batch.entries).reduce((sum, item) => sum + (item.amountMinor ?? 0), 0).toLocaleString('ko-KR')}</strong>
               </div>
             ) : null}
             {preview ? (
@@ -260,7 +293,7 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPr
             ) : null}
             {preview?.multipleAmounts ? <p role="alert" className="form-error">여러 금액이 감지되었습니다. 거래별로 나누어 입력해야 안전하게 저장할 수 있습니다.</p> : null}
             {error ? <p role="alert" className="form-error">{error}</p> : null}
-            <button className="primary-button" type="submit" disabled={busy || (isBatch && !batch?.valid) || !!preview?.multipleAmounts || (!!preview?.needsReview && !correction) || !!preview?.unresolvedAmount}>{isBatch ? '거래 전체 저장' : '빠른 입력 저장'}</button>
+            <button className="primary-button" type="submit" disabled={busy || (isBatch && (!batchEdits ? !batch?.valid : batchEdits.some((entry) => !Number.isSafeInteger(entry.amountMinor) || entry.amountMinor <= 0 || Number.isNaN(new Date(entry.occurredAt).getTime())))) || !!preview?.multipleAmounts || (!!preview?.needsReview && !correction) || !!preview?.unresolvedAmount}>{isBatch ? '거래 전체 저장' : '빠른 입력 저장'}</button>
           </form>
         ) : (
           <form className="entry-form" onSubmit={submitDirect}>
