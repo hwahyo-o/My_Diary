@@ -96,6 +96,62 @@ describe('transaction classification engine foundation', () => {
     expect(result.occurredAt.value).toContain('2026-10-12');
   });
 
+  it('classifies expanded food keywords as food and variable', () => {
+    for (const keyword of ['아침', '점심', '저녁', '밥', '식사', '외식', '간식', '커피', '음료', '디저트', '주스', '도시락']) {
+      const result = classifyTransactionText(`${keyword} 5000`, now);
+      expect(result.categoryId.value, keyword).toBe('food');
+      expect(result.fixedVariable.value, keyword).toBe('variable');
+    }
+  });
+
+  it('classifies 대중교통 and related transport words as transport', () => {
+    for (const keyword of ['대중교통', '택시', '버스', '지하철', '기차', '주차', '주유']) {
+      const result = classifyTransactionText(`${keyword} 5000`, now);
+      expect(result.categoryId.value, keyword).toBe('transport');
+      expect(result.fixedVariable.value, keyword).toBe('variable');
+    }
+  });
+
+  it('classifies the expanded expense categories with stable ids', () => {
+    const cases = [
+      ['월세', 'housing'],
+      ['생활용품', 'household'],
+      ['통신비', 'telecom'],
+      ['넷플릭스 구독', 'subscription'],
+      ['병원', 'health-beauty'],
+      ['영화', 'leisure-relationships'],
+      ['적금', 'saving'],
+      ['주식 투자', 'investment'],
+      ['대출 상환', 'debt-repayment'],
+    ] as const;
+
+    for (const [text, categoryId] of cases) {
+      expect(classifyTransactionText(`${text} 10000`, now).categoryId.value, text).toBe(categoryId);
+    }
+  });
+
+  it('automatically distinguishes common fixed and variable spending', () => {
+    expect(classifyTransactionText('월세 600000', now).fixedVariable.value).toBe('fixed');
+    expect(classifyTransactionText('통신비 70000', now).fixedVariable.value).toBe('fixed');
+    expect(classifyTransactionText('정기결제 17000', now).fixedVariable.value).toBe('fixed');
+    expect(classifyTransactionText('커피 4500', now).fixedVariable.value).toBe('variable');
+    expect(classifyTransactionText('전기 35000', now).fixedVariable.value).toBe('variable');
+    expect(classifyTransactionText('병원 25000', now).fixedVariable.value).toBe('variable');
+  });
+
+  it('fails closed when fixed and variable rules conflict at the same priority', () => {
+    const result = classifyTransactionText('월세 전기 650000', now);
+    expect(result.categoryId.value).toBe('housing');
+    expect(result.fixedVariable.value).toBe('mixed');
+    expect(result.needsReview).toBe(true);
+    expect(result.reviewReasons).toContain('fixed-variable-conflict');
+  });
+
+  it('matches short ambiguous keywords as whole tokens only', () => {
+    expect(classifyTransactionText('약 5000', now).categoryId.value).toBe('health-beauty');
+    expect(classifyTransactionText('예약 5000', now).categoryId.value).toBe('uncategorized');
+  });
+
   it('keeps legacy food/transport/date rules compatible', () => {
     const food = classifyTransactionText('어제 점심 13000', now);
     expect(food.categoryId.value).toBe('food');
