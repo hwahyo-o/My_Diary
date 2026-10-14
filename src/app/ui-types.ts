@@ -181,6 +181,9 @@ export interface AppRuntimePorts {
   hasCloudConflict?(): boolean;
   resetAllData?(input: { readonly pin: string }): Promise<void>;
   saveFixedVariableRule?(input: { readonly categoryId: string; readonly mode: FixedVariableMode }): Promise<void>;
+  addCategoryKeyword?(input: { readonly categoryId: string; readonly keyword: string }): Promise<void>;
+  removeCategoryKeyword?(input: { readonly categoryId: string; readonly keyword: string }): Promise<void>;
+  restoreCategoryKeywords?(input: { readonly categoryId: string }): Promise<void>;
   lock?(): void;
   getSnapshot?(): RuntimeSnapshot;
   subscribe?(listener: (snapshot: RuntimeSnapshot) => void): () => void;
