@@ -14,6 +14,7 @@ interface SettingsPageProps {
   readonly cloudEnrolled: boolean;
   readonly cloudConflict: boolean;
   readonly onEnrollCloud: (input: { readonly pin: string }) => Promise<void>;
+  readonly onRotateRecoveryKey: (input: { readonly pin: string }) => Promise<string>;
   readonly onResetAllData: (input: { readonly pin: string }) => Promise<void>;
   readonly classificationSettings: ClassificationSettingsViewModel;
   readonly onSaveFixedVariableRule: (input: { readonly categoryId: string; readonly mode: FixedVariableMode }) => Promise<void>;
@@ -37,6 +38,7 @@ export function SettingsPage({
   cloudEnrolled,
   cloudConflict,
   onEnrollCloud,
+  onRotateRecoveryKey,
   onResetAllData,
   classificationSettings,
   onSaveFixedVariableRule,
@@ -49,6 +51,11 @@ export function SettingsPage({
   onRemoveIncomeKeyword,
   onRestoreIncomeKeywords,
 }: SettingsPageProps) {
+  const [rotationPin, setRotationPin] = useState('');
+  const [rotationKey, setRotationKey] = useState<string | null>(null);
+  const [rotationBusy, setRotationBusy] = useState(false);
+  const [rotationError, setRotationError] = useState<string | null>(null);
+  const [rotationConfirmed, setRotationConfirmed] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
   const [backupState, setBackupState] = useState<BackupStatusViewModel>(() =>
     backup.lastExportedAt ? backup : readBackupStatus(),
@@ -155,6 +162,46 @@ export function SettingsPage({
             </button>
             <p>복호화된 세션 키를 즉시 메모리에서 제거합니다.</p>
           </div>
+        </article>
+
+        <article className="settings-card" aria-labelledby="recovery-rotation-title">
+          <div className="settings-card-heading">
+            <div>
+              <p className="card-kicker">RECOVERY SECURITY</p>
+              <h2 id="recovery-rotation-title">RecoveryKey 재발급</h2>
+              <p>기존 PIN으로 재인증한 뒤 복구 키를 새로 생성합니다. 가계부 기록은 유지됩니다.</p>
+            </div>
+          </div>
+          {!rotationKey ? (
+            <div className="settings-card-actions">
+              <label className="access-form">
+                <span>현재 PIN</span>
+                <input aria-label="RecoveryKey 재발급 PIN" type="password" inputMode="numeric" autoComplete="off"
+                  value={rotationPin} onChange={(event) => setRotationPin(event.currentTarget.value)} />
+              </label>
+              <p className="settings-footnote">기존 Vault의 복구 키가 교체됩니다. 과거에 만든 백업 파일은 기존 키로 열릴 수 있습니다. 새 키를 보관하고 백업을 다시 생성하세요.</p>
+              <button type="button" className="primary-button" disabled={rotationBusy || !/^\d{10,12}$/.test(rotationPin)}
+                onClick={() => {
+                  setRotationBusy(true);
+                  setRotationError(null);
+                  void onRotateRecoveryKey({ pin: rotationPin })
+                    .then((key) => { setRotationKey(key); setRotationConfirmed(false); })
+                    .catch(() => setRotationError('재발급에 실패했습니다. PIN과 잠금 상태를 확인해주세요.'))
+                    .finally(() => { setRotationPin(''); setRotationBusy(false); });
+                }}>새 RecoveryKey 발급</button>
+            </div>
+          ) : (
+            <div className="settings-card-actions">
+              <p role="status">새 RecoveryKey가 생성되었습니다. 안전한 곳에 별도로 보관한 후, 이 키로 새로운 .vault 백업 파일을 반드시 생성하세요.</p>
+              <code style={{ overflowWrap: 'anywhere' }}>{rotationKey}</code>
+              <button type="button" className="secondary-button" onClick={() => void navigator.clipboard.writeText(rotationKey)}>RecoveryKey 복사</button>
+              <label><input type="checkbox" checked={rotationConfirmed}
+                onChange={(event) => setRotationConfirmed(event.currentTarget.checked)} /> 안전한 장소에 별도 보관했습니다.</label>
+              <button type="button" className="primary-button" disabled={!rotationConfirmed}
+                onClick={() => { setRotationKey(null); setRotationConfirmed(false); }}>확인 및 키 숨기기</button>
+            </div>
+          )}
+          {rotationError ? <p role="alert" className="form-error">{rotationError}</p> : null}
         </article>
 
         <article className="settings-card" aria-labelledby="backup-settings-title">

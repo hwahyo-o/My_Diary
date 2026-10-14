@@ -108,6 +108,27 @@ describe('Encrypted backup / recovery runtime', () => {
     }
   });
 
+  it('rotates RecoveryKey with PIN, preserves financial records, and invalidates the previous key', async () => {
+    const dbName = `rotation-${crypto.randomUUID()}`;
+    const runtime = await BrowserRuntime.open({ dbName, argon2Profile: 'test' });
+    try {
+      const { recoveryKey: oldKey } = await runtime.createProfile({ nickname: '보존 검사', pin: '4829517304' });
+      await runtime.submitTransaction({ mode: 'quick', text: '커피 4500' });
+      const before = JSON.stringify(await dumpStore(dbName, STORE_NAMES.records));
+      await expect(runtime.rotateRecoveryKey({ pin: '9382716405' })).rejects.toThrow();
+      const newKey = await runtime.rotateRecoveryKey({ pin: '4829517304' });
+      expect(newKey).not.toBe(oldKey);
+      expect(JSON.stringify(await dumpStore(dbName, STORE_NAMES.records))).toBe(before);
+      expect(runtime.getSnapshot().dashboard.expenseMinor).toBe(4500);
+      await expect(runtime.exportVault({ recoveryKey: oldKey })).rejects.toThrow();
+      const backup = await runtime.exportVault({ recoveryKey: newKey });
+      expect(backup.byteLength).toBeGreaterThan(0);
+      runtime.lock();
+      await runtime.unlock('4829517304');
+      expect(runtime.getSnapshot().dashboard.expenseMinor).toBe(4500);
+    } finally { runtime.close(); }
+  });
+
   it('rejects a wrong RecoveryKey on a fresh device without creating a local bootstrap', async () => {
     const source = await BrowserRuntime.open({ dbName: `backup-source-${crypto.randomUUID()}`, argon2Profile: 'test' });
     const targetDb = `backup-target-${crypto.randomUUID()}`;

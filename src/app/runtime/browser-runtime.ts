@@ -987,6 +987,44 @@ export class BrowserRuntime {
     void this.syncCloudBestEffort();
   }
 
+  async rotateRecoveryKey(input: { readonly pin: string }): Promise<string> {
+    const session = this.session;
+    const bootstrap = this.bootstrap;
+    if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
+    const deviceKek = await deriveDeviceKek(
+      input.pin, bootstrap.deviceSecret, bootstrap.pinSalt, bootstrap.argon2Params,
+    );
+    let vaultKey: Uint8Array | null = null;
+    let newRecoveryKey: Uint8Array | null = null;
+    let recoveryKek: Uint8Array | null = null;
+    try {
+      vaultKey = await unwrapVaultKey(
+        bootstrap.wrappedDeviceVaultKey, deviceKek, wrapAad(bootstrap.vaultId, 'device'),
+      );
+      const profileRecord = await this.repository.getRecord(bootstrap.profileRecordId);
+      if (!profileRecord) throw new Error('Encrypted profile record is missing.');
+      await decryptRecord<RuntimeProfile>(
+        vaultKey,
+        profileAad(bootstrap.vaultId, { id: bootstrap.profileRecordId, version: profileRecord.recordVersion }),
+        decodeEnvelope(profileRecord.encryptedPayload),
+      );
+      newRecoveryKey = generateRecoveryKey();
+      recoveryKek = await deriveRecoveryKek(newRecoveryKey, bootstrap.vaultId);
+      const wrappedRecoveryVaultKey = await wrapVaultKey(
+        vaultKey, recoveryKek, wrapAad(bootstrap.vaultId, 'recovery'),
+      );
+      // Persist the new wrap before showing the key; financial records remain unchanged.
+      await this.repository.putSecurityMeta(BOOTSTRAP_KEY, { ...bootstrap, wrappedRecoveryVaultKey });
+      this.bootstrap = { ...bootstrap, wrappedRecoveryVaultKey };
+      return toBase64Url(newRecoveryKey);
+    } finally {
+      deviceKek.fill(0);
+      vaultKey?.fill(0);
+      newRecoveryKey?.fill(0);
+      recoveryKek?.fill(0);
+    }
+  }
+
   async exportVault(input: { readonly recoveryKey: string }): Promise<Uint8Array> {
     const session = this.session;
     const bootstrap = this.bootstrap;
