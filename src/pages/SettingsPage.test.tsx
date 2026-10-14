@@ -16,11 +16,28 @@ const baseProps = {
   onResetAllData: vi.fn().mockResolvedValue(undefined),
   classificationSettings: {
     categories: [
-      { id: 'food', label: '식비', defaultFixedVariable: 'variable', mode: 'auto' },
-      { id: 'subscription', label: '구독', defaultFixedVariable: 'fixed', mode: 'auto' },
+      {
+        id: 'food',
+        label: '식비',
+        defaultFixedVariable: 'variable',
+        mode: 'auto',
+        keywords: [{ value: '커피', source: 'default' }],
+        hasKeywordChanges: false,
+      },
+      {
+        id: 'subscription',
+        label: '구독',
+        defaultFixedVariable: 'fixed',
+        mode: 'auto',
+        keywords: [{ value: '구독', source: 'default' }],
+        hasKeywordChanges: false,
+      },
     ],
   } satisfies ClassificationSettingsViewModel,
   onSaveFixedVariableRule: vi.fn().mockResolvedValue(undefined),
+  onAddCategoryKeyword: vi.fn().mockResolvedValue(undefined),
+  onRemoveCategoryKeyword: vi.fn().mockResolvedValue(undefined),
+  onRestoreCategoryKeywords: vi.fn().mockResolvedValue(undefined),
 };
 
 describe('SettingsPage operational hub', () => {
@@ -55,6 +72,31 @@ describe('SettingsPage operational hub', () => {
     await waitFor(() => expect(onSaveFixedVariableRule).toHaveBeenCalledWith({
       categoryId: 'food',
       mode: 'fixed',
+    }));
+  });
+
+  it('adds and removes category keywords from settings', async () => {
+    const onAddCategoryKeyword = vi.fn().mockResolvedValue(undefined);
+    const onRemoveCategoryKeyword = vi.fn().mockResolvedValue(undefined);
+    render(
+      <SettingsPage
+        {...baseProps}
+        onAddCategoryKeyword={onAddCategoryKeyword}
+        onRemoveCategoryKeyword={onRemoveCategoryKeyword}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('식비 새 키워드'), { target: { value: '샌드위치' } });
+    fireEvent.click(screen.getAllByRole('button', { name: '추가' })[0]!);
+    await waitFor(() => expect(onAddCategoryKeyword).toHaveBeenCalledWith({
+      categoryId: 'food',
+      keyword: '샌드위치',
+    }));
+
+    fireEvent.click(screen.getByRole('button', { name: '커피 ×' }));
+    await waitFor(() => expect(onRemoveCategoryKeyword).toHaveBeenCalledWith({
+      categoryId: 'food',
+      keyword: '커피',
     }));
   });
 
