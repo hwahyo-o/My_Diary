@@ -136,6 +136,7 @@ export interface QuickTransactionPreviewViewModel {
   readonly fixedVariable: 'fixed' | 'variable' | 'mixed';
   readonly needsReview: boolean;
   readonly unresolvedAmount: boolean;
+  readonly multipleAmounts?: boolean;
 }
 
 export interface QuickTransactionCorrection {
