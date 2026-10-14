@@ -40,9 +40,16 @@ export interface FixedVariableRule {
   readonly source?: Exclude<ClassificationSource, 'default'>;
 }
 
+export interface FixedVariableKeywordRule {
+  readonly keyword: string;
+  readonly value: FixedVariable;
+  readonly source?: Exclude<ClassificationSource, 'default'>;
+}
+
 export interface ClassificationRuleSet {
   readonly typeKeywords: readonly TypeKeywordRule[];
   readonly categoryKeywords: readonly CategoryKeywordRule[];
+  readonly fixedVariableKeywords?: readonly FixedVariableKeywordRule[];
   readonly fixedVariableByCategory: readonly FixedVariableRule[];
 }
 
@@ -82,11 +89,37 @@ export const DEFAULT_CLASSIFICATION_RULES: ClassificationRuleSet = {
     })),
   ],
   categoryKeywords: [
-    { keyword: '점심', categoryId: 'food' },
-    { keyword: '식사', categoryId: 'food' },
-    { keyword: '택시', categoryId: 'transport' },
-    { keyword: '버스', categoryId: 'transport' },
-    { keyword: '지하철', categoryId: 'transport' },
+    ...['아침', '점심', '저녁', '밥', '식사', '외식', '간식', '커피', '음료', '디저트', '주스', '도시락', '카페', '빵', '베이커리', '배달', '야식', '브런치']
+      .map((keyword) => ({ keyword, categoryId: 'food' as const })),
+    ...['교통', '대중교통', '택시', '버스', '지하철', '기차', 'ktx', '주차', '톨게이트', '주유']
+      .map((keyword) => ({ keyword, categoryId: 'transport' as const })),
+    ...['월세', '전세', '관리비', '수도', '전기', '가스', '공과금']
+      .map((keyword) => ({ keyword, categoryId: 'housing' as const })),
+    ...['생필품', '생활용품', '세제', '휴지', '청소용품']
+      .map((keyword) => ({ keyword, categoryId: 'household' as const })),
+    ...['통신비', '휴대폰', '핸드폰', '인터넷', '데이터']
+      .map((keyword) => ({ keyword, categoryId: 'telecom' as const })),
+    ...['구독', '멤버십', '정기결제']
+      .map((keyword) => ({ keyword, categoryId: 'subscription' as const })),
+    ...['병원', '약국', '약', '진료', '미용실', '화장품']
+      .map((keyword) => ({ keyword, categoryId: 'health-beauty' as const })),
+    ...['영화', '공연', '전시', '취미', '선물', '데이트', '모임']
+      .map((keyword) => ({ keyword, categoryId: 'leisure-relationships' as const })),
+    ...['적금', '예금', '저축']
+      .map((keyword) => ({ keyword, categoryId: 'saving' as const })),
+    ...['주식', 'etf', '펀드', '투자', '매수']
+      .map((keyword) => ({ keyword, categoryId: 'investment' as const })),
+    ...['대출상환', '대출 상환', '원금상환', '카드대금', '대출']
+      .map((keyword) => ({ keyword, categoryId: 'debt-repayment' as const })),
+  ],
+  fixedVariableKeywords: [
+    ...['월세', '통신비', '휴대폰', '핸드폰', '인터넷', '구독', '멤버십', '정기결제', '적금', '예금', '저축', '대출상환', '대출 상환', '원금상환', '카드대금']
+      .map((keyword) => ({ keyword, value: 'fixed' as const })),
+    ...['아침', '점심', '저녁', '밥', '식사', '외식', '간식', '커피', '음료', '디저트', '주스', '도시락', '카페', '빵', '베이커리', '배달', '야식', '브런치',
+      '교통', '대중교통', '택시', '버스', '지하철', '기차', 'ktx', '주차', '톨게이트', '주유',
+      '수도', '전기', '가스', '공과금', '생필품', '생활용품', '세제', '휴지', '청소용품',
+      '병원', '약국', '약', '진료', '미용실', '화장품', '영화', '공연', '전시', '취미', '선물', '데이트', '모임']
+      .map((keyword) => ({ keyword, value: 'variable' as const })),
   ],
   fixedVariableByCategory: [],
 };
@@ -238,15 +271,47 @@ function resolveCategory(
 }
 
 function resolveFixedVariable(
+  normalizedText: string,
   categoryId: string,
   rules: ClassificationRuleSet,
+  reviewReasons: string[],
 ): ClassificationDecision<FixedVariable> {
-  const explicitRule = rules.fixedVariableByCategory.find((rule) => rule.categoryId === categoryId);
-  if (explicitRule) {
+  const keywordMatches = (rules.fixedVariableKeywords ?? [])
+    .filter((rule) => containsKeyword(normalizedText, rule.keyword))
+    .map((rule) => ({ ...rule, resolvedSource: rule.source ?? 'keyword' as ClassificationSource }));
+  const highestRank = keywordMatches.reduce(
+    (rank, rule) => Math.max(rank, sourceRank(rule.resolvedSource)),
+    0,
+  );
+  const topKeywordMatches = keywordMatches.filter(
+    (rule) => sourceRank(rule.resolvedSource) === highestRank,
+  );
+  const keywordValues = [...new Set(topKeywordMatches.map((rule) => rule.value))];
+
+  if (keywordValues.length > 1) {
+    reviewReasons.push('fixed-variable-conflict');
     return {
-      value: explicitRule.value,
-      source: explicitRule.source ?? 'user-rule',
-      confidence: explicitRule.source === 'user-rule' ? 'high' : 'medium',
+      value: 'mixed',
+      source: 'default',
+      confidence: 'low',
+      matchedKeywords: topKeywordMatches.map((rule) => rule.keyword),
+    };
+  }
+  if (topKeywordMatches[0]) {
+    return {
+      value: topKeywordMatches[0].value,
+      source: topKeywordMatches[0].resolvedSource,
+      confidence: topKeywordMatches[0].resolvedSource === 'user-rule' ? 'high' : 'medium',
+      matchedKeywords: topKeywordMatches.map((rule) => rule.keyword),
+    };
+  }
+
+  const categoryRule = rules.fixedVariableByCategory.find((rule) => rule.categoryId === categoryId);
+  if (categoryRule) {
+    return {
+      value: categoryRule.value,
+      source: categoryRule.source ?? 'user-rule',
+      confidence: categoryRule.source === 'user-rule' ? 'high' : 'medium',
       matchedKeywords: [],
     };
   }
@@ -352,7 +417,7 @@ export function classifyTransactionText(
   const reviewReasons: string[] = [];
   const transactionType = resolveTransactionType(normalizedText, rules, reviewReasons);
   const categoryId = resolveCategory(normalizedText, rules, reviewReasons);
-  const fixedVariable = resolveFixedVariable(categoryId.value, rules);
+  const fixedVariable = resolveFixedVariable(normalizedText, categoryId.value, rules, reviewReasons);
   const occurredAt = resolveDate(normalizedText, now, reviewReasons);
 
   return {
