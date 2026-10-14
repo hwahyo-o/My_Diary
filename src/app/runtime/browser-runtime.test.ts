@@ -93,6 +93,40 @@ describe('BrowserRuntime composition', () => {
     }
   });
 
+  it('counts only active Quick Add category coverage without presenting it as accuracy', async () => {
+    const dbName = `coverage-${crypto.randomUUID()}`;
+    const runtime = await BrowserRuntime.open({
+      dbName,
+      argon2Profile: 'test',
+      now: () => new Date('2026-10-14T01:00:00.000Z'),
+    });
+    try {
+      await runtime.createProfile({ nickname: '분류 통계', pin: '4829517304' });
+      expect(runtime.getSnapshot().analytics.classificationCoverage).toMatchObject({
+        totalQuickCount: 0,
+        uncategorizedQuickCount: 0,
+        coveragePercent: 0,
+      });
+      await runtime.submitTransaction({ mode: 'quick', text: '커피 4500' });
+      await runtime.submitTransaction({ mode: 'quick', text: '알수없는구매 7000' });
+      await runtime.submitTransaction({ mode: 'direct', amountMinor: 3000, memo: '직접 기록' });
+      expect(runtime.getSnapshot().analytics.classificationCoverage).toMatchObject({
+        totalQuickCount: 2,
+        categorizedQuickCount: 1,
+        uncategorizedQuickCount: 1,
+        coveragePercent: 50,
+      });
+      const unclassified = runtime.getSnapshot().calendar.transactions.find((item) => item.label.includes('알수없는구매'));
+      if (!unclassified) throw new Error('Missing transaction fixture');
+      await runtime.deleteTransaction(unclassified.id);
+      expect(runtime.getSnapshot().analytics.classificationCoverage).toMatchObject({
+        totalQuickCount: 1, categorizedQuickCount: 1, uncategorizedQuickCount: 0, coveragePercent: 100,
+      });
+    } finally {
+      runtime.close();
+    }
+  });
+
   it('stores quick relative dates using Korea calendar dates around UTC day boundaries', async () => {
     const dbName = `runtime-kst-date-${crypto.randomUUID()}`;
     const runtime = await BrowserRuntime.open({
