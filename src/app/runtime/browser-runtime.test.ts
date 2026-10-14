@@ -213,9 +213,9 @@ describe('BrowserRuntime composition', () => {
       await runtime.createProfile({ nickname: '수정 테스트', pin: '4829517304' });
       await runtime.submitTransaction({
         mode: 'quick',
-        text: '알수없는입력 4500',
+        text: '월급 4500',
         correction: {
-          transactionType: 'income',
+          transactionType: 'expense',
           categoryId: 'food',
           fixedVariable: 'fixed',
           occurredAt: '2026-10-13T12:00:00.000+09:00',
@@ -223,8 +223,8 @@ describe('BrowserRuntime composition', () => {
       });
 
       const snapshot = runtime.getSnapshot();
-      expect(snapshot.dashboard.incomeMinor).toBe(4500);
-      expect(snapshot.dashboard.expenseMinor).toBe(0);
+      expect(snapshot.dashboard.incomeMinor).toBe(0);
+      expect(snapshot.dashboard.expenseMinor).toBe(4500);
       expect(snapshot.analytics.fixedMinor).toBe(4500);
       expect(snapshot.calendar.transactions[0]?.occurredAt).toContain('2026-10-13');
     } finally {
