@@ -11,7 +11,7 @@ it('passes reviewed categories and expense flags to the actual batch persistence
   });
   const original = TransactionLedgerService.prototype.saveDraftBatch;
   const persisted = vi.spyOn(TransactionLedgerService.prototype, 'saveDraftBatch')
-    .mockImplementation(function (drafts, expectedRevision) {
+    .mockImplementation(function (this: TransactionLedgerService, drafts, expectedRevision) {
       expect(drafts).toHaveLength(2);
       expect(drafts[0]).toMatchObject({
         categoryId: 'transport', fixedVariable: 'fixed', amountMinor: 9500, type: 'expense',
