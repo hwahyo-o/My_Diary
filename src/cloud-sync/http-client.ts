@@ -22,13 +22,20 @@ function decodeBase64Url(value: string): Uint8Array {
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
+export class CloudSyncHttpError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'CloudSyncHttpError';
+  }
+}
+
 async function parseJson<T>(response: Response): Promise<T> {
   const body = await response.json().catch(() => null) as T | { error?: string } | null;
   if (!response.ok) {
     const message = body && typeof body === 'object' && 'error' in body && typeof body.error === 'string'
       ? body.error
       : `Cloud sync request failed (${response.status}).`;
-    throw new Error(message);
+    throw new CloudSyncHttpError(message, response.status);
   }
   return body as T;
 }
