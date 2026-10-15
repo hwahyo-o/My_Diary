@@ -272,7 +272,7 @@ describe('runtime local-first cloud failure integration', () => {
   });
 
   it('reports failed manual retry instead of claiming cloud success, then succeeds on another attempt', async () => {
-    const { runtime, testRuntime } = await setup();
+    const { runtime } = await setup();
     vi.spyOn(CloudSyncClient.prototype, 'getHead')
       .mockRejectedValueOnce(new TypeError('offline'))
       .mockResolvedValueOnce({ revision: 0, objectSha256: null, updatedAt: null });
