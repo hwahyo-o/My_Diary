@@ -143,6 +143,7 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
       cloudEnrolled={runtime.isCloudEnrolled?.() ?? false}
       cloudConflict={runtime.hasCloudConflict?.() ?? false}
       cloudSyncStatus={cloudStatus}
+      onRetryCloudSync={() => runtime.retryCloudSync?.() ?? Promise.reject(new Error('Cloud sync retry is unavailable.'))}
       onEnrollCloud={(input) => {
         if (!runtime.enrollCloud) return Promise.reject(new Error('Cloud sync is not connected.'));
         return runtime.enrollCloud(input);
