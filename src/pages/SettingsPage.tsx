@@ -13,6 +13,7 @@ interface SettingsPageProps {
   readonly onDownloadVault: (bytes: Uint8Array, filename: string) => void;
   readonly cloudEnrolled: boolean;
   readonly cloudConflict: boolean;
+  readonly cloudSyncStatus: import('../app/ui-types').CloudSyncStatus;
   readonly onEnrollCloud: (input: { readonly pin: string }) => Promise<void>;
   readonly onRotateRecoveryKey: (input: { readonly pin: string }) => Promise<string>;
   readonly onResetAllData: (input: { readonly pin: string }) => Promise<void>;
@@ -37,6 +38,7 @@ export function SettingsPage({
   onDownloadVault,
   cloudEnrolled,
   cloudConflict,
+  cloudSyncStatus,
   onEnrollCloud,
   onRotateRecoveryKey,
   onResetAllData,
@@ -260,7 +262,7 @@ export function SettingsPage({
             <>
               <div className="backup-status-summary">
                 <span>동기화 상태</span>
-                <strong>{cloudConflict ? '동일 항목의 동시 수정이 감지되었습니다.' : '암호화 클라우드 동기화 사용 중'}</strong>
+                <strong role="status">{cloudConflict || cloudSyncStatus === 'conflict' ? '충돌 확인 필요 · 로컬 기록 유지' : cloudSyncStatus === 'syncing' ? '클라우드 동기화 진행 중' : cloudSyncStatus === 'synced' ? '클라우드 동기화 완료' : cloudSyncStatus === 'error' ? '클라우드 동기화 실패 · 다음 잠금 해제에서 재시도' : '로컬 저장 완료 · 클라우드 동기화 확인 대기'}</strong>
                 <small>{cloudConflict
                   ? '서로 다른 신규 거래는 자동 병합되지만, 동일 항목을 양쪽에서 다르게 수정한 경우 자동 덮어쓰지 않습니다.'
                   : 'PIN, RecoveryKey, 금융 평문은 Cloudflare에 저장하지 않습니다.'}</small>
