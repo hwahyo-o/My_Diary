@@ -3,6 +3,7 @@ import type { ReportType, Confidence } from '../domain/reports/types';
 import type { ClassificationSettingsViewModel, FixedVariableMode } from '../features/transactions/classification-settings';
 
 export type AccessState = 'onboarding' | 'locked' | 'unlocked';
+export type CloudSyncStatus = 'not-connected' | 'pending' | 'syncing' | 'synced' | 'error' | 'conflict';
 export type AppPage = 'home' | 'calendar' | 'stats' | 'assets' | 'settings';
 
 export interface BudgetSummaryViewModel {
@@ -186,6 +187,7 @@ export interface SaveLoanInput {
 }
 
 export interface RuntimeSnapshot {
+  readonly cloudSyncStatus?: CloudSyncStatus;
   readonly access: AccessState;
   readonly dashboard: DashboardViewModel;
   readonly assets: AssetsViewModel;
