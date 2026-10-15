@@ -28,6 +28,7 @@ interface AppProps {
 
 export function App({ initialAccess, dashboard, assets, analytics, calendar, runtime = failClosedRuntime }: AppProps) {
   const runtimeSnapshot = runtime.getSnapshot?.();
+  const [cloudStatus, setCloudStatus] = useState(runtimeSnapshot?.cloudSyncStatus ?? 'not-connected');
   const [access, setAccess] = useState<AccessState>(initialAccess ?? runtimeSnapshot?.access ?? 'onboarding');
   const [dashboardState, setDashboardState] = useState<DashboardViewModel>(dashboard ?? runtimeSnapshot?.dashboard ?? emptyDashboard);
   const [assetsState, setAssetsState] = useState<AssetsViewModel>(assets ?? runtimeSnapshot?.assets ?? emptyAssets);
@@ -38,6 +39,7 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
   useEffect(() => {
     if (!runtime.subscribe) return;
     return runtime.subscribe((snapshot) => {
+      setCloudStatus(snapshot.cloudSyncStatus ?? 'not-connected');
       setDashboardState(snapshot.dashboard);
       setAssetsState(snapshot.assets);
       setAnalyticsState(snapshot.analytics);
@@ -140,6 +142,7 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
       }}
       cloudEnrolled={runtime.isCloudEnrolled?.() ?? false}
       cloudConflict={runtime.hasCloudConflict?.() ?? false}
+      cloudSyncStatus={cloudStatus}
       onEnrollCloud={(input) => {
         if (!runtime.enrollCloud) return Promise.reject(new Error('Cloud sync is not connected.'));
         return runtime.enrollCloud(input);

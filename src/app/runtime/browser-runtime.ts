@@ -288,6 +288,7 @@ export class BrowserRuntime {
   private cloudMeta: CloudEnrollmentMeta | null = null;
   private cloudKek: Uint8Array | null = null;
   private cloudConflict = false;
+  private cloudSyncStatus: import('../ui-types').CloudSyncStatus = 'not-connected';
   private cloudSyncInFlight: Promise<void> | null = null;
   private cloudSyncEpoch = 0;
   private classificationSettings: ClassificationSettings = DEFAULT_CLASSIFICATION_SETTINGS;
@@ -317,7 +318,9 @@ export class BrowserRuntime {
     });
     runtime.bootstrap = await repository.getSecurityMeta<BootstrapMeta>(BOOTSTRAP_KEY) ?? null;
     runtime.cloudMeta = await repository.getSecurityMeta<CloudEnrollmentMeta>(CLOUD_META_KEY) ?? null;
+    runtime.cloudSyncStatus = runtime.cloudMeta ? 'pending' : 'not-connected';
     runtime.snapshot = {
+      cloudSyncStatus: runtime.cloudSyncStatus,
       access: runtime.bootstrap ? 'locked' : 'onboarding',
       dashboard: emptyDashboard,
       assets: emptyAssets,
@@ -339,6 +342,15 @@ export class BrowserRuntime {
 
   isCloudEnrolled(): boolean {
     return this.cloudMeta !== null;
+  }
+
+  getCloudSyncStatus(): import('../ui-types').CloudSyncStatus {
+    return this.cloudConflict ? 'conflict' : this.cloudSyncStatus;
+  }
+
+  private reportCloudSyncStatus(status: import('../ui-types').CloudSyncStatus): void {
+    this.cloudSyncStatus = status;
+    this.setSnapshot({ ...this.snapshot, cloudSyncStatus: status });
   }
 
   hasCloudConflict(): boolean {
@@ -1194,7 +1206,14 @@ export class BrowserRuntime {
       try {
         this.cloudKek?.fill(0);
         this.cloudKek = cloudKek.slice();
-        await this.syncCloudNow();
+        this.reportCloudSyncStatus('syncing');
+        try {
+          await this.syncCloudNow();
+          this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'synced');
+        } catch (error) {
+          this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'error');
+          throw error;
+        }
       } finally {
         cloudKek.fill(0);
       }
@@ -1207,19 +1226,24 @@ export class BrowserRuntime {
   private async syncCloudBestEffort(): Promise<void> {
     if (!this.cloudMeta || !this.session?.isUnlocked) return;
     if (this.cloudSyncInFlight) return this.cloudSyncInFlight;
+    this.reportCloudSyncStatus('syncing');
     const task = (async () => {
       try {
         await this.syncCloudNow();
+        this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'synced');
       } catch (error) {
         // A second device may have uploaded after our head check. Re-read the
         // newest snapshot and reconcile at most once; never blindly overwrite.
         if (error instanceof CloudSyncHttpError && error.status === 409 && this.session?.isUnlocked) {
           try {
             await this.syncCloudNow();
+            this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'synced');
+            return;
           } catch {
             // Preserve local records. A later unlock can retry safely.
           }
         }
+        this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'error');
         // Offline/auth/server errors leave the encrypted local ledger intact.
       }
     })();
@@ -1372,6 +1396,7 @@ export class BrowserRuntime {
   }
 
   lock(): void {
+    if (this.cloudMeta) this.reportCloudSyncStatus('pending');
     this.cloudSyncEpoch += 1;
     this.cloudKek?.fill(0);
     this.cloudKek = null;
@@ -1784,7 +1809,7 @@ export class BrowserRuntime {
     });
   }
   private setSnapshot(snapshot: RuntimeSnapshot): void {
-    this.snapshot = snapshot;
-    for (const listener of this.listeners) listener(snapshot);
+    this.snapshot = { ...snapshot, cloudSyncStatus: snapshot.cloudSyncStatus ?? this.cloudSyncStatus };
+    for (const listener of this.listeners) listener(this.snapshot);
   }
 }

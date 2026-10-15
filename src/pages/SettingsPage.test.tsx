@@ -12,6 +12,7 @@ const baseProps = {
   onDownloadVault: vi.fn(),
   cloudEnrolled: false,
   cloudConflict: false,
+  cloudSyncStatus: 'not-connected' as const,
   onEnrollCloud: vi.fn().mockResolvedValue(undefined),
   onResetAllData: vi.fn().mockResolvedValue(undefined),
   onRotateRecoveryKey: vi.fn().mockResolvedValue('test-recovery-key'),
@@ -142,20 +143,20 @@ describe('SettingsPage operational hub', () => {
     fireEvent.click(screen.getByRole('button', { name: '클라우드 동기화 시작' }));
 
     await waitFor(() => expect(onEnrollCloud).toHaveBeenCalledWith({ pin: '4829517304' }));
-    expect(screen.getByText('암호화 클라우드 동기화 사용 중')).toBeInTheDocument();
+    expect(screen.getByText('로컬 저장 완료 · 클라우드 동기화 확인 대기')).toBeInTheDocument();
   });
 
   it('shows an explicit warning when overlapping cloud edits need manual resolution', () => {
     render(<SettingsPage {...baseProps} cloudEnrolled cloudConflict />);
 
     expect(screen.getByText('충돌 확인 필요')).toBeInTheDocument();
-    expect(screen.getByText('동일 항목의 동시 수정이 감지되었습니다.')).toBeInTheDocument();
+    expect(screen.getByText('충돌 확인 필요 · 로컬 기록 유지')).toBeInTheDocument();
   });
 
   it('shows an already-enrolled cloud Vault without asking for the PIN again', () => {
     render(<SettingsPage {...baseProps} cloudEnrolled />);
 
-    expect(screen.getByText('암호화 클라우드 동기화 사용 중')).toBeInTheDocument();
+    expect(screen.getByText('로컬 저장 완료 · 클라우드 동기화 확인 대기')).toBeInTheDocument();
     expect(screen.queryByLabelText('클라우드 동기화 PIN')).not.toBeInTheDocument();
   });
 
@@ -229,5 +230,18 @@ describe('SettingsPage operational hub', () => {
     expect(screen.getByText('최근 백업 기록이 있습니다.')).toBeInTheDocument();
     expect(screen.getByText('2026.10.12 17:00 (KST)')).toBeInTheDocument();
     expect(screen.queryByText('아직 백업 없음')).not.toBeInTheDocument();
+  });
+});
+
+describe('cloud synchronization status visibility', () => {
+  it.each([
+    ['pending', '로컬 저장 완료 · 클라우드 동기화 확인 대기'],
+    ['syncing', '클라우드 동기화 진행 중'],
+    ['synced', '클라우드 동기화 완료'],
+    ['error', '클라우드 동기화 실패 · 다음 잠금 해제에서 재시도'],
+    ['conflict', '충돌 확인 필요 · 로컬 기록 유지'],
+  ] as const)('renders %s truthfully', (status, message) => {
+    render(<SettingsPage {...baseProps} cloudEnrolled cloudSyncStatus={status} />);
+    expect(screen.getByRole('status')).toHaveTextContent(message);
   });
 });
