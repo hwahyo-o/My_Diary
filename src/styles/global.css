@@ -77,6 +77,11 @@ h2 { margin-bottom: 0; }
 .transaction-sheet { max-height: 100vh; max-height: 100dvh; overflow-y: auto; overscroll-behavior: contain; min-width: 0; }
 .transaction-sheet .entry-form, .transaction-sheet .quick-preview { min-width: 0; }
 .transaction-sheet .entry-form input, .transaction-sheet .entry-form select { max-width: 100%; }
+/* Reserve comfortable scrolling room for save actions when the visual viewport shrinks. */
+.transaction-sheet { padding-bottom: max(var(--space-6), env(safe-area-inset-bottom, 0px)); scrollbar-gutter: stable; }
+.transaction-sheet .entry-form > .primary-button { position: sticky; bottom: 0; z-index: 1; }
+@supports (height: 100dvh) { .sheet-backdrop { max-height: 100dvh; } }
+
 
 .sheet-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-4); }
 .icon-button { width: 44px; border: 1px solid var(--color-border); border-radius: 50%; background: var(--color-surface-soft); font-size: 1.5rem; }
