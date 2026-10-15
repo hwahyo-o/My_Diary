@@ -214,6 +214,7 @@ export interface AppRuntimePorts {
   applyVaultImport?(bytes: Uint8Array, input: { readonly recoveryKey: string }): Promise<void>;
   recoverFromVault?(input: { readonly packageBytes: Uint8Array; readonly recoveryKey: string; readonly pin: string }): Promise<void>;
   enrollCloud?(input: { readonly pin: string }): Promise<void>;
+  retryCloudSync?(): Promise<void>;
   loginFromCloud?(input: { readonly nickname: string; readonly pin: string }): Promise<void>;
   isCloudEnrolled?(): boolean;
   hasCloudConflict?(): boolean;
