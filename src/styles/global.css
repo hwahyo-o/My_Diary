@@ -538,3 +538,8 @@ h2 { margin-bottom: 0; }
   .ops-card-heading { flex-direction: column; }
   .ops-recent-list li { align-items: flex-start; }
 }
+
+/* Ensure the sheet cannot grow beyond the keyboard-reduced visual viewport. */
+.sheet-backdrop { bottom: auto; overflow: hidden; grid-template-rows: minmax(0, 1fr); }
+.sheet-backdrop > .transaction-sheet { min-height: 0; max-height: 100%; align-self: end; overflow-y: auto; overflow-x: hidden; }
+.sheet-backdrop .entry-form { min-height: 0; }
