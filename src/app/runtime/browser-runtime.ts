@@ -1209,9 +1209,9 @@ export class BrowserRuntime {
         this.reportCloudSyncStatus('syncing');
         try {
           await this.syncCloudNow();
-          this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'synced');
+          if (startEpoch === this.cloudSyncEpoch) this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'synced');
         } catch (error) {
-          this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'error');
+          if (startEpoch === this.cloudSyncEpoch) this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'error');
           throw error;
         }
       } finally {
@@ -1228,11 +1228,15 @@ export class BrowserRuntime {
       throw new Error('Unlock the connected Vault before retrying cloud sync.');
     }
     await this.syncCloudBestEffort();
+    if (this.cloudSyncStatus === 'error' || this.cloudSyncStatus === 'conflict') {
+      throw new Error('Cloud sync did not complete; local records are preserved.');
+    }
   }
 
   private async syncCloudBestEffort(): Promise<void> {
     if (!this.cloudMeta || !this.session?.isUnlocked) return;
     if (this.cloudSyncInFlight) return this.cloudSyncInFlight;
+    const startEpoch = this.cloudSyncEpoch;
     this.reportCloudSyncStatus('syncing');
     const task = (async () => {
       try {
@@ -1244,7 +1248,7 @@ export class BrowserRuntime {
         if (error instanceof CloudSyncHttpError && error.status === 409 && this.session?.isUnlocked) {
           try {
             await this.syncCloudNow();
-            this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'synced');
+            if (startEpoch === this.cloudSyncEpoch) this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'synced');
             return;
           } catch {
             // Preserve local records. A later unlock can retry safely.
