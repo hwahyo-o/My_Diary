@@ -271,4 +271,18 @@ describe('runtime local-first cloud failure integration', () => {
     } finally { runtime.close(); }
   });
 
+  it('reports failed manual retry instead of claiming cloud success, then succeeds on another attempt', async () => {
+    const { runtime, testRuntime } = await setup();
+    vi.spyOn(CloudSyncClient.prototype, 'getHead')
+      .mockRejectedValueOnce(new TypeError('offline'))
+      .mockResolvedValueOnce({ revision: 0, objectSha256: null, updatedAt: null });
+    vi.spyOn(CloudSyncClient.prototype, 'uploadSnapshot').mockResolvedValue({ revision: 1 });
+    try {
+      await expect(runtime.retryCloudSync()).rejects.toThrow('Cloud sync did not complete');
+      expect(runtime.getSnapshot().cloudSyncStatus).toBe('error');
+      await runtime.retryCloudSync();
+      expect(runtime.getSnapshot().cloudSyncStatus).toBe('synced');
+    } finally { runtime.close(); }
+  });
+
 });
