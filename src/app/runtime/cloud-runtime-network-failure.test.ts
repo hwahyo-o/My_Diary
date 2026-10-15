@@ -224,4 +224,51 @@ describe('runtime local-first cloud failure integration', () => {
     } finally { runtime.close(); }
   });
 
+  it('preserves several sequential quick transactions through repeated outages, then uploads exactly once', async () => {
+    const { dbName, runtime, testRuntime } = await setup();
+    const upload = vi.spyOn(CloudSyncClient.prototype, 'uploadSnapshot')
+      .mockRejectedValueOnce(new TypeError('offline'))
+      .mockRejectedValueOnce(new Error('503 outage'))
+      .mockResolvedValueOnce({ revision: 1 });
+    vi.spyOn(CloudSyncClient.prototype, 'getHead').mockResolvedValue({
+      revision: 0, objectSha256: null, updatedAt: null,
+    });
+    try {
+      for (const text of ['아침 3500', '점심 7500', '저녁 9000']) {
+        await runtime.submitTransaction({ mode: 'quick', text });
+      }
+      const before = await allRecords(dbName);
+      expect(before.length).toBeGreaterThanOrEqual(4);
+      await testRuntime.syncCloudBestEffort();
+      await testRuntime.syncCloudBestEffort();
+      expect(await allRecords(dbName)).toEqual(before);
+      await testRuntime.syncCloudBestEffort();
+      expect(upload).toHaveBeenCalledTimes(3);
+      expect(await allRecords(dbName)).toEqual(before);
+      expect((testRuntime.cloudMeta as { cloudRevision: number }).cloudRevision).toBe(1);
+    } finally { runtime.close(); }
+  });
+
+  it('preserves local records on consecutive CAS 409 conflicts and retries on the next sync', async () => {
+    const { dbName, runtime, testRuntime } = await setup();
+    vi.spyOn(CloudSyncClient.prototype, 'getHead').mockResolvedValue({
+      revision: 0, objectSha256: null, updatedAt: null,
+    });
+    const upload = vi.spyOn(CloudSyncClient.prototype, 'uploadSnapshot')
+      .mockRejectedValueOnce(new CloudSyncHttpError('conflict 1', 409))
+      .mockRejectedValueOnce(new CloudSyncHttpError('conflict 2', 409))
+      .mockResolvedValueOnce({ revision: 1 });
+    try {
+      const before = await allRecords(dbName);
+      await testRuntime.syncCloudBestEffort();
+      expect(upload).toHaveBeenCalledTimes(2);
+      expect((testRuntime.cloudMeta as { cloudRevision: number }).cloudRevision).toBe(0);
+      expect(await allRecords(dbName)).toEqual(before);
+      await testRuntime.syncCloudBestEffort();
+      expect(upload).toHaveBeenCalledTimes(3);
+      expect((testRuntime.cloudMeta as { cloudRevision: number }).cloudRevision).toBe(1);
+      expect(await allRecords(dbName)).toEqual(before);
+    } finally { runtime.close(); }
+  });
+
 });
