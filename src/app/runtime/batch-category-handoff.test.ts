@@ -17,8 +17,9 @@ it('passes reviewed categories and expense flags to the actual batch persistence
         categoryId: 'transport', fixedVariable: 'fixed', amountMinor: 9500, type: 'expense',
       });
       expect(drafts[1]).toMatchObject({
-        categoryId: 'uncategorized', fixedVariable: 'variable', amountMinor: 6000, type: 'income',
+        fixedVariable: 'variable', amountMinor: 6000, type: 'income',
       });
+      expect(drafts[1]).not.toHaveProperty('categoryId');
       return original.call(this, drafts, expectedRevision);
     });
   try {
