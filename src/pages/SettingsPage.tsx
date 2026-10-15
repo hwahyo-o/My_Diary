@@ -15,6 +15,7 @@ interface SettingsPageProps {
   readonly cloudConflict: boolean;
   readonly cloudSyncStatus: import('../app/ui-types').CloudSyncStatus;
   readonly onEnrollCloud: (input: { readonly pin: string }) => Promise<void>;
+  readonly onRetryCloudSync?: () => Promise<void>;
   readonly onRotateRecoveryKey: (input: { readonly pin: string }) => Promise<string>;
   readonly onResetAllData: (input: { readonly pin: string }) => Promise<void>;
   readonly classificationSettings: ClassificationSettingsViewModel;
@@ -40,6 +41,7 @@ export function SettingsPage({
   cloudConflict,
   cloudSyncStatus,
   onEnrollCloud,
+  onRetryCloudSync,
   onRotateRecoveryKey,
   onResetAllData,
   classificationSettings,
@@ -262,6 +264,7 @@ export function SettingsPage({
             <>
               <div className="backup-status-summary">
                 <span>동기화 상태</span>
+                {(cloudSyncStatus === 'error' || cloudSyncStatus === 'pending') && onRetryCloudSync && <button type="button" onClick={() => void onRetryCloudSync()} disabled={cloudSyncStatus === 'syncing'}>지금 다시 동기화</button>}
                 <strong role="status">{cloudConflict || cloudSyncStatus === 'conflict' ? '충돌 확인 필요 · 로컬 기록 유지' : cloudSyncStatus === 'syncing' ? '클라우드 동기화 진행 중' : cloudSyncStatus === 'synced' ? '클라우드 동기화 완료' : cloudSyncStatus === 'error' ? '클라우드 동기화 실패 · 다음 잠금 해제에서 재시도' : '로컬 저장 완료 · 클라우드 동기화 확인 대기'}</strong>
                 <small>{cloudConflict
                   ? '서로 다른 신규 거래는 자동 병합되지만, 동일 항목을 양쪽에서 다르게 수정한 경우 자동 덮어쓰지 않습니다.'
