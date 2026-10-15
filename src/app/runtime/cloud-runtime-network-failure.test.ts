@@ -64,8 +64,8 @@ describe('runtime local-first cloud failure integration', () => {
         expect(await allRecords(dbName)).toEqual(before);
         expect((testRuntime.cloudMeta as { cloudRevision: number }).cloudRevision).toBe(1);
         const [first, second] = uploadSpy.mock.calls.map(([args]) => args);
-        expect(first?.bytes).toBeInstanceOf(Uint8Array);
-        expect(second?.bytes).toBeInstanceOf(Uint8Array);
+        expect(ArrayBuffer.isView(first?.bytes)).toBe(true);
+        expect(ArrayBuffer.isView(second?.bytes)).toBe(true);
         expect(first?.expectedRevision).toBe(0);
         expect(second?.expectedRevision).toBe(0);
       } finally {
