@@ -1209,9 +1209,9 @@ export class BrowserRuntime {
         this.reportCloudSyncStatus('syncing');
         try {
           await this.syncCloudNow();
-          if (startEpoch === this.cloudSyncEpoch) this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'synced');
+          this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'synced');
         } catch (error) {
-          if (startEpoch === this.cloudSyncEpoch) this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'error');
+          this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'error');
           throw error;
         }
       } finally {
