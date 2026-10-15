@@ -1223,6 +1223,13 @@ export class BrowserRuntime {
     }
   }
 
+  async retryCloudSync(): Promise<void> {
+    if (!this.cloudMeta || !this.session?.isUnlocked || !this.cloudKek) {
+      throw new Error('Unlock the connected Vault before retrying cloud sync.');
+    }
+    await this.syncCloudBestEffort();
+  }
+
   private async syncCloudBestEffort(): Promise<void> {
     if (!this.cloudMeta || !this.session?.isUnlocked) return;
     if (this.cloudSyncInFlight) return this.cloudSyncInFlight;
