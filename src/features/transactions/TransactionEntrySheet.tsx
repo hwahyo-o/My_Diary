@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { QuickTransactionCorrection, QuickTransactionPreviewViewModel, QuickBatchPreview, QuickBatchEntryCorrection, TransactionSubmission } from '../../app/ui-types';
 import { BUILTIN_CATEGORIES } from './category-catalog';
@@ -34,6 +34,7 @@ function correctionFromPreview(preview: QuickTransactionPreviewViewModel): Quick
 }
 
 export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPreviewQuickTransaction, onPreviewQuickBatch, returnFocusTo }: TransactionEntrySheetProps) {
+  const dialogRef = useRef<HTMLElement>(null);
   const [tab, setTab] = useState<'quick' | 'direct'>('quick');
   const [quickText, setQuickText] = useState('');
   const [amount, setAmount] = useState('');
@@ -51,7 +52,24 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPr
   useEffect(() => {
     if (!open) return;
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+      if (event.key !== 'Tab') return;
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const controls = [...dialog.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])')].filter((node) => node.getClientRects().length > 0);
+      if (!controls.length) return;
+      const first = controls[0]!;
+      const last = controls[controls.length - 1]!;
+      if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
@@ -137,7 +155,7 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPr
     <div className="sheet-backdrop" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
-      <section className="transaction-sheet" role="dialog" aria-modal="true" aria-labelledby="transaction-sheet-title">
+      <section ref={dialogRef} className="transaction-sheet" role="dialog" aria-modal="true" aria-labelledby="transaction-sheet-title">
         <div className="sheet-header">
           <div>
             <p className="eyebrow">TRANSACTION</p>
