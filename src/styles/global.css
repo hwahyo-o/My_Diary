@@ -73,6 +73,11 @@ h2 { margin-bottom: 0; }
 
 .sheet-backdrop { position: fixed; z-index: 40; inset: 0; display: grid; align-items: end; background: rgba(25,27,45,.38); }
 .transaction-sheet { width: min(100%, 42rem); margin: 0 auto; padding: var(--space-6); border-radius: 1.5rem 1.5rem 0 0; background: var(--color-surface); box-shadow: 0 -1rem 4rem rgba(25,27,45,.16); }
+/* Keep lengthy correction forms reachable above mobile browser and on-screen keyboards. */
+.transaction-sheet { max-height: 100vh; max-height: 100dvh; overflow-y: auto; overscroll-behavior: contain; min-width: 0; }
+.transaction-sheet .entry-form, .transaction-sheet .quick-preview { min-width: 0; }
+.transaction-sheet .entry-form input, .transaction-sheet .entry-form select { max-width: 100%; }
+
 .sheet-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-4); }
 .icon-button { width: 44px; border: 1px solid var(--color-border); border-radius: 50%; background: var(--color-surface-soft); font-size: 1.5rem; }
 .entry-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); margin-bottom: var(--space-4); padding: .25rem; border-radius: var(--radius-md); background: var(--color-surface-soft); }
