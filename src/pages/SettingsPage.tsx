@@ -68,6 +68,7 @@ export function SettingsPage({
   const [cloudBusy, setCloudBusy] = useState(false);
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [cloudReady, setCloudReady] = useState(cloudEnrolled);
+  const [cloudRetryBusy, setCloudRetryBusy] = useState(false);
   const [resetPin, setResetPin] = useState('');
   const [resetPhrase, setResetPhrase] = useState('');
   const [resetBusy, setResetBusy] = useState(false);
@@ -264,7 +265,7 @@ export function SettingsPage({
             <>
               <div className="backup-status-summary">
                 <span>동기화 상태</span>
-                {(cloudSyncStatus === 'error' || cloudSyncStatus === 'pending') && onRetryCloudSync && <button type="button" onClick={() => void onRetryCloudSync()} disabled={cloudSyncStatus === 'syncing'}>지금 다시 동기화</button>}
+                {(cloudSyncStatus === 'error' || cloudSyncStatus === 'pending') && onRetryCloudSync && <button type="button" onClick={() => { setCloudError(null); setCloudRetryBusy(true); void onRetryCloudSync().catch(() => setCloudError('동기화 재시도에 실패했습니다. 잠금 해제와 인터넷 연결을 확인해주세요.')).finally(() => setCloudRetryBusy(false)); }} disabled={cloudRetryBusy || cloudSyncStatus === 'syncing'}>지금 다시 동기화</button>}
                 <strong role="status">{cloudConflict || cloudSyncStatus === 'conflict' ? '충돌 확인 필요 · 로컬 기록 유지' : cloudSyncStatus === 'syncing' ? '클라우드 동기화 진행 중' : cloudSyncStatus === 'synced' ? '클라우드 동기화 완료' : cloudSyncStatus === 'error' ? '클라우드 동기화 실패 · 다음 잠금 해제에서 재시도' : '로컬 저장 완료 · 클라우드 동기화 확인 대기'}</strong>
                 <small>{cloudConflict
                   ? '서로 다른 신규 거래는 자동 병합되지만, 동일 항목을 양쪽에서 다르게 수정한 경우 자동 덮어쓰지 않습니다.'
