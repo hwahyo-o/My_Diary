@@ -320,6 +320,7 @@ export class BrowserRuntime {
     runtime.cloudMeta = await repository.getSecurityMeta<CloudEnrollmentMeta>(CLOUD_META_KEY) ?? null;
     runtime.cloudSyncStatus = runtime.cloudMeta ? 'pending' : 'not-connected';
     runtime.snapshot = {
+      cloudSyncStatus: runtime.cloudSyncStatus,
       access: runtime.bootstrap ? 'locked' : 'onboarding',
       dashboard: emptyDashboard,
       assets: emptyAssets,
@@ -1205,7 +1206,14 @@ export class BrowserRuntime {
       try {
         this.cloudKek?.fill(0);
         this.cloudKek = cloudKek.slice();
-        await this.syncCloudNow();
+        this.reportCloudSyncStatus('syncing');
+        try {
+          await this.syncCloudNow();
+          this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'synced');
+        } catch (error) {
+          this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'error');
+          throw error;
+        }
       } finally {
         cloudKek.fill(0);
       }
@@ -1801,7 +1809,7 @@ export class BrowserRuntime {
     });
   }
   private setSnapshot(snapshot: RuntimeSnapshot): void {
-    this.snapshot = snapshot;
-    for (const listener of this.listeners) listener(snapshot);
+    this.snapshot = { ...snapshot, cloudSyncStatus: snapshot.cloudSyncStatus ?? this.cloudSyncStatus };
+    for (const listener of this.listeners) listener(this.snapshot);
   }
 }
