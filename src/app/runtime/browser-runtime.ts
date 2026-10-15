@@ -1,4 +1,4 @@
-import { CloudSyncClient } from '../../cloud-sync/http-client';
+import { CloudSyncClient, CloudSyncHttpError } from '../../cloud-sync/http-client';
 import { deriveCloudAuthSecret, deriveCloudKek, deriveCloudRootKey } from '../../cloud-sync/key-derivation';
 import { openCloudVaultSnapshot, sealCloudVaultSnapshot, sha256Hex } from '../../cloud-sync/snapshot';
 import { selectAccountPurposeAnalysis } from '../../domain/analytics/account-purpose';
@@ -288,6 +288,7 @@ export class BrowserRuntime {
   private cloudMeta: CloudEnrollmentMeta | null = null;
   private cloudKek: Uint8Array | null = null;
   private cloudConflict = false;
+  private cloudSyncInFlight: Promise<void> | null = null;
   private classificationSettings: ClassificationSettings = DEFAULT_CLASSIFICATION_SETTINGS;
   private readonly cloudClient = new CloudSyncClient();
   private snapshot: RuntimeSnapshot = {
@@ -1204,10 +1205,28 @@ export class BrowserRuntime {
 
   private async syncCloudBestEffort(): Promise<void> {
     if (!this.cloudMeta || !this.session?.isUnlocked) return;
+    if (this.cloudSyncInFlight) return this.cloudSyncInFlight;
+    const task = (async () => {
+      try {
+        await this.syncCloudNow();
+      } catch (error) {
+        // A second device may have uploaded after our head check. Re-read the
+        // newest snapshot and reconcile at most once; never blindly overwrite.
+        if (error instanceof CloudSyncHttpError && error.status === 409 && this.session?.isUnlocked) {
+          try {
+            await this.syncCloudNow();
+          } catch {
+            // Preserve local records. A later unlock can retry safely.
+          }
+        }
+        // Offline/auth/server errors leave the encrypted local ledger intact.
+      }
+    })();
+    this.cloudSyncInFlight = task;
     try {
-      await this.syncCloudNow();
-    } catch {
-      // Local-first writes remain available. A later unlock/manual sync retries safely.
+      await task;
+    } finally {
+      if (this.cloudSyncInFlight === task) this.cloudSyncInFlight = null;
     }
   }
 
