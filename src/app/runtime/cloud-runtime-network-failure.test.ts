@@ -4,7 +4,7 @@ import { BrowserRuntime } from './browser-runtime';
 import { CloudSyncClient } from '../../cloud-sync/http-client';
 import { openVaultDatabase, STORE_NAMES } from '../../storage/database';
 
-type SyncTestRuntime = BrowserRuntime & {
+type SyncTestRuntime = {
   cloudMeta: unknown;
   cloudKek: Uint8Array | null;
   syncCloudBestEffort(): Promise<void>;
@@ -28,7 +28,7 @@ async function setup() {
   const dbName = `cloud-failure-${crypto.randomUUID()}`;
   const runtime = await BrowserRuntime.open({ dbName, argon2Profile: 'test' });
   await runtime.createProfile({ nickname: '격리 테스트', pin });
-  const testRuntime = runtime as SyncTestRuntime;
+  const testRuntime = runtime as unknown as SyncTestRuntime;
   testRuntime.cloudMeta = {
     accountId: 'test-only-cloud-account',
     nickname: '격리 테스트',
@@ -48,7 +48,7 @@ describe('runtime local-first cloud failure integration', () => {
     'preserves encrypted IndexedDB records after %s upload failure, then retries without duplicate records',
     async (scenario) => {
       const { dbName, runtime, testRuntime } = await setup();
-      const headSpy = vi.spyOn(CloudSyncClient.prototype, 'getHead').mockResolvedValue({ revision: 0 });
+      const headSpy = vi.spyOn(CloudSyncClient.prototype, 'getHead').mockResolvedValue({ revision: 0, objectSha256: null, updatedAt: null });
       const uploadSpy = vi.spyOn(CloudSyncClient.prototype, 'uploadSnapshot')
         .mockRejectedValueOnce(new Error(scenario))
         .mockResolvedValueOnce({ revision: 1 });
@@ -64,10 +64,10 @@ describe('runtime local-first cloud failure integration', () => {
         expect(await allRecords(dbName)).toEqual(before);
         expect((testRuntime.cloudMeta as { cloudRevision: number }).cloudRevision).toBe(1);
         const [first, second] = uploadSpy.mock.calls.map(([args]) => args);
-        expect(first.bytes).toBeInstanceOf(Uint8Array);
-        expect(second.bytes).toBeInstanceOf(Uint8Array);
-        expect(first.expectedRevision).toBe(0);
-        expect(second.expectedRevision).toBe(0);
+        expect(first?.bytes).toBeInstanceOf(Uint8Array);
+        expect(second?.bytes).toBeInstanceOf(Uint8Array);
+        expect(first?.expectedRevision).toBe(0);
+        expect(second?.expectedRevision).toBe(0);
       } finally {
         runtime.close();
       }
@@ -78,7 +78,7 @@ describe('runtime local-first cloud failure integration', () => {
     const { dbName, runtime, testRuntime } = await setup();
     const headSpy = vi.spyOn(CloudSyncClient.prototype, 'getHead')
       .mockRejectedValueOnce(new Error('network disconnected'))
-      .mockResolvedValueOnce({ revision: 0 });
+      .mockResolvedValueOnce({ revision: 0, objectSha256: null, updatedAt: null });
     const uploadSpy = vi.spyOn(CloudSyncClient.prototype, 'uploadSnapshot')
       .mockResolvedValueOnce({ revision: 1 });
     try {
