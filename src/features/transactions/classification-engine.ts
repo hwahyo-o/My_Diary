@@ -431,6 +431,16 @@ export function classifyTransactionText(
   const fixedVariable = resolveFixedVariable(normalizedText, categoryId.value, rules, reviewReasons);
   const occurredAt = resolveDate(normalizedText, now, reviewReasons);
 
+  // Income keywords mentioned as context (e.g. spending salary on food) must
+  // not silently turn an expense-category entry into income.
+  if (transactionType.value === 'income'
+    && transactionType.source === 'keyword'
+    && categoryId.value !== 'uncategorized'
+    && categoryId.value !== 'saving'
+    && categoryId.value !== 'investment') {
+    reviewReasons.push('income-expense-context-conflict');
+  }
+
   return {
     transactionType,
     categoryId,
