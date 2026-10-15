@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BrowserRuntime } from './browser-runtime';
 import { CloudSyncClient } from '../../cloud-sync/http-client';
+import { sha256Hex } from '../../cloud-sync/snapshot';
 import { openVaultDatabase, STORE_NAMES } from '../../storage/database';
 
 type SyncTestRuntime = {
@@ -94,4 +95,37 @@ describe('runtime local-first cloud failure integration', () => {
       runtime.close();
     }
   });
+  it('reconciles an upload committed by the server despite lost acknowledgement, without duplicating encrypted records', async () => {
+    const { dbName, runtime, testRuntime } = await setup();
+    let serverRevision = 0;
+    let serverBytes: Uint8Array | null = null;
+    const uploadSpy = vi.spyOn(CloudSyncClient.prototype, 'uploadSnapshot')
+      .mockImplementation(async (input) => {
+        if (input.expectedRevision !== serverRevision) throw new Error('409 conflict');
+        serverBytes = input.bytes.slice();
+        serverRevision += 1;
+        if (serverRevision === 1) throw new TypeError('response lost after commit');
+        return { revision: serverRevision };
+      });
+    vi.spyOn(CloudSyncClient.prototype, 'getHead').mockImplementation(async () => ({
+      revision: serverRevision, objectSha256: serverBytes ? await sha256Hex(serverBytes) : null, updatedAt: null,
+    }));
+    vi.spyOn(CloudSyncClient.prototype, 'downloadSnapshot').mockImplementation(async () => {
+      if (!serverBytes) return null;
+      return { revision: serverRevision, objectSha256: await sha256Hex(serverBytes), bytes: serverBytes };
+    });
+    try {
+      const before = await allRecords(dbName);
+      await testRuntime.syncCloudBestEffort();
+      expect(serverRevision).toBe(1);
+      expect((testRuntime.cloudMeta as { cloudRevision: number }).cloudRevision).toBe(0);
+      expect(await allRecords(dbName)).toEqual(before);
+      await testRuntime.syncCloudBestEffort();
+      expect(uploadSpy).toHaveBeenCalledTimes(2);
+      expect(serverRevision).toBe(2);
+      expect((testRuntime.cloudMeta as { cloudRevision: number }).cloudRevision).toBe(2);
+      expect(await allRecords(dbName)).toEqual(before);
+    } finally { runtime.close(); }
+  });
+
 });
