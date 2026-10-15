@@ -35,8 +35,8 @@ it('persists reviewed batch amount, type, category and date instead of original 
     const state = runtime.getSnapshot();
     expect(state.calendar.transactions).toHaveLength(2);
     expect(state.calendar.transactions).toEqual(expect.arrayContaining([
-      expect.objectContaining({ amountMinor: 9500, type: 'expense', occurredAt: entries[0].occurredAt }),
-      expect.objectContaining({ amountMinor: 6000, type: 'income', occurredAt: entries[1].occurredAt }),
+      expect.objectContaining({ amountMinor: 9500, type: 'expense', occurredAt: entries[0]!.occurredAt }),
+      expect.objectContaining({ amountMinor: 6000, type: 'income', occurredAt: entries[1]!.occurredAt }),
     ]));
     expect(state.dashboard.expenseMinor).toBe(9500);
     expect(state.dashboard.incomeMinor).toBe(6000);
