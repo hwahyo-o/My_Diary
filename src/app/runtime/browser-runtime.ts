@@ -508,7 +508,6 @@ export class BrowserRuntime {
       this.cloudKek = cloudKek.slice();
 
       const download = await this.cloudClient.downloadSnapshot();
-      assertActive();
       if (!download) throw new Error('Cloud Vault snapshot is missing.');
       if (await sha256Hex(download.bytes) !== download.objectSha256) throw new Error('Cloud snapshot digest mismatch.');
       const snapshot = await openCloudVaultSnapshot(download.bytes, cloudKek);
@@ -528,7 +527,6 @@ export class BrowserRuntime {
         wrappedRecoveryVaultKey: snapshot.recoveryWrap,
         failedAttempts: 0,
       };
-      assertActive();
       await this.repository.replaceVaultData({
         vaultId: snapshot.vaultId,
         schemaVersion: snapshot.schemaVersion,
