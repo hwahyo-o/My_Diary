@@ -35,6 +35,7 @@ function correctionFromPreview(preview: QuickTransactionPreviewViewModel): Quick
 
 export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPreviewQuickTransaction, onPreviewQuickBatch, returnFocusTo }: TransactionEntrySheetProps) {
   const dialogRef = useRef<HTMLElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
   const [tab, setTab] = useState<'quick' | 'direct'>('quick');
   const [quickText, setQuickText] = useState('');
   const [amount, setAmount] = useState('');
@@ -78,6 +79,28 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPr
   useEffect(() => {
     if (!open && returnFocusTo) returnFocusTo.focus();
   }, [open, returnFocusTo]);
+
+  useEffect(() => {
+    if (!open) return;
+    const backdrop = backdropRef.current;
+    if (!backdrop) return;
+    const updateViewport = () => {
+      const viewport = window.visualViewport;
+      const height = viewport?.height ?? window.innerHeight;
+      const offsetTop = viewport?.offsetTop ?? 0;
+      backdrop.style.height = `${Math.max(0, height)}px`;
+      backdrop.style.top = `${offsetTop}px`;
+    };
+    updateViewport();
+    window.visualViewport?.addEventListener('resize', updateViewport);
+    window.visualViewport?.addEventListener('scroll', updateViewport);
+    window.addEventListener('resize', updateViewport);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', updateViewport);
+      window.visualViewport?.removeEventListener('scroll', updateViewport);
+      window.removeEventListener('resize', updateViewport);
+    };
+  }, [open]);
 
   if (!open) return null;
 
@@ -152,7 +175,7 @@ export function TransactionEntrySheet({ open, onClose, onSubmitTransaction, onPr
   }
 
   return (
-    <div className="sheet-backdrop" role="presentation" onMouseDown={(event) => {
+    <div ref={backdropRef} className="sheet-backdrop" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
       <section ref={dialogRef} className="transaction-sheet" role="dialog" aria-modal="true" aria-labelledby="transaction-sheet-title">
