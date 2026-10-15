@@ -49,6 +49,7 @@ interface AppShellProps {
   readonly cloudConflict: boolean;
   readonly cloudSyncStatus: import('../app/ui-types').CloudSyncStatus;
   readonly onEnrollCloud: (input: { readonly pin: string }) => Promise<void>;
+  readonly onRetryCloudSync: () => Promise<void>;
   readonly onRotateRecoveryKey: (input: { readonly pin: string }) => Promise<string>;
   readonly onResetAllData: (input: { readonly pin: string }) => Promise<void>;
   readonly onSaveFixedVariableRule: (input: { readonly categoryId: string; readonly mode: FixedVariableMode }) => Promise<void>;
@@ -87,6 +88,7 @@ export function AppShell({
   cloudConflict,
   cloudSyncStatus,
   onEnrollCloud,
+  onRetryCloudSync,
   onRotateRecoveryKey,
   onResetAllData,
   onSaveFixedVariableRule,
@@ -131,6 +133,7 @@ export function AppShell({
           cloudConflict={cloudConflict}
           cloudSyncStatus={cloudSyncStatus}
           onEnrollCloud={onEnrollCloud}
+          onRetryCloudSync={onRetryCloudSync}
           onRotateRecoveryKey={onRotateRecoveryKey}
           onResetAllData={onResetAllData}
           classificationSettings={classificationSettings}
