@@ -1,7 +1,8 @@
 import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BrowserRuntime } from './browser-runtime';
-import { CloudSyncClient } from '../../cloud-sync/http-client';
+import { CloudSyncClient, CloudSyncHttpError } from '../../cloud-sync/http-client';
+import { sha256Hex } from '../../cloud-sync/snapshot';
 import { sha256Hex } from '../../cloud-sync/snapshot';
 import { openVaultDatabase, STORE_NAMES } from '../../storage/database';
 
@@ -125,6 +126,39 @@ describe('runtime local-first cloud failure integration', () => {
       expect(serverRevision).toBe(2);
       expect((testRuntime.cloudMeta as { cloudRevision: number }).cloudRevision).toBe(2);
       expect(await allRecords(dbName)).toEqual(before);
+    } finally { runtime.close(); }
+  });
+
+  it('rechecks remote head and reconciles after a concurrent CAS 409 instead of losing local records', async () => {
+    const { dbName, runtime, testRuntime } = await setup();
+    let revision = 0;
+    let committedBytes: Uint8Array | null = null;
+    const uploadSpy = vi.spyOn(CloudSyncClient.prototype, 'uploadSnapshot')
+      .mockImplementation(async (input) => {
+        if (revision === 0) {
+          // A competing device committed the same baseline before our upload.
+          committedBytes = input.bytes.slice();
+          revision = 1;
+          throw new CloudSyncHttpError('stale expected revision', 409);
+        }
+        expect(input.expectedRevision).toBe(revision);
+        committedBytes = input.bytes.slice();
+        return { revision: ++revision };
+      });
+    const headSpy = vi.spyOn(CloudSyncClient.prototype, 'getHead').mockImplementation(async () => ({
+      revision, objectSha256: committedBytes ? await sha256Hex(committedBytes) : null, updatedAt: null,
+    }));
+    vi.spyOn(CloudSyncClient.prototype, 'downloadSnapshot').mockImplementation(async () => committedBytes
+      ? { revision, objectSha256: await sha256Hex(committedBytes), bytes: committedBytes }
+      : null);
+    try {
+      const before = await allRecords(dbName);
+      await testRuntime.syncCloudBestEffort();
+      expect(headSpy).toHaveBeenCalledTimes(2);
+      expect(uploadSpy).toHaveBeenCalledTimes(2);
+      expect(revision).toBe(2);
+      expect(await allRecords(dbName)).toEqual(before);
+      expect((testRuntime.cloudMeta as { cloudRevision: number }).cloudRevision).toBe(2);
     } finally { runtime.close(); }
   });
 
