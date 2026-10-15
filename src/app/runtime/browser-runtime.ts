@@ -1233,6 +1233,16 @@ export class BrowserRuntime {
     }
   }
 
+  private async reportVerifiedSyncStatus(): Promise<void> {
+    const epoch = this.cloudSyncEpoch;
+    const meta = this.cloudMeta;
+    const bootstrap = this.bootstrap;
+    if (!meta || !bootstrap || !this.session?.isUnlocked) return;
+    const revision = await this.repository.getRevision(bootstrap.vaultId);
+    if (epoch !== this.cloudSyncEpoch || !this.session?.isUnlocked) return;
+    this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : revision === this.cloudMeta?.localRevisionAtSync ? 'synced' : 'pending');
+  }
+
   private async syncCloudBestEffort(): Promise<void> {
     if (!this.cloudMeta || !this.session?.isUnlocked) return;
     if (this.cloudSyncInFlight) return this.cloudSyncInFlight;
@@ -1241,20 +1251,20 @@ export class BrowserRuntime {
     const task = (async () => {
       try {
         await this.syncCloudNow();
-        this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'synced');
+        if (startEpoch === this.cloudSyncEpoch) await this.reportVerifiedSyncStatus();
       } catch (error) {
         // A second device may have uploaded after our head check. Re-read the
         // newest snapshot and reconcile at most once; never blindly overwrite.
         if (error instanceof CloudSyncHttpError && error.status === 409 && this.session?.isUnlocked) {
           try {
             await this.syncCloudNow();
-            if (startEpoch === this.cloudSyncEpoch) this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'synced');
+            if (startEpoch === this.cloudSyncEpoch) await this.reportVerifiedSyncStatus();
             return;
           } catch {
             // Preserve local records. A later unlock can retry safely.
           }
         }
-        this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'error');
+        if (startEpoch === this.cloudSyncEpoch) this.reportCloudSyncStatus(this.cloudConflict ? 'conflict' : 'error');
         // Offline/auth/server errors leave the encrypted local ledger intact.
       }
     })();

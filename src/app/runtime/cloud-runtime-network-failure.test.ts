@@ -215,9 +215,11 @@ describe('runtime local-first cloud failure integration', () => {
       revision = 1;
       releaseFirst?.({ revision });
       await first;
+      expect(runtime.getSnapshot().cloudSyncStatus).toBe('pending');
       expect(await allRecords(dbName)).toEqual(afterLocalWrite);
       await testRuntime.syncCloudBestEffort();
       expect(upload).toHaveBeenCalledTimes(2);
+      expect(runtime.getSnapshot().cloudSyncStatus).toBe('synced');
       expect(uploaded[0]).not.toEqual(uploaded[1]);
       expect((testRuntime.cloudMeta as { localRevisionAtSync: number }).localRevisionAtSync).toBeGreaterThan(0);
       expect(await allRecords(dbName)).toEqual(afterLocalWrite);
