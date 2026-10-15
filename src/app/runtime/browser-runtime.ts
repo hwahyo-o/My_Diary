@@ -289,6 +289,7 @@ export class BrowserRuntime {
   private cloudKek: Uint8Array | null = null;
   private cloudConflict = false;
   private cloudSyncInFlight: Promise<void> | null = null;
+  private cloudSyncEpoch = 0;
   private classificationSettings: ClassificationSettings = DEFAULT_CLASSIFICATION_SETTINGS;
   private readonly cloudClient = new CloudSyncClient();
   private snapshot: RuntimeSnapshot = {
@@ -1235,10 +1236,17 @@ export class BrowserRuntime {
     const bootstrap = this.bootstrap;
     if (!meta || !bootstrap || !this.session?.isUnlocked) return;
 
+    const epoch = this.cloudSyncEpoch;
+    const assertActive = () => {
+      if (epoch !== this.cloudSyncEpoch || !this.session?.isUnlocked || !this.cloudKek) {
+        throw new Error('Vault locked while cloud sync was in flight.');
+      }
+    };
     const [head, localRevision] = await Promise.all([
       this.cloudClient.getHead(),
       this.repository.getRevision(bootstrap.vaultId),
     ]);
+    assertActive();
     const localChanged = localRevision !== meta.localRevisionAtSync;
     if (head.revision < meta.cloudRevision) throw new Error('Cloud sync head moved backwards.');
     const cloudChanged = head.revision > meta.cloudRevision;
@@ -1250,6 +1258,7 @@ export class BrowserRuntime {
       const cloudKek = this.cloudKek;
       if (!cloudKek) throw new Error('Cloud sync key is unavailable.');
       const snapshot = await openCloudVaultSnapshot(download.bytes, cloudKek);
+      assertActive();
       if (snapshot.accountId !== meta.accountId || snapshot.vaultId !== bootstrap.vaultId) {
         throw new Error('Cloud Vault identity mismatch.');
       }
@@ -1272,6 +1281,7 @@ export class BrowserRuntime {
         }
 
         const mergedRevision = Math.max(localRevision, snapshot.manifest.revision) + 1;
+        assertActive();
         await this.repository.replaceVaultData({
           vaultId: snapshot.vaultId,
           schemaVersion: Math.max(snapshot.schemaVersion, SCHEMA_VERSION),
@@ -1312,6 +1322,7 @@ export class BrowserRuntime {
       await this.hydrate();
       return;
     }
+    assertActive();
     if (localChanged) await this.uploadCloudSnapshot(meta, head.revision);
     this.cloudConflict = false;
   }
@@ -1319,6 +1330,7 @@ export class BrowserRuntime {
   private async uploadCloudSnapshot(meta: CloudEnrollmentMeta, expectedCloudRevision: number): Promise<void> {
     const bootstrap = this.bootstrap;
     if (!bootstrap || !this.session?.isUnlocked) throw new Error('Vault session is locked.');
+    const syncEpoch = this.cloudSyncEpoch;
     const [records, events, localRevision] = await Promise.all([
       this.repository.listAllRecords(),
       this.repository.listAllEvents(),
@@ -1326,6 +1338,7 @@ export class BrowserRuntime {
     ]);
     const cloudKek = this.cloudKek;
     if (!cloudKek) throw new Error('Cloud sync key is unavailable.');
+    if (syncEpoch !== this.cloudSyncEpoch || !this.session?.isUnlocked) return;
     const bytes = await sealCloudVaultSnapshot({
       formatVersion: 1,
       schemaVersion: SCHEMA_VERSION,
@@ -1342,11 +1355,13 @@ export class BrowserRuntime {
       records,
       events,
     }, cloudKek);
+    if (syncEpoch !== this.cloudSyncEpoch || !this.session?.isUnlocked) return;
     const result = await this.cloudClient.uploadSnapshot({
       expectedRevision: expectedCloudRevision,
       objectSha256: await sha256Hex(bytes),
       bytes,
     });
+    if (syncEpoch !== this.cloudSyncEpoch || !this.session?.isUnlocked) return;
     const nextMeta: CloudEnrollmentMeta = {
       ...meta,
       cloudRevision: result.revision,
@@ -1357,6 +1372,7 @@ export class BrowserRuntime {
   }
 
   lock(): void {
+    this.cloudSyncEpoch += 1;
     this.cloudKek?.fill(0);
     this.cloudKek = null;
     this.session?.lock();

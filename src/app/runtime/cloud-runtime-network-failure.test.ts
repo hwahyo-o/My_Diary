@@ -161,4 +161,29 @@ describe('runtime local-first cloud failure integration', () => {
     } finally { runtime.close(); }
   });
 
+  it('does not apply a delayed cloud head response after the Vault is locked', async () => {
+    const { dbName, runtime, testRuntime } = await setup();
+    let releaseHead: ((value: { revision: number; objectSha256: null; updatedAt: null }) => void) | undefined;
+    const headStarted = new Promise<void>((resolve) => {
+      vi.spyOn(CloudSyncClient.prototype, 'getHead').mockImplementation(() => {
+        resolve();
+        return new Promise((done) => { releaseHead = done; });
+      });
+    });
+    const upload = vi.spyOn(CloudSyncClient.prototype, 'uploadSnapshot');
+    const download = vi.spyOn(CloudSyncClient.prototype, 'downloadSnapshot');
+    try {
+      const before = await allRecords(dbName);
+      const pending = testRuntime.syncCloudBestEffort();
+      await headStarted;
+      runtime.lock();
+      releaseHead?.({ revision: 1, objectSha256: null, updatedAt: null });
+      await pending;
+      expect(upload).not.toHaveBeenCalled();
+      expect(download).not.toHaveBeenCalled();
+      expect(await allRecords(dbName)).toEqual(before);
+      expect(runtime.getSnapshot().access).toBe('locked');
+    } finally { runtime.close(); }
+  });
+
 });
