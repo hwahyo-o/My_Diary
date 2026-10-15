@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { BrowserRuntime } from './browser-runtime';
 import { CloudSyncClient } from '../../cloud-sync/http-client';
 
