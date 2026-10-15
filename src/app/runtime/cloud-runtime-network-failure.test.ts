@@ -186,4 +186,42 @@ describe('runtime local-first cloud failure integration', () => {
     } finally { runtime.close(); }
   });
 
+  it('keeps transactions written while an upload is in-flight and sends them in a later revision', async () => {
+    const { dbName, runtime, testRuntime } = await setup();
+    let releaseFirst: ((result: { revision: number }) => void) | undefined;
+    let firstStarted: (() => void) | undefined;
+    const firstReached = new Promise<void>((resolve) => { firstStarted = resolve; });
+    const uploaded: Uint8Array[] = [];
+    let revision = 0;
+    vi.spyOn(CloudSyncClient.prototype, 'getHead').mockImplementation(async () => ({
+      revision, objectSha256: null, updatedAt: null,
+    }));
+    const upload = vi.spyOn(CloudSyncClient.prototype, 'uploadSnapshot').mockImplementation(async (input) => {
+      expect(input.expectedRevision).toBe(revision);
+      uploaded.push(input.bytes.slice());
+      if (uploaded.length === 1) {
+        firstStarted?.();
+        return new Promise((resolve) => { releaseFirst = resolve; });
+      }
+      revision += 1;
+      return { revision };
+    });
+    try {
+      const first = testRuntime.syncCloudBestEffort();
+      await firstReached;
+      await runtime.submitTransaction({ mode: 'quick', text: '커피 4500' });
+      const afterLocalWrite = await allRecords(dbName);
+      expect(afterLocalWrite.length).toBeGreaterThan(1);
+      revision = 1;
+      releaseFirst?.({ revision });
+      await first;
+      expect(await allRecords(dbName)).toEqual(afterLocalWrite);
+      await testRuntime.syncCloudBestEffort();
+      expect(upload).toHaveBeenCalledTimes(2);
+      expect(uploaded[0]).not.toEqual(uploaded[1]);
+      expect((testRuntime.cloudMeta as { localRevisionAtSync: number }).localRevisionAtSync).toBeGreaterThan(0);
+      expect(await allRecords(dbName)).toEqual(afterLocalWrite);
+    } finally { runtime.close(); }
+  });
+
 });
