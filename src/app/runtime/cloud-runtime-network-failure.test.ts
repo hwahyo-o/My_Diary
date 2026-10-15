@@ -287,4 +287,36 @@ describe('runtime local-first cloud failure integration', () => {
     } finally { runtime.close(); }
   });
 
+  it('keeps newly written transactions pending after an upload failure and reaches synced only on retry', async () => {
+    const { dbName, runtime, testRuntime } = await setup();
+    let releaseUpload: ((result: { revision: number }) => void) | undefined;
+    let uploadStarted: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => { uploadStarted = resolve; });
+    let serverRevision = 0;
+    vi.spyOn(CloudSyncClient.prototype, 'getHead').mockImplementation(async () => ({
+      revision: serverRevision, objectSha256: null, updatedAt: null,
+    }));
+    const upload = vi.spyOn(CloudSyncClient.prototype, 'uploadSnapshot')
+      .mockImplementationOnce(async () => {
+        uploadStarted?.();
+        return new Promise((_, reject) => { releaseUpload = () => reject(new TypeError('connection lost')); });
+      })
+      .mockImplementationOnce(async () => ({ revision: ++serverRevision }));
+    try {
+      const inflight = testRuntime.syncCloudBestEffort();
+      await started;
+      await runtime.submitTransaction({ mode: 'quick', text: '점심 7800' });
+      await runtime.submitTransaction({ mode: 'quick', text: '커피 4200' });
+      const stored = await allRecords(dbName);
+      releaseUpload?.({ revision: 1 });
+      await inflight;
+      expect(runtime.getSnapshot().cloudSyncStatus).toBe('error');
+      expect(await allRecords(dbName)).toEqual(stored);
+      await runtime.retryCloudSync();
+      expect(upload).toHaveBeenCalledTimes(2);
+      expect(runtime.getSnapshot().cloudSyncStatus).toBe('synced');
+      expect(await allRecords(dbName)).toEqual(stored);
+    } finally { runtime.close(); }
+  });
+
 });
