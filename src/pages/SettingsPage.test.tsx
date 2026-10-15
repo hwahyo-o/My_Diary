@@ -143,20 +143,20 @@ describe('SettingsPage operational hub', () => {
     fireEvent.click(screen.getByRole('button', { name: '클라우드 동기화 시작' }));
 
     await waitFor(() => expect(onEnrollCloud).toHaveBeenCalledWith({ pin: '4829517304' }));
-    expect(screen.getByText('암호화 클라우드 동기화 사용 중')).toBeInTheDocument();
+    expect(screen.getByText('로컬 저장 완료 · 클라우드 동기화 확인 대기')).toBeInTheDocument();
   });
 
   it('shows an explicit warning when overlapping cloud edits need manual resolution', () => {
     render(<SettingsPage {...baseProps} cloudEnrolled cloudConflict />);
 
     expect(screen.getByText('충돌 확인 필요')).toBeInTheDocument();
-    expect(screen.getByText('동일 항목의 동시 수정이 감지되었습니다.')).toBeInTheDocument();
+    expect(screen.getByText('충돌 확인 필요 · 로컬 기록 유지')).toBeInTheDocument();
   });
 
   it('shows an already-enrolled cloud Vault without asking for the PIN again', () => {
     render(<SettingsPage {...baseProps} cloudEnrolled />);
 
-    expect(screen.getByText('암호화 클라우드 동기화 사용 중')).toBeInTheDocument();
+    expect(screen.getByText('로컬 저장 완료 · 클라우드 동기화 확인 대기')).toBeInTheDocument();
     expect(screen.queryByLabelText('클라우드 동기화 PIN')).not.toBeInTheDocument();
   });
 
