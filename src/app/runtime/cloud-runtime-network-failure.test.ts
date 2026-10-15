@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BrowserRuntime } from './browser-runtime';
 import { CloudSyncClient, CloudSyncHttpError } from '../../cloud-sync/http-client';
 import { sha256Hex } from '../../cloud-sync/snapshot';
-import { sha256Hex } from '../../cloud-sync/snapshot';
 import { openVaultDatabase, STORE_NAMES } from '../../storage/database';
 
 type SyncTestRuntime = {
