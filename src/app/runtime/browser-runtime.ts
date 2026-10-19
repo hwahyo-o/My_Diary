@@ -1633,6 +1633,9 @@ export class BrowserRuntime {
     if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
 
     const revision = await this.repository.getRevision(bootstrap.vaultId);
+    if (expectedRevision !== undefined && revision !== expectedRevision) {
+      throw new Error('Budget candidates changed before confirmation; review the latest entries.');
+    }
     const eventId = newUuid();
     const envelope = await session.withVaultKey((key) =>
       encryptRecord(key, financeAad(bootstrap.vaultId, recordId, recordType, recordVersion), payload));
