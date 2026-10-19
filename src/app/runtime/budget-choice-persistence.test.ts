@@ -45,7 +45,7 @@ it('rejects budget confirmation when cloud conflict is reported, preserving encr
     // Simulate an existing cloud conflict without contacting a real account.
     Object.defineProperty(runtime, 'cloudConflict', { value: true, configurable: true });
     expect(runtime.hasCloudConflict()).toBe(true);
-    await expect(runtime.confirmBudgetCandidate(before[1]!.id))
+    await expect(runtime.confirmBudgetCandidate(before[1]!.id, before[0]!.id))
       .rejects.toThrow('Cloud conflict must be resolved');
     expect(await runtime.listCurrentMonthBudgetCandidates()).toEqual(before);
     expect(runtime.getSnapshot().dashboard.budget.limitMinor).toBe(200000);
