@@ -388,7 +388,7 @@ function resolveDate(
   now: ISODateTime,
   reviewReasons: string[],
 ): ClassificationDecision<ISODateTime> {
-  const absoluteMatches = [...normalizedText.matchAll(/(?:^|\\s)(\\d{4})([-./])(\\d{1,2})\\2(\\d{1,2})(?=\\s|$|[,;!?])/gu)];
+  const absoluteMatches = [...normalizedText.matchAll(/(?:^|\s)(\d{4})([-./])(\d{1,2})\2(\d{1,2})(?=\s|$|[,;!?])/gu)];
   const parsedAbsolute = absoluteMatches.map((match) => {
     const year = Number(match[1]);
     const month = Number(match[3]);
@@ -405,7 +405,7 @@ function resolveDate(
     return { value: now, source: 'default', confidence: 'low', matchedKeywords: [...absoluteMatches.map((m) => m[0].trim()), ...matches.map((m) => m.label)] };
   }
   if (absoluteDays[0]) {
-    const offset = now.match(/([+-]\\d{2}:\\d{2})$/)?.[1] ?? '+09:00';
+    const offset = now.match(/([+-]\d{2}:\d{2})$/)?.[1] ?? '+09:00';
     const value = parseISODateTime(`${absoluteDays[0]}T12:00:00.000${offset}`);
     return { value, source: 'explicit', confidence: 'high', matchedKeywords: [absoluteMatches[0]![0].trim()] };
   }
