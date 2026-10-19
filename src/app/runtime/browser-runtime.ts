@@ -1673,7 +1673,7 @@ export class BrowserRuntime {
 
     const currentBudgets = budgets
       .filter((budget) => budget.month === monthStart)
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id));
     const currentBudget = currentBudgets[0];
     const budgetUsage = currentBudget
       ? selectBudgetUsage(currentBudget, monthTransactions)
