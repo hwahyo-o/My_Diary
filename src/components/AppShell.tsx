@@ -40,7 +40,7 @@ interface AppShellProps {
   readonly onRestoreTransaction: (id: string) => Promise<void>;
   readonly onSaveBudget: (input: { readonly limitMinor: number }) => Promise<void>;
   readonly onListBudgetCandidates: () => Promise<readonly { id: string; updatedAt: string; limitMinor: number }[]>;
-  readonly onConfirmBudgetCandidate: (id: string) => Promise<void>;
+  readonly onConfirmBudgetCandidate: (id: string, expectedLatestId: string) => Promise<void>;
   readonly onSaveAccount: (input: SaveAccountInput) => Promise<string>;
   readonly onSaveHolding: (input: SaveHoldingInput) => Promise<void>;
   readonly onSaveLoan: (input: SaveLoanInput) => Promise<void>;

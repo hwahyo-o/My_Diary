@@ -973,7 +973,7 @@ export class BrowserRuntime {
    * Keeps all history and fails closed when the local Vault revision moves before commit.
    * UI must ask the user to confirm the choice; never call this automatically on sync.
    */
-  async confirmBudgetCandidate(candidateId: string): Promise<void> {
+  async confirmBudgetCandidate(candidateId: string, expectedLatestId: string): Promise<void> {
     if (this.cloudConflict) throw new Error('Cloud conflict must be resolved before confirming budget.');
     const session = this.session;
     const bootstrap = this.bootstrap;
@@ -985,6 +985,10 @@ export class BrowserRuntime {
       decryptRecord<Budget>(key,
         financeAad(bootstrap.vaultId, record.recordId, 'budget', record.recordVersion),
         decodeEnvelope(record.encryptedPayload)))));
+    const current = inspectMonthlyBudgets(budgets, month).selected;
+    if (!current || current.id !== parseUUID(expectedLatestId)) {
+      throw new Error('Budget candidates changed since they were displayed; reload before confirming.');
+    }
     const chosen = selectBudgetCandidateForReview(budgets, month, parseUUID(candidateId));
     if (!Number.isSafeInteger(chosen.limitMinor) || chosen.limitMinor < 0) {
       throw new TypeError('Selected budget limit is invalid.');

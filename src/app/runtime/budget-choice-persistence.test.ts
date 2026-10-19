@@ -14,12 +14,12 @@ it('confirms explicitly selected historical budget by appending, without deletin
     await runtime.saveBudget({ limitMinor: 200000 });
     const before = await runtime.listCurrentMonthBudgetCandidates();
     expect(before.map((item) => item.limitMinor)).toEqual([200000, 100000]);
-    await runtime.confirmBudgetCandidate(before[1]!.id);
+    await runtime.confirmBudgetCandidate(before[1]!.id, before[0]!.id);
     expect(runtime.getSnapshot().dashboard.budget.limitMinor).toBe(100000);
     const after = await runtime.listCurrentMonthBudgetCandidates();
     expect(after).toHaveLength(3);
     expect(after.map((item) => item.limitMinor)).toEqual([100000, 200000, 100000]);
-    await expect(runtime.confirmBudgetCandidate('00000000-0000-4000-8000-0000000000a1'))
+    await expect(runtime.confirmBudgetCandidate('00000000-0000-4000-8000-0000000000a1', after[0]!.id))
       .rejects.toThrow('Selected budget candidate is no longer available');
     expect((await runtime.listCurrentMonthBudgetCandidates())).toHaveLength(3);
     runtime.lock();
@@ -45,7 +45,7 @@ it('rejects budget confirmation when cloud conflict is reported, preserving encr
     // Simulate an existing cloud conflict without contacting a real account.
     Object.defineProperty(runtime, 'cloudConflict', { value: true, configurable: true });
     expect(runtime.hasCloudConflict()).toBe(true);
-    await expect(runtime.confirmBudgetCandidate(before[1]!.id))
+    await expect(runtime.confirmBudgetCandidate(before[1]!.id, before[0]!.id))
       .rejects.toThrow('Cloud conflict must be resolved');
     expect(await runtime.listCurrentMonthBudgetCandidates()).toEqual(before);
     expect(runtime.getSnapshot().dashboard.budget.limitMinor).toBe(200000);
@@ -66,14 +66,14 @@ it('preserves interleaved budget records from two unlocked sessions', async () =
     const candidates = await first.listCurrentMonthBudgetCandidates();
     // The second session commits a newer budget while the first is still unlocked.
     await second.saveBudget({ limitMinor: 200000 });
-    // A user-selected historical choice appends a record after the other session's
-    // update; all existing candidates must remain intact.
-    await first.confirmBudgetCandidate(candidates[0]!.id);
+    // The stale selection must fail without appending a new record.
+    await expect(first.confirmBudgetCandidate(candidates[0]!.id, candidates[0]!.id))
+      .rejects.toThrow('Budget candidates changed since they were displayed');
     const after = await first.listCurrentMonthBudgetCandidates();
-    expect(after.map((item) => item.limitMinor)).toEqual([100000, 200000, 100000]);
+    expect(after.map((item) => item.limitMinor)).toEqual([200000, 100000]);
     first.lock();
     await first.unlock('4829517304');
-    expect(first.getSnapshot().dashboard.budget.limitMinor).toBe(100000);
+    expect(first.getSnapshot().dashboard.budget.limitMinor).toBe(200000);
   } finally {
     first.close();
     second.close();

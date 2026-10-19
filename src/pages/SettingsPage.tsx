@@ -7,7 +7,7 @@ import { clearBackupStatus, deriveBackupStatus, formatBackupDateKst, readBackupS
 
 interface SettingsPageProps {
   readonly onListBudgetCandidates?: () => Promise<readonly { id: string; updatedAt: string; limitMinor: number }[]>;
-  readonly onConfirmBudgetCandidate?: (id: string) => Promise<void>;
+  readonly onConfirmBudgetCandidate?: (id: string, expectedLatestId: string) => Promise<void>;
   readonly onLock: () => void;
   readonly backup: BackupStatusViewModel;
   readonly onExportVault: (input: { readonly recoveryKey: string }) => Promise<Uint8Array>;

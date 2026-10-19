@@ -207,7 +207,7 @@ export interface AppRuntimePorts {
   restoreTransaction?(id: string): Promise<void>;
   saveBudget?(input: { readonly limitMinor: number }): Promise<void>;
   listCurrentMonthBudgetCandidates?(): Promise<readonly { id: string; updatedAt: string; limitMinor: number }[]>;
-  confirmBudgetCandidate?(id: string): Promise<void>;
+  confirmBudgetCandidate?(id: string, expectedLatestId: string): Promise<void>;
   saveAccount?(input: SaveAccountInput): Promise<string>;
   saveHolding?(input: SaveHoldingInput): Promise<void>;
   saveLoan?(input: SaveLoanInput): Promise<void>;

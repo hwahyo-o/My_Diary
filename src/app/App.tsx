@@ -113,7 +113,7 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
         return runtime.restoreTransaction(id);
       }}
       onListBudgetCandidates={() => runtime.listCurrentMonthBudgetCandidates?.() ?? Promise.reject(new Error('Budget history is not connected.'))}
-      onConfirmBudgetCandidate={(id) => runtime.confirmBudgetCandidate?.(id) ?? Promise.reject(new Error('Budget confirmation is not connected.'))}
+      onConfirmBudgetCandidate={(id, expectedLatestId) => runtime.confirmBudgetCandidate?.(id, expectedLatestId) ?? Promise.reject(new Error('Budget confirmation is not connected.'))}
       onSaveBudget={(input) => {
         if (!runtime.saveBudget) return Promise.reject(new Error('Budget runtime is not connected.'));
         return runtime.saveBudget(input);

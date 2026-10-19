@@ -9,7 +9,7 @@ export interface BudgetChoiceItem {
 interface BudgetChoicePanelProps {
   readonly cloudConflict: boolean;
   readonly onList: () => Promise<readonly BudgetChoiceItem[]>;
-  readonly onConfirm: (id: string) => Promise<void>;
+  readonly onConfirm: (id: string, expectedLatestId: string) => Promise<void>;
 }
 
 function displayDate(value: string): string {
@@ -41,12 +41,12 @@ export function BudgetChoicePanel({ onList, onConfirm, cloudConflict }: BudgetCh
   }
 
   async function confirm() {
-    if (!selected || saving || loading || cloudConflict) return;
+    if (!selected || !items?.[0] || saving || loading || cloudConflict) return;
     setSaving(true);
     setError(null);
     setSuccess(false);
     try {
-      await onConfirm(selected);
+      await onConfirm(selected, items[0].id);
       const latest = await onList();
       setItems(latest);
       setSelected('');
