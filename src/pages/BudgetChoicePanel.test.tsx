@@ -8,7 +8,7 @@ it('only confirms the selected historical budget and reports success', async () 
     { id: 'old', limitMinor: 100000, updatedAt: '2026-10-19T05:00:00.000Z' },
   ]);
   const onConfirm = vi.fn().mockResolvedValue(undefined);
-  render(<BudgetChoicePanel onList={onList} onConfirm={onConfirm} />);
+  render(<BudgetChoicePanel onList={onList} onConfirm={onConfirm} cloudConflict={false} />);
   fireEvent.click(screen.getByRole('button', { name: '이번 달 예산 기록 조회' }));
   await screen.findByText(/100,000원/);
   expect(screen.getByRole('button', { name: '선택한 예산 적용' })).toBeDisabled();
@@ -21,7 +21,7 @@ it('only confirms the selected historical budget and reports success', async () 
 it('does not silently save on failure and requires a fresh lookup', async () => {
   const onList = vi.fn().mockResolvedValue([{ id: 'old', limitMinor: 100000, updatedAt: '2026-10-19T05:00:00.000Z' }]);
   const onConfirm = vi.fn().mockRejectedValue(new Error('stale'));
-  render(<BudgetChoicePanel onList={onList} onConfirm={onConfirm} />);
+  render(<BudgetChoicePanel onList={onList} onConfirm={onConfirm} cloudConflict={false} />);
   fireEvent.click(screen.getByRole('button', { name: '이번 달 예산 기록 조회' }));
   await screen.findByText(/100,000원/);
   fireEvent.click(screen.getByRole('radio', { name: /100,000원/ }));
@@ -29,4 +29,18 @@ it('does not silently save on failure and requires a fresh lookup', async () => 
   expect(await screen.findByRole('alert')).toHaveTextContent('다시 조회');
   expect(screen.getByRole('button', { name: '선택한 예산 적용' })).toBeDisabled();
   expect(screen.queryByRole('status')).not.toBeInTheDocument();
+});
+
+it('blocks confirming a historical budget while cloud synchronization has a conflict', async () => {
+  const onList = vi.fn().mockResolvedValue([
+    { id: 'past', limitMinor: 100000, updatedAt: '2026-10-19T05:00:00.000Z' },
+  ]);
+  const onConfirm = vi.fn().mockResolvedValue(undefined);
+  render(<BudgetChoicePanel onList={onList} onConfirm={onConfirm} cloudConflict />);
+  fireEvent.click(screen.getByRole('button', { name: '이번 달 예산 기록 조회' }));
+  await screen.findByText(/100,000원/);
+  fireEvent.click(screen.getByRole('radio', { name: /100,000원/ }));
+  expect(screen.getByRole('button', { name: '선택한 예산 적용' })).toBeDisabled();
+  expect(screen.getByRole('alert')).toHaveTextContent('클라우드 기록 충돌');
+  expect(onConfirm).not.toHaveBeenCalled();
 });
