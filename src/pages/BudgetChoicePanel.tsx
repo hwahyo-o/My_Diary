@@ -7,6 +7,7 @@ export interface BudgetChoiceItem {
 }
 
 interface BudgetChoicePanelProps {
+  readonly cloudConflict: boolean;
   readonly onList: () => Promise<readonly BudgetChoiceItem[]>;
   readonly onConfirm: (id: string) => Promise<void>;
 }
@@ -16,7 +17,7 @@ function displayDate(value: string): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
 }
 
-export function BudgetChoicePanel({ onList, onConfirm }: BudgetChoicePanelProps) {
+export function BudgetChoicePanel({ onList, onConfirm, cloudConflict }: BudgetChoicePanelProps) {
   const [items, setItems] = useState<readonly BudgetChoiceItem[] | null>(null);
   const [selected, setSelected] = useState('');
   const [loading, setLoading] = useState(false);
@@ -40,7 +41,7 @@ export function BudgetChoicePanel({ onList, onConfirm }: BudgetChoicePanelProps)
   }
 
   async function confirm() {
-    if (!selected || saving || loading) return;
+    if (!selected || saving || loading || cloudConflict) return;
     setSaving(true);
     setError(null);
     setSuccess(false);
@@ -96,8 +97,9 @@ export function BudgetChoicePanel({ onList, onConfirm }: BudgetChoicePanelProps)
             </div>
           </fieldset>
         ) : null}
+        {cloudConflict ? <p role="alert" className="form-error">클라우드 기록 충돌이 있어 예산 확정을 중지했습니다. 이 화면에서 충돌을 해결할 수는 없습니다. 로컬 기록은 보존됩니다.</p> : null}
         {selected ? <p>선택한 금액을 새 예산 기록으로 저장합니다. 기존 기록과 거래 내역은 그대로 유지됩니다.</p> : null}
-        <button type="button" disabled={!selected || loading || saving} onClick={() => void confirm()}>
+        <button type="button" disabled={!selected || loading || saving || cloudConflict} onClick={() => void confirm()}>
           {saving ? '예산 확정 중…' : '선택한 예산 적용'}
         </button>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
