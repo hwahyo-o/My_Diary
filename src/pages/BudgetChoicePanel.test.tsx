@@ -44,3 +44,25 @@ it('blocks confirming a historical budget while cloud synchronization has a conf
   expect(screen.getByRole('alert')).toHaveTextContent('클라우드 기록 충돌');
   expect(onConfirm).not.toHaveBeenCalled();
 });
+
+it('labels differing same-month budget history without claiming a cloud conflict', async () => {
+  const onList = vi.fn().mockResolvedValue([
+    { id: 'latest', limitMinor: 200000, updatedAt: '2026-10-19T05:00:01.000Z' },
+    { id: 'previous', limitMinor: 100000, updatedAt: '2026-10-19T05:00:00.000Z' },
+  ]);
+  render(<BudgetChoicePanel onList={onList} onConfirm={vi.fn()} cloudConflict={false} />);
+  fireEvent.click(screen.getByRole('button', { name: '이번 달 예산 기록 조회' }));
+  expect(await screen.findByRole('note')).toHaveTextContent('정상적인 순차 수정');
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
+it('does not display differing-value notice for equal monthly budgets', async () => {
+  const onList = vi.fn().mockResolvedValue([
+    { id: 'latest', limitMinor: 100000, updatedAt: '2026-10-19T05:00:01.000Z' },
+    { id: 'previous', limitMinor: 100000, updatedAt: '2026-10-19T05:00:00.000Z' },
+  ]);
+  render(<BudgetChoicePanel onList={onList} onConfirm={vi.fn()} cloudConflict={false} />);
+  fireEvent.click(screen.getByRole('button', { name: '이번 달 예산 기록 조회' }));
+  await screen.findAllByText(/100,000원/);
+  expect(screen.queryByRole('note')).not.toBeInTheDocument();
+});

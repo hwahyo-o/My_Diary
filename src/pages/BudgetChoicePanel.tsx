@@ -74,6 +74,9 @@ export function BudgetChoicePanel({ onList, onConfirm, cloudConflict }: BudgetCh
           {loading ? '예산 불러오는 중…' : '이번 달 예산 기록 조회'}
         </button>
         {items && items.length === 0 ? <p>이번 달에 저장된 예산 기록이 없습니다.</p> : null}
+        {items && items.length > 1 && items.some((item) => item.limitMinor !== items[0]?.limitMinor) ? (
+          <p role="note">이번 달에 서로 다른 예산 금액의 변경 이력이 있습니다. 정상적인 순차 수정일 수도 있으므로 이 사실만으로 기기 간 충돌이라고 판단하지 않습니다.</p>
+        ) : null}
         {items && items.length > 0 ? (
           <fieldset disabled={loading || saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
             <legend>적용할 예산 기록을 선택해주세요</legend>
