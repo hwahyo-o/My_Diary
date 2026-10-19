@@ -11,7 +11,7 @@ it('orders parallel budgets deterministically with equal updated timestamps', ()
     alertPercents: [50, 80, 100],
   } as const;
   const a = { ...common, id: '00000000-0000-4000-8000-000000000001', limitMinor: 100000 };
-  const b = { ...common, id: '00000000-0000-4000-8000-000000000002', limitMinor: 20000 } as Budget;
+  const b = { ...common, id: '00000000-0000-4000-8000-000000000002', limitMinor: 20000 };
   const select = (items: Array<{id: string; updatedAt: string; limitMinor: number}>) => [...items]
     .sort((x, y) => y.updatedAt.localeCompare(x.updatedAt) || y.id.localeCompare(x.id))[0];
   expect(select([a, b])?.id).toBe(b.id);
