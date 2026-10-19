@@ -30,3 +30,26 @@ it('confirms explicitly selected historical budget by appending, without deletin
     runtime.close();
   }
 });
+
+it('rejects budget confirmation when cloud conflict is reported, preserving encrypted candidates', async () => {
+  const runtime = await BrowserRuntime.open({
+    dbName: `budget-cloud-conflict-${crypto.randomUUID()}`,
+    argon2Profile: 'test',
+    now: () => new Date('2026-10-19T05:00:00.000Z'),
+  });
+  try {
+    await runtime.createProfile({ nickname: '예산 충돌 테스트', pin: '4829517304' });
+    await runtime.saveBudget({ limitMinor: 100000 });
+    await runtime.saveBudget({ limitMinor: 200000 });
+    const before = await runtime.listCurrentMonthBudgetCandidates();
+    // Simulate an existing cloud conflict without contacting a real account.
+    Object.defineProperty(runtime, 'cloudConflict', { value: true, configurable: true });
+    expect(runtime.hasCloudConflict()).toBe(true);
+    await expect(runtime.confirmBudgetCandidate(before[1]!.id))
+      .rejects.toThrow('Cloud conflict must be resolved');
+    expect(await runtime.listCurrentMonthBudgetCandidates()).toEqual(before);
+    expect(runtime.getSnapshot().dashboard.budget.limitMinor).toBe(200000);
+  } finally {
+    runtime.close();
+  }
+});
