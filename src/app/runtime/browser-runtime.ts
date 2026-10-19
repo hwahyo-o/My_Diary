@@ -53,7 +53,7 @@ import type {
   UpdateTransactionInput,
 } from '../ui-types';
 import { emptyAnalytics, emptyAssets, emptyCalendar, emptyClassificationSettings, emptyDashboard } from '../ui-types';
-import { inspectMonthlyBudgets } from './budget-candidates';
+import { inspectMonthlyBudgets, selectBudgetCandidateForReview } from './budget-candidates';
 import {
   base64UrlToBytes,
   createVaultPackage,
@@ -952,6 +952,60 @@ export class BrowserRuntime {
     void this.syncCloudBestEffort();
   }
 
+  /** Available only after unlock; never sent to cloud as plaintext. */
+  async listCurrentMonthBudgetCandidates(): Promise<readonly { id: string; updatedAt: ISODateTime; limitMinor: number }[]> {
+    const session = this.session;
+    const bootstrap = this.bootstrap;
+    if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
+    const stored = await this.repository.listRecordsByType('budget');
+    const budgets = await Promise.all(stored.map((record) => session.withVaultKey((key) =>
+      decryptRecord<Budget>(key,
+        financeAad(bootstrap.vaultId, record.recordId, 'budget', record.recordVersion),
+        decodeEnvelope(record.encryptedPayload)))));
+    const inspection = inspectMonthlyBudgets(budgets, currentMonthStart(this.options.now()));
+    return [inspection.selected, ...inspection.alternatives]
+      .filter((item): item is Budget => item !== undefined)
+      .map(({ id, updatedAt, limitMinor }) => ({ id, updatedAt, limitMinor }));
+  }
+
+  /**
+   * Explicitly confirm an existing current-month budget as a new immutable record.
+   * Keeps all history and fails closed when the local Vault revision moves before commit.
+   * UI must ask the user to confirm the choice; never call this automatically on sync.
+   */
+  async confirmBudgetCandidate(candidateId: string): Promise<void> {
+    const session = this.session;
+    const bootstrap = this.bootstrap;
+    if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
+    const month = currentMonthStart(this.options.now());
+    const expectedRevision = await this.repository.getRevision(bootstrap.vaultId);
+    const existing = await this.repository.listRecordsByType('budget');
+    const budgets = await Promise.all(existing.map((record) => session.withVaultKey((key) =>
+      decryptRecord<Budget>(key,
+        financeAad(bootstrap.vaultId, record.recordId, 'budget', record.recordVersion),
+        decodeEnvelope(record.encryptedPayload)))));
+    const chosen = selectBudgetCandidateForReview(budgets, month, parseUUID(candidateId));
+    if (!Number.isSafeInteger(chosen.limitMinor) || chosen.limitMinor < 0) {
+      throw new TypeError('Selected budget limit is invalid.');
+    }
+    const newestInMonth = budgets
+      .filter((budget) => budget.month === month)
+      .reduce((latest, budget) => Math.max(latest, Date.parse(budget.updatedAt)), 0);
+    const timestamp = toIso(new Date(Math.max(this.options.now().getTime(), newestInMonth + 1)));
+    const confirmed: Budget = {
+      id: newUuid(),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      version: 1,
+      month,
+      limitMinor: chosen.limitMinor,
+      alertPercents: [...chosen.alertPercents],
+    };
+    await this.persistFinanceRecord('budget', confirmed.id, confirmed.version, confirmed.updatedAt, confirmed, expectedRevision);
+    await this.hydrate();
+    void this.syncCloudBestEffort();
+  }
+
   async saveAccount(input: SaveAccountInput): Promise<string> {
     if (!input.name.trim()) throw new TypeError('Account name is required.');
     if (!Number.isSafeInteger(input.balanceMinor)) throw new TypeError('Account balance must be a safe integer.');
@@ -1572,12 +1626,16 @@ export class BrowserRuntime {
     recordVersion: number,
     updatedAt: ISODateTime,
     payload: unknown,
+    expectedRevision?: number,
   ): Promise<void> {
     const session = this.session;
     const bootstrap = this.bootstrap;
     if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
 
     const revision = await this.repository.getRevision(bootstrap.vaultId);
+    if (expectedRevision !== undefined && revision !== expectedRevision) {
+      throw new Error('Budget candidates changed before confirmation; review the latest entries.');
+    }
     const eventId = newUuid();
     const envelope = await session.withVaultKey((key) =>
       encryptRecord(key, financeAad(bootstrap.vaultId, recordId, recordType, recordVersion), payload));
