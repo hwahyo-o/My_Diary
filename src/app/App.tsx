@@ -112,7 +112,7 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
         if (!runtime.restoreTransaction) return Promise.reject(new Error('Transaction restore runtime is not connected.'));
         return runtime.restoreTransaction(id);
       }}
-      onPreviewCloudBudgetComparison={runtime.previewCloudBudgetComparison ? () => runtime.previewCloudBudgetComparison!() : undefined}
+      {...(runtime.previewCloudBudgetComparison ? { onPreviewCloudBudgetComparison: () => runtime.previewCloudBudgetComparison!() } : {})}
       onListBudgetCandidates={() => runtime.listCurrentMonthBudgetCandidates?.() ?? Promise.reject(new Error('Budget history is not connected.'))}
       onConfirmBudgetCandidate={(id, expectedLatestId) => runtime.confirmBudgetCandidate?.(id, expectedLatestId) ?? Promise.reject(new Error('Budget confirmation is not connected.'))}
       onSaveBudget={(input) => {
