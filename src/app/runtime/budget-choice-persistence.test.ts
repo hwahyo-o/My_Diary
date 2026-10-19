@@ -66,14 +66,14 @@ it('preserves interleaved budget records from two unlocked sessions', async () =
     const candidates = await first.listCurrentMonthBudgetCandidates();
     // The second session commits a newer budget while the first is still unlocked.
     await second.saveBudget({ limitMinor: 200000 });
-    // A user-selected historical choice appends a record after the other session's
-    // update; all existing candidates must remain intact.
-    await first.confirmBudgetCandidate(candidates[0]!.id, candidates[0]!.id);
+    // The stale selection must fail without appending a new record.
+    await expect(first.confirmBudgetCandidate(candidates[0]!.id, candidates[0]!.id))
+      .rejects.toThrow('Budget candidates changed since they were displayed');
     const after = await first.listCurrentMonthBudgetCandidates();
-    expect(after.map((item) => item.limitMinor)).toEqual([100000, 200000, 100000]);
+    expect(after.map((item) => item.limitMinor)).toEqual([200000, 100000]);
     first.lock();
     await first.unlock('4829517304');
-    expect(first.getSnapshot().dashboard.budget.limitMinor).toBe(100000);
+    expect(first.getSnapshot().dashboard.budget.limitMinor).toBe(200000);
   } finally {
     first.close();
     second.close();
