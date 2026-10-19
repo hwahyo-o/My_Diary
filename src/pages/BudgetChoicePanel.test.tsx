@@ -14,7 +14,7 @@ it('only confirms the selected historical budget and reports success', async () 
   expect(screen.getByRole('button', { name: '선택한 예산 적용' })).toBeDisabled();
   fireEvent.click(screen.getByRole('radio', { name: /100,000원/ }));
   fireEvent.click(screen.getByRole('button', { name: '선택한 예산 적용' }));
-  await waitFor(() => expect(onConfirm).toHaveBeenCalledExactlyOnceWith('old'));
+  await waitFor(() => expect(onConfirm).toHaveBeenCalledExactlyOnceWith('old', 'new'));
   expect(await screen.findByRole('status')).toHaveTextContent('예산 기록이 저장되었습니다');
 });
 
