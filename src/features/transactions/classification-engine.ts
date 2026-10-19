@@ -388,7 +388,27 @@ function resolveDate(
   now: ISODateTime,
   reviewReasons: string[],
 ): ClassificationDecision<ISODateTime> {
+  const absoluteMatches = [...normalizedText.matchAll(/(?:^|\s)(\d{4})([-./])(\d{1,2})\2(\d{1,2})(?=\s|$|[,;!?])/gu)];
+  const parsedAbsolute = absoluteMatches.map((match) => {
+    const year = Number(match[1]);
+    const month = Number(match[3]);
+    const day = Number(match[4]);
+    const candidate = new Date(Date.UTC(year, month - 1, day));
+    return candidate.getUTCFullYear() === year && candidate.getUTCMonth() === month - 1 && candidate.getUTCDate() === day
+      ? `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      : null;
+  });
   const matches = findRelativeDateMatches(normalizedText);
+  const absoluteDays = [...new Set(parsedAbsolute.filter((day): day is string => day !== null))];
+  if (parsedAbsolute.includes(null) || absoluteDays.length > 1 || (absoluteDays.length > 0 && matches.length > 0)) {
+    reviewReasons.push('date-conflict');
+    return { value: now, source: 'default', confidence: 'low', matchedKeywords: [...absoluteMatches.map((m) => m[0].trim()), ...matches.map((m) => m.label)] };
+  }
+  if (absoluteDays[0]) {
+    const offset = now.match(/([+-]\d{2}:\d{2})$/)?.[1] ?? '+09:00';
+    const value = parseISODateTime(`${absoluteDays[0]}T12:00:00.000${offset}`);
+    return { value, source: 'explicit', confidence: 'high', matchedKeywords: [absoluteMatches[0]![0].trim()] };
+  }
   const uniqueOffsets = [...new Set(matches.map((match) => match.daysAgo))];
 
   if (uniqueOffsets.length > 1) {
