@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseUUID, parseISODateTime, type ISODate } from '../../domain/shared/types';
-import { inspectMonthlyBudgets } from './budget-candidates';
+import { inspectMonthlyBudgets, selectBudgetCandidateForReview } from './budget-candidates';
 
 const october = '2026-10-01' as ISODate;
 const entries = [
@@ -31,5 +31,27 @@ describe('decrypted monthly budget candidate inspection', () => {
     expect(result.selected).toBeUndefined();
     expect(result.alternatives).toEqual([]);
     expect(result.hasDifferingLimits).toBe(false);
+  });
+});
+
+describe('explicit candidate choice guard', () => {
+  it('allows selecting an older same-month candidate without altering candidate history', () => {
+    const original = [...entries];
+    const chosen = selectBudgetCandidateForReview(entries, october, entries[0].id);
+    expect(chosen.id).toBe(entries[0].id);
+    expect(chosen.limitMinor).toBe(100000);
+    expect(entries).toEqual(original);
+    expect(inspectMonthlyBudgets(entries, october).selected?.id).toBe(entries[1].id);
+  });
+
+  it('rejects a missing or stale candidate rather than silently using the newest budget', () => {
+    expect(() => selectBudgetCandidateForReview(
+      entries, october, parseUUID('00000000-0000-4000-8000-0000000000c3'),
+    )).toThrow('Selected budget candidate is no longer available');
+  });
+
+  it('rejects a candidate belonging to another month', () => {
+    expect(() => selectBudgetCandidateForReview(entries, '2026-09-01' as ISODate, entries[0].id))
+      .toThrow('Selected budget candidate is no longer available');
   });
 });

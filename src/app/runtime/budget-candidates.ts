@@ -29,3 +29,23 @@ export function inspectMonthlyBudgets<T extends BudgetCandidate>(
       && ordered.some((budget) => budget.limitMinor !== selected.limitMinor),
   };
 }
+
+/**
+ * Requires an explicit candidate ID chosen by the user. This function is pure:
+ * it never deletes history, mutates the selected record, or starts cloud sync.
+ * The caller must separately authenticate/authorize and persist any decision.
+ */
+export function selectBudgetCandidateForReview<T extends BudgetCandidate>(
+  budgets: readonly T[],
+  month: ISODate,
+  chosenId: T['id'],
+): T {
+  const inspection = inspectMonthlyBudgets(budgets, month);
+  const candidates = [inspection.selected, ...inspection.alternatives]
+    .filter((item): item is T => item !== undefined);
+  const chosen = candidates.find((budget) => budget.id === chosenId);
+  if (!chosen) {
+    throw new Error('Selected budget candidate is no longer available for this month.');
+  }
+  return chosen;
+}
