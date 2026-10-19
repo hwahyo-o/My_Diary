@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import { BudgetChoicePanel } from './BudgetChoicePanel';
 import type { BackupStatusViewModel, VaultImportInspectionViewModel } from '../app/ui-types';
 import { BackupPanel } from '../features/backup/BackupPanel';
 import type { ClassificationSettingsViewModel, FixedVariableMode } from '../features/transactions/classification-settings';
 import { clearBackupStatus, deriveBackupStatus, formatBackupDateKst, readBackupStatus } from '../features/backup/backup-status';
 
 interface SettingsPageProps {
+  readonly onListBudgetCandidates?: () => Promise<readonly { id: string; updatedAt: string; limitMinor: number }[]>;
+  readonly onConfirmBudgetCandidate?: (id: string) => Promise<void>;
   readonly onLock: () => void;
   readonly backup: BackupStatusViewModel;
   readonly onExportVault: (input: { readonly recoveryKey: string }) => Promise<Uint8Array>;
@@ -31,6 +34,8 @@ interface SettingsPageProps {
 }
 
 export function SettingsPage({
+  onListBudgetCandidates,
+  onConfirmBudgetCandidate,
   onLock,
   backup,
   onExportVault,
@@ -138,6 +143,7 @@ export function SettingsPage({
       </header>
 
       <div className="settings-dashboard">
+        {onListBudgetCandidates && onConfirmBudgetCandidate ? <BudgetChoicePanel onList={onListBudgetCandidates} onConfirm={onConfirmBudgetCandidate} /> : null}
         <article className="settings-card settings-card-primary" aria-labelledby="security-settings-title">
           <div className="settings-card-heading">
             <div>
