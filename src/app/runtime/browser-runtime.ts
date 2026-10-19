@@ -974,6 +974,7 @@ export class BrowserRuntime {
    * UI must ask the user to confirm the choice; never call this automatically on sync.
    */
   async confirmBudgetCandidate(candidateId: string): Promise<void> {
+    if (this.cloudConflict) throw new Error('Cloud conflict must be resolved before confirming budget.');
     const session = this.session;
     const bootstrap = this.bootstrap;
     if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
@@ -1001,6 +1002,7 @@ export class BrowserRuntime {
       limitMinor: chosen.limitMinor,
       alertPercents: [...chosen.alertPercents],
     };
+    if (this.cloudConflict) throw new Error('Cloud conflict must be resolved before confirming budget.');
     await this.persistFinanceRecord('budget', confirmed.id, confirmed.version, confirmed.updatedAt, confirmed, expectedRevision);
     await this.hydrate();
     void this.syncCloudBestEffort();
