@@ -1546,7 +1546,7 @@ export class BrowserRuntime {
     const normalized = normalizeClassificationSettings(nextSettings);
     const version = (currentRecord?.recordVersion ?? 0) + 1;
     const timestamp = toIso(this.options.now());
-    const revision = expectedRevision ?? await this.repository.getRevision(bootstrap.vaultId);
+    const revision = await this.repository.getRevision(bootstrap.vaultId);
     const eventId = newUuid();
     const envelope = await session.withVaultKey((key) => encryptRecord(
       key,
