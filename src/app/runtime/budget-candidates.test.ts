@@ -1,20 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import type { ISODate } from '../../domain/shared/types';
+import { parseUUID, type ISODate } from '../../domain/shared/types';
 import { inspectMonthlyBudgets } from './budget-candidates';
 
 const october = '2026-10-01' as ISODate;
 const entries = [
-  { id: 'device-a', month: october, updatedAt: '2026-10-19T05:00:00.000Z', limitMinor: 100000 },
-  { id: 'device-b', month: october, updatedAt: '2026-10-19T05:00:00.000Z', limitMinor: 200000 },
+  { id: parseUUID('00000000-0000-4000-8000-0000000000a1'), month: october, updatedAt: '2026-10-19T05:00:00.000Z', limitMinor: 100000 },
+  { id: parseUUID('00000000-0000-4000-8000-0000000000b2'), month: october, updatedAt: '2026-10-19T05:00:00.000Z', limitMinor: 200000 },
 ] as const;
 
 describe('decrypted monthly budget candidate inspection', () => {
   it('preserves both differing same-month candidates and deterministically sorts ties', () => {
     const first = inspectMonthlyBudgets(entries, october);
     const reverse = inspectMonthlyBudgets([...entries].reverse(), october);
-    expect(first.selected?.id).toBe('device-b');
+    expect(first.selected?.id).toBe(entries[1].id);
     expect(reverse.selected?.id).toBe('device-b');
-    expect(first.alternatives.map((budget) => budget.id)).toEqual(['device-a']);
+    expect(first.alternatives.map((budget) => budget.id)).toEqual([entries[0].id]);
     expect(first.hasDifferingLimits).toBe(true);
     expect(entries).toHaveLength(2);
   });
