@@ -11,10 +11,10 @@ it('matches monthly report income and expenses to its calendar ledger across mon
   try {
     await runtime.createProfile({ nickname: '리포트 검증', pin: '4829517304' });
     for (const text of [
-      '2026-09-30 월급 2000000원',
-      '2026-10-01 점심 8000원',
-      '2026-10-19 월급 1500000원',
-      '2026-10-19 커피 4500원',
+      '19일 전 월급 2000000원',
+      '18일 전 점심 8000원',
+      '오늘 월급 1500000원',
+      '오늘 커피 4500원',
     ]) {
       await runtime.submitTransaction({ mode: 'quick', text });
     }
