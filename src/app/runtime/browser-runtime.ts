@@ -54,6 +54,7 @@ import type {
 } from '../ui-types';
 import { emptyAnalytics, emptyAssets, emptyCalendar, emptyClassificationSettings, emptyDashboard } from '../ui-types';
 import { inspectMonthlyBudgets, selectBudgetCandidateForReview } from './budget-candidates';
+import { compareMonthlyBudgetSides, type BudgetSideComparison } from './budget-side-comparison';
 import {
   base64UrlToBytes,
   createVaultPackage,
@@ -953,6 +954,54 @@ export class BrowserRuntime {
   }
 
   /** Available only after unlock; never sent to cloud as plaintext. */
+  /**
+   * Read-only verified cloud budget preview. No merge, local write, or upload.
+   * Requires an unlocked enrolled Vault and rejects stale/mismatched snapshots.
+   */
+  async previewCloudBudgetComparison(): Promise<BudgetSideComparison> {
+    const session = this.session;
+    const bootstrap = this.bootstrap;
+    const meta = this.cloudMeta;
+    const cloudKek = this.cloudKek;
+    if (!session?.isUnlocked || !bootstrap || !meta || !cloudKek) {
+      throw new Error('Unlock the connected Vault before comparing cloud budgets.');
+    }
+    const epoch = this.cloudSyncEpoch;
+    const [head, download, localRecords] = await Promise.all([
+      this.cloudClient.getHead(),
+      this.cloudClient.downloadSnapshot(),
+      this.repository.listRecordsByType('budget'),
+    ]);
+    if (!session.isUnlocked || this.cloudSyncEpoch !== epoch || this.cloudKek !== cloudKek) {
+      throw new Error('Vault changed during cloud comparison.');
+    }
+    if (!download || download.revision !== head.revision) {
+      throw new Error('Cloud snapshot revision changed; refresh before comparing.');
+    }
+    if (await sha256Hex(download.bytes) !== download.objectSha256) {
+      throw new Error('Cloud snapshot digest mismatch.');
+    }
+    const snapshot = await openCloudVaultSnapshot(download.bytes, cloudKek);
+    if (!session.isUnlocked || this.cloudSyncEpoch !== epoch || this.cloudKek !== cloudKek) {
+      throw new Error('Vault changed during cloud comparison.');
+    }
+    if (snapshot.accountId !== meta.accountId || snapshot.vaultId !== bootstrap.vaultId) {
+      throw new Error('Cloud Vault identity mismatch.');
+    }
+    const decode = (record: StoredEncryptedRecord) => session.withVaultKey((key) =>
+      decryptRecord<Budget>(key,
+        financeAad(bootstrap.vaultId, record.recordId, 'budget', record.recordVersion),
+        decodeEnvelope(record.encryptedPayload)));
+    const [local, remote] = await Promise.all([
+      Promise.all(localRecords.map(decode)),
+      Promise.all(snapshot.records.filter((item) => item.recordType === 'budget').map(decode)),
+    ]);
+    if (!session.isUnlocked || this.cloudSyncEpoch !== epoch) {
+      throw new Error('Vault changed during cloud comparison.');
+    }
+    return compareMonthlyBudgetSides(local, remote, currentMonthStart(this.options.now()));
+  }
+
   async listCurrentMonthBudgetCandidates(): Promise<readonly { id: string; updatedAt: ISODateTime; limitMinor: number }[]> {
     const session = this.session;
     const bootstrap = this.bootstrap;
