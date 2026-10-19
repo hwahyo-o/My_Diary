@@ -923,13 +923,26 @@ export class BrowserRuntime {
     if (!Number.isSafeInteger(input.limitMinor) || input.limitMinor < 0) {
       throw new TypeError('Budget limit must be a non-negative safe integer.');
     }
-    const timestamp = toIso(this.options.now());
+    const session = this.session;
+    const bootstrap = this.bootstrap;
+    if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
+    const month = currentMonthStart(this.options.now());
+    const existing = await this.repository.listRecordsByType('budget');
+    const priorBudgets = await Promise.all(existing.map((record) => session.withVaultKey((key) =>
+      decryptRecord<Budget>(key,
+        financeAad(bootstrap.vaultId, record.recordId, 'budget', record.recordVersion),
+        decodeEnvelope(record.encryptedPayload)))));
+    const newestInMonth = priorBudgets
+      .filter((item) => item.month === month)
+      .reduce((latest, item) => Math.max(latest, Date.parse(item.updatedAt)), 0);
+    const nowMillis = this.options.now().getTime();
+    const timestamp = toIso(new Date(Math.max(nowMillis, newestInMonth + 1)));
     const budget: Budget = {
       id: newUuid(),
       createdAt: timestamp,
       updatedAt: timestamp,
       version: 1,
-      month: currentMonthStart(this.options.now()),
+      month,
       limitMinor: input.limitMinor,
       alertPercents: [50, 80, 100],
     };
