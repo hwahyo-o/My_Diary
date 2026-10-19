@@ -13,7 +13,7 @@ describe('decrypted monthly budget candidate inspection', () => {
     const first = inspectMonthlyBudgets(entries, october);
     const reverse = inspectMonthlyBudgets([...entries].reverse(), october);
     expect(first.selected?.id).toBe(entries[1].id);
-    expect(reverse.selected?.id).toBe('device-b');
+    expect(reverse.selected?.id).toBe(entries[1].id);
     expect(first.alternatives.map((budget) => budget.id)).toEqual([entries[0].id]);
     expect(first.hasDifferingLimits).toBe(true);
     expect(entries).toHaveLength(2);
