@@ -39,6 +39,8 @@ interface AppShellProps {
   readonly onDeleteTransaction: (id: string) => Promise<void>;
   readonly onRestoreTransaction: (id: string) => Promise<void>;
   readonly onSaveBudget: (input: { readonly limitMinor: number }) => Promise<void>;
+  readonly onListBudgetCandidates: () => Promise<readonly { id: string; updatedAt: string; limitMinor: number }[]>;
+  readonly onConfirmBudgetCandidate: (id: string) => Promise<void>;
   readonly onSaveAccount: (input: SaveAccountInput) => Promise<string>;
   readonly onSaveHolding: (input: SaveHoldingInput) => Promise<void>;
   readonly onSaveLoan: (input: SaveLoanInput) => Promise<void>;
@@ -78,6 +80,8 @@ export function AppShell({
   onDeleteTransaction,
   onRestoreTransaction,
   onSaveBudget,
+  onListBudgetCandidates,
+  onConfirmBudgetCandidate,
   onSaveAccount,
   onSaveHolding,
   onSaveLoan,
@@ -123,6 +127,8 @@ export function AppShell({
     case 'settings':
       content = (
         <SettingsPage
+          onListBudgetCandidates={onListBudgetCandidates}
+          onConfirmBudgetCandidate={onConfirmBudgetCandidate}
           onLock={onLock}
           backup={backup}
           onExportVault={onExportVault}
