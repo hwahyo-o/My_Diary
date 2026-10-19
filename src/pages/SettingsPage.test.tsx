@@ -197,7 +197,7 @@ describe('SettingsPage operational hub', () => {
   });
 
   it('restores persisted backup metadata when the parent only has the default empty status', () => {
-    localStorage.setItem('my-diary-backup-status-v1', '2026-10-12T08:00:00.000Z');
+    localStorage.setItem('my-diary-backup-status-v1', new Date().toISOString());
     render(<SettingsPage {...baseProps} />);
 
     expect(screen.getByText('백업 최신')).toBeInTheDocument();
