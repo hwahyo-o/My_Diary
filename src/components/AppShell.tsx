@@ -41,6 +41,7 @@ interface AppShellProps {
   readonly onSaveBudget: (input: { readonly limitMinor: number }) => Promise<void>;
   readonly onListBudgetCandidates: () => Promise<readonly { id: string; updatedAt: string; limitMinor: number }[]>;
   readonly onConfirmBudgetCandidate: (id: string, expectedLatestId: string) => Promise<void>;
+  readonly onPreviewCloudBudgetComparison?: () => Promise<import('../app/runtime/budget-side-comparison').BudgetSideComparison>;
   readonly onSaveAccount: (input: SaveAccountInput) => Promise<string>;
   readonly onSaveHolding: (input: SaveHoldingInput) => Promise<void>;
   readonly onSaveLoan: (input: SaveLoanInput) => Promise<void>;
@@ -82,6 +83,7 @@ export function AppShell({
   onSaveBudget,
   onListBudgetCandidates,
   onConfirmBudgetCandidate,
+  onPreviewCloudBudgetComparison,
   onSaveAccount,
   onSaveHolding,
   onSaveLoan,
@@ -129,6 +131,7 @@ export function AppShell({
         <SettingsPage
           onListBudgetCandidates={onListBudgetCandidates}
           onConfirmBudgetCandidate={onConfirmBudgetCandidate}
+          {...(onPreviewCloudBudgetComparison ? { onPreviewCloudBudgetComparison } : {})}
           onLock={onLock}
           backup={backup}
           onExportVault={onExportVault}

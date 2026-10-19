@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { BudgetChoicePanel } from './BudgetChoicePanel';
+import { CloudBudgetPreviewSection } from './CloudBudgetPreviewSection';
 import type { BackupStatusViewModel, VaultImportInspectionViewModel } from '../app/ui-types';
 import { BackupPanel } from '../features/backup/BackupPanel';
 import type { ClassificationSettingsViewModel, FixedVariableMode } from '../features/transactions/classification-settings';
 import { clearBackupStatus, deriveBackupStatus, formatBackupDateKst, readBackupStatus } from '../features/backup/backup-status';
 
 interface SettingsPageProps {
+  readonly onPreviewCloudBudgetComparison?: () => Promise<import('../app/runtime/budget-side-comparison').BudgetSideComparison>;
   readonly onListBudgetCandidates?: () => Promise<readonly { id: string; updatedAt: string; limitMinor: number }[]>;
   readonly onConfirmBudgetCandidate?: (id: string, expectedLatestId: string) => Promise<void>;
   readonly onLock: () => void;
@@ -34,6 +36,7 @@ interface SettingsPageProps {
 }
 
 export function SettingsPage({
+  onPreviewCloudBudgetComparison,
   onListBudgetCandidates,
   onConfirmBudgetCandidate,
   onLock,
@@ -143,6 +146,7 @@ export function SettingsPage({
       </header>
 
       <div className="settings-dashboard">
+        {cloudEnrolled && onPreviewCloudBudgetComparison ? <CloudBudgetPreviewSection onPreview={onPreviewCloudBudgetComparison} /> : null}
         {onListBudgetCandidates && onConfirmBudgetCandidate ? <BudgetChoicePanel onList={onListBudgetCandidates} onConfirm={onConfirmBudgetCandidate} cloudConflict={cloudConflict} /> : null}
         <article className="settings-card settings-card-primary" aria-labelledby="security-settings-title">
           <div className="settings-card-heading">
