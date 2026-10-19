@@ -53,6 +53,7 @@ import type {
   UpdateTransactionInput,
 } from '../ui-types';
 import { emptyAnalytics, emptyAssets, emptyCalendar, emptyClassificationSettings, emptyDashboard } from '../ui-types';
+import { inspectMonthlyBudgets } from './budget-candidates';
 import {
   base64UrlToBytes,
   createVaultPackage,
@@ -1671,10 +1672,7 @@ export class BrowserRuntime {
     const monthKey = monthStart.slice(0, 7);
     const monthTransactions = activeTransactions.filter((transaction) => transaction.occurredAt.startsWith(monthKey));
 
-    const currentBudgets = budgets
-      .filter((budget) => budget.month === monthStart)
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id));
-    const currentBudget = currentBudgets[0];
+    const { selected: currentBudget } = inspectMonthlyBudgets(budgets, monthStart);
     const budgetUsage = currentBudget
       ? selectBudgetUsage(currentBudget, monthTransactions)
       : { limitMinor: 0, usagePercent: 0, remainingMinor: 0, status: 'ok' as const };
