@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { parseUUID, type ISODate } from '../../domain/shared/types';
+import { parseUUID, parseISODateTime, type ISODate } from '../../domain/shared/types';
 import { inspectMonthlyBudgets } from './budget-candidates';
 
 const october = '2026-10-01' as ISODate;
 const entries = [
-  { id: parseUUID('00000000-0000-4000-8000-0000000000a1'), month: october, updatedAt: '2026-10-19T05:00:00.000Z', limitMinor: 100000 },
-  { id: parseUUID('00000000-0000-4000-8000-0000000000b2'), month: october, updatedAt: '2026-10-19T05:00:00.000Z', limitMinor: 200000 },
+  { id: parseUUID('00000000-0000-4000-8000-0000000000a1'), month: october, updatedAt: parseISODateTime('2026-10-19T05:00:00.000Z'), limitMinor: 100000 },
+  { id: parseUUID('00000000-0000-4000-8000-0000000000b2'), month: october, updatedAt: parseISODateTime('2026-10-19T05:00:00.000Z'), limitMinor: 200000 },
 ] as const;
 
 describe('decrypted monthly budget candidate inspection', () => {
