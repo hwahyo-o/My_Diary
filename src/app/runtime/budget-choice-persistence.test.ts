@@ -53,3 +53,29 @@ it('rejects budget confirmation when cloud conflict is reported, preserving encr
     runtime.close();
   }
 });
+
+it('preserves interleaved budget records from two unlocked sessions', async () => {
+  const dbName = `budget-stale-${crypto.randomUUID()}`;
+  const now = () => new Date('2026-10-19T05:00:00.000Z');
+  const first = await BrowserRuntime.open({ dbName, argon2Profile: 'test', now });
+  const second = await BrowserRuntime.open({ dbName, argon2Profile: 'test', now });
+  try {
+    await first.createProfile({ nickname: '예산 동시 저장 검증', pin: '4829517304' });
+    await second.unlock('4829517304');
+    await first.saveBudget({ limitMinor: 100000 });
+    const candidates = await first.listCurrentMonthBudgetCandidates();
+    // The second session commits a newer budget while the first is still unlocked.
+    await second.saveBudget({ limitMinor: 200000 });
+    // A user-selected historical choice appends a record after the other session's
+    // update; all existing candidates must remain intact.
+    await first.confirmBudgetCandidate(candidates[0]!.id);
+    const after = await first.listCurrentMonthBudgetCandidates();
+    expect(after.map((item) => item.limitMinor)).toEqual([100000, 200000, 100000]);
+    first.lock();
+    await first.unlock('4829517304');
+    expect(first.getSnapshot().dashboard.budget.limitMinor).toBe(100000);
+  } finally {
+    first.close();
+    second.close();
+  }
+});
