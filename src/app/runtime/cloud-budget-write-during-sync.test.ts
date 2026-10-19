@@ -25,6 +25,7 @@ it('preserves newest monthly budget when changed during cloud upload and retrans
   });
   try {
     await runtime.createProfile({ nickname: '테스트 예산', pin: '4829517304' });
+    await runtime.saveBudget({ limitMinor: 100000 });
     const sync = runtime as unknown as SyncRuntime;
     sync.cloudMeta = {
       accountId: 'test-only-budget',
@@ -35,7 +36,6 @@ it('preserves newest monthly budget when changed during cloud upload and retrans
       localRevisionAtSync: -1,
     };
     sync.cloudKek = crypto.getRandomValues(new Uint8Array(32));
-    await runtime.saveBudget({ limitMinor: 100000 });
     let releaseUpload: ((value: { revision: number }) => void) | undefined;
     let uploadStarted: (() => void) | undefined;
     const started = new Promise<void>((resolve) => { uploadStarted = resolve; });
