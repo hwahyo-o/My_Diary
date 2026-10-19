@@ -208,6 +208,7 @@ export interface AppRuntimePorts {
   saveBudget?(input: { readonly limitMinor: number }): Promise<void>;
   listCurrentMonthBudgetCandidates?(): Promise<readonly { id: string; updatedAt: string; limitMinor: number }[]>;
   confirmBudgetCandidate?(id: string, expectedLatestId: string): Promise<void>;
+  previewCloudBudgetComparison?(): Promise<import('./runtime/budget-side-comparison').BudgetSideComparison>;
   saveAccount?(input: SaveAccountInput): Promise<string>;
   saveHolding?(input: SaveHoldingInput): Promise<void>;
   saveLoan?(input: SaveLoanInput): Promise<void>;
