@@ -54,7 +54,7 @@ it('rejects budget confirmation when cloud conflict is reported, preserving encr
   }
 });
 
-it('preserves all budget candidates when a second runtime updates the Vault during confirmation', async () => {
+it('preserves interleaved budget records from two unlocked sessions', async () => {
   const dbName = `budget-stale-${crypto.randomUUID()}`;
   const now = () => new Date('2026-10-19T05:00:00.000Z');
   const first = await BrowserRuntime.open({ dbName, argon2Profile: 'test', now });
@@ -66,8 +66,8 @@ it('preserves all budget candidates when a second runtime updates the Vault duri
     const candidates = await first.listCurrentMonthBudgetCandidates();
     // The second session commits a newer budget while the first is still unlocked.
     await second.saveBudget({ limitMinor: 200000 });
-    // A valid historical choice can still be confirmed, but must not erase the
-    // concurrent revision or either encrypted candidate.
+    // A user-selected historical choice appends a record after the other session's
+    // update; all existing candidates must remain intact.
     await first.confirmBudgetCandidate(candidates[0]!.id);
     const after = await first.listCurrentMonthBudgetCandidates();
     expect(after.map((item) => item.limitMinor)).toEqual([100000, 200000, 100000]);
