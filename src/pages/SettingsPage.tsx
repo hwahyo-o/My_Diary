@@ -143,7 +143,7 @@ export function SettingsPage({
       </header>
 
       <div className="settings-dashboard">
-        {onListBudgetCandidates && onConfirmBudgetCandidate ? <BudgetChoicePanel onList={onListBudgetCandidates} onConfirm={onConfirmBudgetCandidate} /> : null}
+        {onListBudgetCandidates && onConfirmBudgetCandidate ? <BudgetChoicePanel onList={onListBudgetCandidates} onConfirm={onConfirmBudgetCandidate} cloudConflict={cloudConflict} /> : null}
         <article className="settings-card settings-card-primary" aria-labelledby="security-settings-title">
           <div className="settings-card-heading">
             <div>
