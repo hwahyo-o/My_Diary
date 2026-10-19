@@ -79,3 +79,31 @@ it('fails closed on divergent encrypted edits to the same budget record across d
   expect(local.encryptedPayload).toEqual(new Uint8Array([1, 2, 3]));
   expect(remote.encryptedPayload).toEqual(new Uint8Array([8, 9, 10]));
 });
+
+it('keeps encrypted budget records and audit events unique after repeated bidirectional reconciliation', () => {
+  const budgetA: StoredEncryptedRecord = {
+    recordId: 'budget-a', recordType: 'budget', updatedAt: '2026-10-19T12:00:00.000Z',
+    recordVersion: 1, encryptedPayload: new Uint8Array([11, 12]),
+  };
+  const budgetB: StoredEncryptedRecord = {
+    recordId: 'budget-b', recordType: 'budget', updatedAt: '2026-10-19T12:01:00.000Z',
+    recordVersion: 1, encryptedPayload: new Uint8Array([21, 22]),
+  };
+  const eventA: StoredEvent = {
+    eventId: 'budget-event-a', recordId: budgetA.recordId, recordType: 'budget',
+    action: 'create', deviceId: 'device-a', deviceSeq: 1,
+    createdAt: budgetA.updatedAt, encryptedPatch: new Uint8Array([31]),
+  };
+  const eventB: StoredEvent = {
+    ...eventA, eventId: 'budget-event-b', recordId: budgetB.recordId,
+    deviceId: 'device-b', createdAt: budgetB.updatedAt, encryptedPatch: new Uint8Array([41]),
+  };
+  const first = reconcileEncryptedCollections([budgetA], [budgetB], [eventA], [eventB]);
+  expect(first.hardConflicts).toBe(0);
+  const replay = reconcileEncryptedCollections(first.records, [budgetB, budgetA], first.events, [eventB, eventA]);
+  expect(replay.hardConflicts).toBe(0);
+  expect(replay.records).toHaveLength(2);
+  expect(replay.events).toHaveLength(2);
+  expect(replay.records).toEqual(expect.arrayContaining([budgetA, budgetB]));
+  expect(replay.events).toEqual(expect.arrayContaining([eventA, eventB]));
+});
