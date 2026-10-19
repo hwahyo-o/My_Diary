@@ -952,6 +952,22 @@ export class BrowserRuntime {
     void this.syncCloudBestEffort();
   }
 
+  /** Available only after unlock; never sent to cloud as plaintext. */
+  async listCurrentMonthBudgetCandidates(): Promise<readonly { id: string; updatedAt: ISODateTime; limitMinor: number }[]> {
+    const session = this.session;
+    const bootstrap = this.bootstrap;
+    if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
+    const stored = await this.repository.listRecordsByType('budget');
+    const budgets = await Promise.all(stored.map((record) => session.withVaultKey((key) =>
+      decryptRecord<Budget>(key,
+        financeAad(bootstrap.vaultId, record.recordId, 'budget', record.recordVersion),
+        decodeEnvelope(record.encryptedPayload)))));
+    const inspection = inspectMonthlyBudgets(budgets, currentMonthStart(this.options.now()));
+    return [inspection.selected, ...inspection.alternatives]
+      .filter((item): item is Budget => item !== undefined)
+      .map(({ id, updatedAt, limitMinor }) => ({ id, updatedAt, limitMinor }));
+  }
+
   /**
    * Explicitly confirm an existing current-month budget as a new immutable record.
    * Keeps all history and fails closed when the local Vault revision moves before commit.
