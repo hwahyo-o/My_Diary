@@ -20,7 +20,8 @@ it('lists both differing record and event identities without resolving either', 
   expect(planEncryptedCloudConflictReview([a], [b], [left], [right])).toEqual({
     recordIds: ['shared'], eventIds: ['shared-event'], requiresManualReview: true,
   });
-  expect([a, left, b, right]).toEqual(snapshot);
+  expect([a, left, b, right].map((item) => ({ ...item, bytes: Array.from('encryptedPayload' in item ? item.encryptedPayload : item.encryptedPatch) })))
+    .toEqual(snapshot.map((item) => ({ ...item, bytes: Array.from('encryptedPayload' in item ? item.encryptedPayload : item.encryptedPatch) })));
 });
 it('does not treat distinct IDs or identical payloads as record conflicts', () => {
   expect(planEncryptedCloudConflictReview(
