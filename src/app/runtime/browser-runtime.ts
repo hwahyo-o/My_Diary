@@ -1460,6 +1460,9 @@ export class BrowserRuntime {
 
         const mergedRevision = Math.max(localRevision, snapshot.manifest.revision) + 1;
         assertActive();
+        if (await this.repository.getRevision(bootstrap.vaultId) !== localRevision) {
+          throw new Error('Local Vault changed before cloud replacement; retry synchronization.');
+        }
         await this.repository.replaceVaultData({
           vaultId: snapshot.vaultId,
           schemaVersion: Math.max(snapshot.schemaVersion, SCHEMA_VERSION),
