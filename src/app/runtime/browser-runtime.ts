@@ -1,4 +1,6 @@
 import { planEncryptedCloudConflictReview } from './cloud-conflict-review-plan';
+import { buildVerifiedBudgetConflictComparison, type BudgetConflictComparison } from './verified-budget-conflict-comparison';
+import { planEncryptedCloudConflictReview } from './cloud-conflict-review-plan';
 import { toCloudConflictSafeSummary, type CloudConflictSafeSummary } from './cloud-conflict-safe-summary';
 import { CloudSyncClient, CloudSyncHttpError } from '../../cloud-sync/http-client';
 import { deriveCloudAuthSecret, deriveCloudKek, deriveCloudRootKey } from '../../cloud-sync/key-derivation';
@@ -1017,6 +1019,63 @@ export class BrowserRuntime {
     assertCloudBudgetRevisionConsistent(head.revision, download.revision, latestHead.revision);
     assertLocalBudgetRevisionStable(localRevision, await this.repository.getRevision(bootstrap.vaultId));
     return compareMonthlyBudgetSides(local, remote, currentMonthStart(this.options.now()));
+  }
+
+  /**
+   * Manual-review preview only. Never uploads, merges or persists conflicting data.
+   * Revalidates both revisions and Vault session after all decryptions.
+   */
+  async previewVerifiedBudgetConflicts(): Promise<BudgetConflictComparison> {
+    const session = this.session;
+    const bootstrap = this.bootstrap;
+    const meta = this.cloudMeta;
+    const cloudKek = this.cloudKek;
+    if (!session?.isUnlocked || !bootstrap || !meta || !cloudKek || !this.cloudConflict) {
+      throw new Error('Unlock a connected Vault with a conflict before reviewing budgets.');
+    }
+    const epoch = this.cloudSyncEpoch;
+    const [head, download, localRecords, localEvents, localRevision] = await Promise.all([
+      this.cloudClient.getHead(),
+      this.cloudClient.downloadSnapshot(),
+      this.repository.listAllRecords(),
+      this.repository.listAllEvents(),
+      this.repository.getRevision(bootstrap.vaultId),
+    ]);
+    if (!download || !session.isUnlocked || epoch !== this.cloudSyncEpoch || this.cloudKek !== cloudKek) {
+      throw new Error('Cloud conflict review session changed.');
+    }
+    assertCloudBudgetRevisionConsistent(head.revision, download.revision, head.revision);
+    if (await sha256Hex(download.bytes) !== download.objectSha256) {
+      throw new Error('Cloud snapshot digest mismatch.');
+    }
+    const snapshot = await openCloudVaultSnapshot(download.bytes, cloudKek);
+    if (!session.isUnlocked || epoch !== this.cloudSyncEpoch || this.cloudKek !== cloudKek || !this.cloudConflict) {
+      throw new Error('Cloud conflict review session changed.');
+    }
+    if (snapshot.accountId !== meta.accountId || snapshot.vaultId !== bootstrap.vaultId) {
+      throw new Error('Cloud Vault identity mismatch.');
+    }
+    const plan = planEncryptedCloudConflictReview(localRecords, snapshot.records, localEvents, snapshot.events);
+    const decode = (record: StoredEncryptedRecord) => session.withVaultKey((key) =>
+      decryptRecord<Budget>(key,
+        financeAad(bootstrap.vaultId, record.recordId, 'budget', record.recordVersion),
+        decodeEnvelope(record.encryptedPayload)));
+    const [localBudgets, remoteBudgets] = await Promise.all([
+      Promise.all(localRecords.filter((item) => item.recordType === 'budget').map(decode)),
+      Promise.all(snapshot.records.filter((item) => item.recordType === 'budget').map(decode)),
+    ]);
+    const latestHead = await this.cloudClient.getHead();
+    if (!session.isUnlocked || epoch !== this.cloudSyncEpoch || this.cloudKek !== cloudKek || !this.cloudConflict) {
+      throw new Error('Cloud conflict review session changed.');
+    }
+    const latestLocalRevision = await this.repository.getRevision(bootstrap.vaultId);
+    return buildVerifiedBudgetConflictComparison({
+      expectedAccountId: meta.accountId, remoteAccountId: snapshot.accountId,
+      expectedVaultId: bootstrap.vaultId, remoteVaultId: snapshot.vaultId,
+      expectedCloudRevision: head.revision, downloadedCloudRevision: download.revision,
+      latestCloudRevision: latestHead.revision, localRevisionAtRead: localRevision,
+      localRevisionBeforeDisplay: latestLocalRevision, unlocked: session.isUnlocked,
+    }, plan, localBudgets, remoteBudgets);
   }
 
   async listCurrentMonthBudgetCandidates(): Promise<readonly { id: string; updatedAt: ISODateTime; limitMinor: number }[]> {
