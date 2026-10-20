@@ -1,3 +1,5 @@
+import { planEncryptedCloudConflictReview } from './cloud-conflict-review-plan';
+import { toCloudConflictSafeSummary, type CloudConflictSafeSummary } from './cloud-conflict-safe-summary';
 import { CloudSyncClient, CloudSyncHttpError } from '../../cloud-sync/http-client';
 import { deriveCloudAuthSecret, deriveCloudKek, deriveCloudRootKey } from '../../cloud-sync/key-derivation';
 import { openCloudVaultSnapshot, sealCloudVaultSnapshot, sha256Hex } from '../../cloud-sync/snapshot';
@@ -288,6 +290,7 @@ export function reconcileEncryptedCollections(
 }
 
 export class BrowserRuntime {
+  private cloudConflictSummary: CloudConflictSafeSummary | null = null;
   private session: VaultSession | null = null;
   private bootstrap: BootstrapMeta | null = null;
   private cloudMeta: CloudEnrollmentMeta | null = null;
@@ -360,6 +363,10 @@ export class BrowserRuntime {
 
   hasCloudConflict(): boolean {
     return this.cloudConflict;
+  }
+
+  getCloudConflictSummary(): CloudConflictSafeSummary | null {
+    return this.cloudConflict ? this.cloudConflictSummary : null;
   }
 
   async createProfile(input: { readonly nickname: string; readonly pin: string }): Promise<{ readonly recoveryKey: string }> {
@@ -1453,6 +1460,7 @@ export class BrowserRuntime {
           snapshot.events,
         );
         if (reconciled.hardConflicts > 0) {
+          this.cloudConflictSummary = toCloudConflictSafeSummary(planEncryptedCloudConflictReview(localRecords, snapshot.records, localEvents, snapshot.events));
           this.cloudConflict = true;
           this.setSnapshot({ ...this.snapshot });
         }
