@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { BudgetChoicePanel } from './BudgetChoicePanel';
 import { CloudBudgetPreviewSection } from './CloudBudgetPreviewSection';
+import { VerifiedConflictBudgetSection } from './VerifiedConflictBudgetSection';
 import type { BackupStatusViewModel, VaultImportInspectionViewModel } from '../app/ui-types';
 import { BackupPanel } from '../features/backup/BackupPanel';
 import type { ClassificationSettingsViewModel, FixedVariableMode } from '../features/transactions/classification-settings';
 import { clearBackupStatus, deriveBackupStatus, formatBackupDateKst, readBackupStatus } from '../features/backup/backup-status';
 
 interface SettingsPageProps {
+  readonly onPreviewVerifiedBudgetConflicts?: () => Promise<import('../app/runtime/verified-budget-conflict-comparison').BudgetConflictComparison>;
   readonly onPreviewCloudBudgetComparison?: () => Promise<import('../app/runtime/budget-side-comparison').BudgetSideComparison>;
   readonly onListBudgetCandidates?: () => Promise<readonly { id: string; updatedAt: string; limitMinor: number }[]>;
   readonly onConfirmBudgetCandidate?: (id: string, expectedLatestId: string) => Promise<void>;
@@ -38,6 +40,7 @@ interface SettingsPageProps {
 
 export function SettingsPage({
   onPreviewCloudBudgetComparison,
+  onPreviewVerifiedBudgetConflicts,
   onListBudgetCandidates,
   onConfirmBudgetCandidate,
   onLock,
@@ -148,6 +151,7 @@ export function SettingsPage({
       </header>
 
       <div className="settings-dashboard">
+        {cloudEnrolled && cloudConflict && onPreviewVerifiedBudgetConflicts ? <VerifiedConflictBudgetSection onPreview={onPreviewVerifiedBudgetConflicts} /> : null}
         {cloudConflict && cloudConflictSummary?.needsReview ? (
           <article className="settings-card" aria-label="클라우드 충돌 검토 안내" role="status">
             <h2>클라우드 충돌 검토 필요</h2>

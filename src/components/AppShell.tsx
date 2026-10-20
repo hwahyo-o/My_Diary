@@ -41,6 +41,7 @@ interface AppShellProps {
   readonly onSaveBudget: (input: { readonly limitMinor: number }) => Promise<void>;
   readonly onListBudgetCandidates: () => Promise<readonly { id: string; updatedAt: string; limitMinor: number }[]>;
   readonly onConfirmBudgetCandidate: (id: string, expectedLatestId: string) => Promise<void>;
+  readonly onPreviewVerifiedBudgetConflicts?: () => Promise<import('../app/runtime/verified-budget-conflict-comparison').BudgetConflictComparison>;
   readonly onPreviewCloudBudgetComparison?: () => Promise<import('../app/runtime/budget-side-comparison').BudgetSideComparison>;
   readonly onSaveAccount: (input: SaveAccountInput) => Promise<string>;
   readonly onSaveHolding: (input: SaveHoldingInput) => Promise<void>;
@@ -85,6 +86,7 @@ export function AppShell({
   onListBudgetCandidates,
   onConfirmBudgetCandidate,
   onPreviewCloudBudgetComparison,
+  onPreviewVerifiedBudgetConflicts,
   onSaveAccount,
   onSaveHolding,
   onSaveLoan,
@@ -143,6 +145,7 @@ export function AppShell({
           cloudEnrolled={cloudEnrolled}
           cloudConflict={cloudConflict}
           cloudConflictSummary={cloudConflictSummary}
+          {...(onPreviewVerifiedBudgetConflicts ? { onPreviewVerifiedBudgetConflicts } : {})}
           cloudSyncStatus={cloudSyncStatus}
           onEnrollCloud={onEnrollCloud}
           onRetryCloudSync={onRetryCloudSync}
