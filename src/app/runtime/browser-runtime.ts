@@ -999,6 +999,14 @@ export class BrowserRuntime {
     if (!session.isUnlocked || this.cloudSyncEpoch !== epoch) {
       throw new Error('Vault changed during cloud comparison.');
     }
+    // A concurrent upload after the first HEAD must not be presented as a current comparison.
+    const latestHead = await this.cloudClient.getHead();
+    if (!session.isUnlocked || this.cloudSyncEpoch !== epoch || this.cloudKek !== cloudKek) {
+      throw new Error('Vault changed during cloud comparison.');
+    }
+    if (latestHead.revision !== download.revision) {
+      throw new Error('Cloud snapshot revision changed; refresh before comparing.');
+    }
     return compareMonthlyBudgetSides(local, remote, currentMonthStart(this.options.now()));
   }
 
