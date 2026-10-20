@@ -17,7 +17,7 @@ it('restores a first runtime encrypted budget into a second runtime through a mo
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     if (url === '/api/account/register') {
       const body = JSON.parse(String(init?.body)) as { accountSalt: string };
-      accountSalt = body.accountSalt;
+      accountSalt = body.accountSalt ?? '';
       return json({ accountId: 'integration-account', unlockPepper: pepper, revision: 0 });
     }
     if (url === '/api/account/challenge') return json({ accountSalt });
@@ -27,7 +27,7 @@ it('restores a first runtime encrypted budget into a second runtime through a mo
       const headers = init?.headers as Record<string, string>;
       if (Number(headers['x-my-diary-expected-revision']) !== revision) return json({ error: 'Revision conflict' }, 409);
       bytes = new Uint8Array(init?.body as ArrayBuffer);
-      digest = headers['x-my-diary-sha256'];
+      digest = headers['x-my-diary-sha256'] ?? '';
       revision += 1;
       return json({ revision });
     }
