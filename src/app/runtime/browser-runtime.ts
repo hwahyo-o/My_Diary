@@ -56,6 +56,7 @@ import { emptyAnalytics, emptyAssets, emptyCalendar, emptyClassificationSettings
 import { inspectMonthlyBudgets, selectBudgetCandidateForReview } from './budget-candidates';
 import { compareMonthlyBudgetSides, type BudgetSideComparison } from './budget-side-comparison';
 import { assertCloudBudgetRevisionConsistent } from './cloud-budget-revision-consistency';
+import { assertLocalBudgetRevisionStable } from './cloud-budget-local-revision';
 import {
   base64UrlToBytes,
   createVaultPackage,
@@ -1006,9 +1007,7 @@ export class BrowserRuntime {
       throw new Error('Vault changed during cloud comparison.');
     }
     assertCloudBudgetRevisionConsistent(head.revision, download.revision, latestHead.revision);
-    if (await this.repository.getRevision(bootstrap.vaultId) !== localRevision) {
-      throw new Error('Local budget data changed during cloud comparison; refresh before comparing.');
-    }
+    assertLocalBudgetRevisionStable(localRevision, await this.repository.getRevision(bootstrap.vaultId));
     return compareMonthlyBudgetSides(local, remote, currentMonthStart(this.options.now()));
   }
 
