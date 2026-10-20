@@ -50,6 +50,7 @@ interface AppShellProps {
   readonly onApplyVaultImport: (bytes: Uint8Array, input: { readonly recoveryKey: string }) => Promise<void>;
   readonly cloudEnrolled: boolean;
   readonly cloudConflict: boolean;
+  readonly cloudConflictSummary: import('../app/runtime/cloud-conflict-safe-summary').CloudConflictSafeSummary | null;
   readonly cloudSyncStatus: import('../app/ui-types').CloudSyncStatus;
   readonly onEnrollCloud: (input: { readonly pin: string }) => Promise<void>;
   readonly onRetryCloudSync: () => Promise<void>;
@@ -92,6 +93,7 @@ export function AppShell({
   onApplyVaultImport,
   cloudEnrolled,
   cloudConflict,
+  cloudConflictSummary,
   cloudSyncStatus,
   onEnrollCloud,
   onRetryCloudSync,
@@ -140,6 +142,7 @@ export function AppShell({
           onDownloadVault={downloadVaultBytes}
           cloudEnrolled={cloudEnrolled}
           cloudConflict={cloudConflict}
+          cloudConflictSummary={cloudConflictSummary}
           cloudSyncStatus={cloudSyncStatus}
           onEnrollCloud={onEnrollCloud}
           onRetryCloudSync={onRetryCloudSync}
