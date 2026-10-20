@@ -57,6 +57,7 @@ import { inspectMonthlyBudgets, selectBudgetCandidateForReview } from './budget-
 import { compareMonthlyBudgetSides, type BudgetSideComparison } from './budget-side-comparison';
 import { assertCloudBudgetRevisionConsistent } from './cloud-budget-revision-consistency';
 import { assertLocalBudgetRevisionStable } from './cloud-budget-local-revision';
+import { assertNoCloudHardConflicts } from './cloud-hard-conflict-gate';
 import {
   base64UrlToBytes,
   createVaultPackage,
@@ -1454,8 +1455,8 @@ export class BrowserRuntime {
         if (reconciled.hardConflicts > 0) {
           this.cloudConflict = true;
           this.setSnapshot({ ...this.snapshot });
-          throw new Error('Cloud sync contains overlapping record edits that require manual resolution.');
         }
+        assertNoCloudHardConflicts(reconciled.hardConflicts);
 
         const mergedRevision = Math.max(localRevision, snapshot.manifest.revision) + 1;
         assertActive();
