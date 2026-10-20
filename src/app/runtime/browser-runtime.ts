@@ -1469,6 +1469,7 @@ export class BrowserRuntime {
           revision: mergedRevision,
           records: reconciled.records,
           events: reconciled.events,
+          expectedRevision: localRevision,
         });
         const mergedMeta: CloudEnrollmentMeta = {
           ...meta,
@@ -1490,6 +1491,7 @@ export class BrowserRuntime {
         revision: snapshot.manifest.revision,
         records: snapshot.records,
         events: snapshot.events,
+        expectedRevision: localRevision,
       });
       const nextMeta: CloudEnrollmentMeta = {
         ...meta,
