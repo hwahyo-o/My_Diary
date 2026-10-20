@@ -221,6 +221,7 @@ export interface AppRuntimePorts {
   loginFromCloud?(input: { readonly nickname: string; readonly pin: string }): Promise<void>;
   isCloudEnrolled?(): boolean;
   hasCloudConflict?(): boolean;
+  getCloudConflictSummary?(): import('./runtime/cloud-conflict-safe-summary').CloudConflictSafeSummary | null;
   rotateRecoveryKey?(input: { readonly pin: string }): Promise<string>;
   resetAllData?(input: { readonly pin: string }): Promise<void>;
   saveFixedVariableRule?(input: { readonly categoryId: string; readonly mode: FixedVariableMode }): Promise<void>;
