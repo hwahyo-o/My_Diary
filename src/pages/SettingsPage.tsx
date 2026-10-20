@@ -18,6 +18,7 @@ interface SettingsPageProps {
   readonly onDownloadVault: (bytes: Uint8Array, filename: string) => void;
   readonly cloudEnrolled: boolean;
   readonly cloudConflict: boolean;
+  readonly cloudConflictSummary?: import('../app/runtime/cloud-conflict-safe-summary').CloudConflictSafeSummary | null;
   readonly cloudSyncStatus: import('../app/ui-types').CloudSyncStatus;
   readonly onEnrollCloud: (input: { readonly pin: string }) => Promise<void>;
   readonly onRetryCloudSync?: () => Promise<void>;
@@ -47,6 +48,7 @@ export function SettingsPage({
   onDownloadVault,
   cloudEnrolled,
   cloudConflict,
+  cloudConflictSummary,
   cloudSyncStatus,
   onEnrollCloud,
   onRetryCloudSync,
@@ -146,6 +148,14 @@ export function SettingsPage({
       </header>
 
       <div className="settings-dashboard">
+        {cloudConflict && cloudConflictSummary?.needsReview ? (
+          <article className="settings-card" aria-label="클라우드 충돌 검토 안내" role="status">
+            <h2>클라우드 충돌 검토 필요</h2>
+            <p>{cloudConflictSummary.message}</p>
+            <p>충돌 기록 {cloudConflictSummary.conflictingRecordCount}개 · 이벤트 {cloudConflictSummary.conflictingEventCount}개</p>
+            <p>자동으로 어느 기록도 삭제하거나 덮어쓰지 않습니다. 선택과 확정 기능은 아직 제공되지 않습니다.</p>
+          </article>
+        ) : null}
         {cloudEnrolled && onPreviewCloudBudgetComparison ? <CloudBudgetPreviewSection onPreview={onPreviewCloudBudgetComparison} /> : null}
         {onListBudgetCandidates && onConfirmBudgetCandidate ? <BudgetChoicePanel onList={onListBudgetCandidates} onConfirm={onConfirmBudgetCandidate} cloudConflict={cloudConflict} /> : null}
         <article className="settings-card settings-card-primary" aria-labelledby="security-settings-title">

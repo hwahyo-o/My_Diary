@@ -245,3 +245,25 @@ describe('cloud synchronization status visibility', () => {
     expect(screen.getByRole('status')).toHaveTextContent(message);
   });
 });
+
+describe('safe cloud conflict summary', () => {
+  it('shows counts without exposing record IDs when a real conflict is active', () => {
+    render(<SettingsPage {...baseProps} cloudEnrolled cloudConflict cloudSyncStatus="conflict"
+      cloudConflictSummary={{
+        conflictingRecordCount: 2, conflictingEventCount: 1, needsReview: true,
+        message: '동기화 충돌이 발견됐습니다. 원본 기록은 유지되며, 안전한 검토가 필요합니다.',
+      }} />);
+    const summary = screen.getByLabelText('클라우드 충돌 검토 안내');
+    expect(summary).toHaveTextContent('충돌 기록 2개 · 이벤트 1개');
+    expect(summary).toHaveTextContent('자동으로 어느 기록도 삭제하거나 덮어쓰지 않습니다');
+    expect(summary.querySelector('button')).toBeNull();
+  });
+  it('hides the review summary when the runtime is not in conflict state', () => {
+    render(<SettingsPage {...baseProps} cloudConflict={false}
+      cloudConflictSummary={{
+        conflictingRecordCount: 2, conflictingEventCount: 1, needsReview: true,
+        message: '충돌 검토가 필요합니다.',
+      }} />);
+    expect(screen.queryByLabelText('클라우드 충돌 검토 안내')).not.toBeInTheDocument();
+  });
+});
