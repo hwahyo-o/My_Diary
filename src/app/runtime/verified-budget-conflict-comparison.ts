@@ -29,8 +29,8 @@ export function buildVerifiedBudgetConflictComparison(
   remoteBudgets: readonly Budget[],
 ): BudgetConflictComparison {
   assertVerifiedConflictReview(context, plan);
-  const local = new Map(localBudgets.map((b) => [b.id, b]));
-  const remote = new Map(remoteBudgets.map((b) => [b.id, b]));
+  const local = new Map<string, Budget>(localBudgets.map((b) => [b.id, b]));
+  const remote = new Map<string, Budget>(remoteBudgets.map((b) => [b.id, b]));
   const candidates: BudgetConflictComparison['candidates'][number][] = [];
   for (const id of new Set(plan.recordIds)) {
     const a = local.get(id);
