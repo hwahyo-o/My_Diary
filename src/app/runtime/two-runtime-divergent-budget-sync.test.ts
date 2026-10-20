@@ -58,7 +58,7 @@ it('preserves divergent same-month budget histories across two runtimes and mock
     ]);
     expect((await first.listCurrentMonthBudgetCandidates()).map((item) => item.limitMinor)).toContain(210000);
     expect((await second.listCurrentMonthBudgetCandidates()).map((item) => item.limitMinor)).toContain(260000);
-    await Promise.all([first.syncCloudBestEffort(), second.syncCloudBestEffort()]);
+    // saveBudget schedules best-effort sync internally; do not invoke a private runtime method.
     const allA = (await first.listCurrentMonthBudgetCandidates()).map((item) => item.limitMinor);
     const allB = (await second.listCurrentMonthBudgetCandidates()).map((item) => item.limitMinor);
     expect(allA).toContain(170000);
