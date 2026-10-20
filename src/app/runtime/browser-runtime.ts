@@ -55,6 +55,7 @@ import type {
 import { emptyAnalytics, emptyAssets, emptyCalendar, emptyClassificationSettings, emptyDashboard } from '../ui-types';
 import { inspectMonthlyBudgets, selectBudgetCandidateForReview } from './budget-candidates';
 import { compareMonthlyBudgetSides, type BudgetSideComparison } from './budget-side-comparison';
+import { assertCloudBudgetRevisionConsistent } from './cloud-budget-revision-consistency';
 import {
   base64UrlToBytes,
   createVaultPackage,
@@ -975,9 +976,8 @@ export class BrowserRuntime {
     if (!session.isUnlocked || this.cloudSyncEpoch !== epoch || this.cloudKek !== cloudKek) {
       throw new Error('Vault changed during cloud comparison.');
     }
-    if (!download || download.revision !== head.revision) {
-      throw new Error('Cloud snapshot revision changed; refresh before comparing.');
-    }
+    if (!download) throw new Error('Cloud snapshot is unavailable.');
+    assertCloudBudgetRevisionConsistent(head.revision, download.revision, head.revision);
     if (await sha256Hex(download.bytes) !== download.objectSha256) {
       throw new Error('Cloud snapshot digest mismatch.');
     }
@@ -1004,9 +1004,7 @@ export class BrowserRuntime {
     if (!session.isUnlocked || this.cloudSyncEpoch !== epoch || this.cloudKek !== cloudKek) {
       throw new Error('Vault changed during cloud comparison.');
     }
-    if (latestHead.revision !== download.revision) {
-      throw new Error('Cloud snapshot revision changed; refresh before comparing.');
-    }
+    assertCloudBudgetRevisionConsistent(head.revision, download.revision, latestHead.revision);
     return compareMonthlyBudgetSides(local, remote, currentMonthStart(this.options.now()));
   }
 
