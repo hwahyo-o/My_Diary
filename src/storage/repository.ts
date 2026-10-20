@@ -187,6 +187,7 @@ export class EncryptedRepository {
     readonly records: readonly StoredEncryptedRecord[];
     readonly events: readonly StoredEvent[];
     readonly securityMeta?: { readonly key: string; readonly value: unknown };
+    readonly expectedRevision?: number;
   }): Promise<void> {
     const stores: string[] = [STORE_NAMES.records, STORE_NAMES.events, STORE_NAMES.vaultMeta];
     if (input.securityMeta) stores.push(STORE_NAMES.securityMeta);
@@ -194,18 +195,40 @@ export class EncryptedRepository {
     const recordsStore = tx.objectStore(STORE_NAMES.records);
     const eventsStore = tx.objectStore(STORE_NAMES.events);
     const metaStore = tx.objectStore(STORE_NAMES.vaultMeta);
-    recordsStore.clear();
-    eventsStore.clear();
-    metaStore.clear();
-    for (const record of input.records) recordsStore.put(record);
-    for (const event of input.events) eventsStore.put(event);
-    metaStore.put({ vaultId: input.vaultId, revision: input.revision, schemaVersion: input.schemaVersion } satisfies VaultMeta);
-    if (input.securityMeta) {
-      const security = tx.objectStore(STORE_NAMES.securityMeta);
-      security.clear();
-      security.put({ key: input.securityMeta.key, value: input.securityMeta.value });
+    let conflict: Error | undefined;
+    const write = () => {
+      recordsStore.clear();
+      eventsStore.clear();
+      metaStore.clear();
+      for (const record of input.records) recordsStore.put(record);
+      for (const event of input.events) eventsStore.put(event);
+      metaStore.put({ vaultId: input.vaultId, revision: input.revision, schemaVersion: input.schemaVersion } satisfies VaultMeta);
+      if (input.securityMeta) {
+        const security = tx.objectStore(STORE_NAMES.securityMeta);
+        security.clear();
+        security.put({ key: input.securityMeta.key, value: input.securityMeta.value });
+      }
+    };
+    if (input.expectedRevision === undefined) {
+      write();
+    } else {
+      const check = metaStore.get(input.vaultId);
+      check.onsuccess = () => {
+        const current = (check.result as VaultMeta | undefined)?.revision ?? 0;
+        if (current !== input.expectedRevision) {
+          conflict = new Error(`Revision conflict: expected ${input.expectedRevision}, found ${current}`);
+          tx.abort();
+          return;
+        }
+        write();
+      };
+      check.onerror = () => tx.abort();
     }
-    await txDone(tx);
+    try {
+      await txDone(tx);
+    } catch (error) {
+      throw conflict ?? error;
+    }
   }
 
   async clearAllData(): Promise<void> {
