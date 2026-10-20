@@ -56,6 +56,7 @@ import { emptyAnalytics, emptyAssets, emptyCalendar, emptyClassificationSettings
 import { inspectMonthlyBudgets, selectBudgetCandidateForReview } from './budget-candidates';
 import { compareMonthlyBudgetSides, type BudgetSideComparison } from './budget-side-comparison';
 import { assertCloudBudgetRevisionConsistent } from './cloud-budget-revision-consistency';
+import { assertLocalBudgetRevisionStable } from './cloud-budget-local-revision';
 import {
   base64UrlToBytes,
   createVaultPackage,
@@ -968,10 +969,11 @@ export class BrowserRuntime {
       throw new Error('Unlock the connected Vault before comparing cloud budgets.');
     }
     const epoch = this.cloudSyncEpoch;
-    const [head, download, localRecords] = await Promise.all([
+    const [head, download, localRecords, localRevision] = await Promise.all([
       this.cloudClient.getHead(),
       this.cloudClient.downloadSnapshot(),
       this.repository.listRecordsByType('budget'),
+      this.repository.getRevision(bootstrap.vaultId),
     ]);
     if (!session.isUnlocked || this.cloudSyncEpoch !== epoch || this.cloudKek !== cloudKek) {
       throw new Error('Vault changed during cloud comparison.');
@@ -1005,6 +1007,7 @@ export class BrowserRuntime {
       throw new Error('Vault changed during cloud comparison.');
     }
     assertCloudBudgetRevisionConsistent(head.revision, download.revision, latestHead.revision);
+    assertLocalBudgetRevisionStable(localRevision, await this.repository.getRevision(bootstrap.vaultId));
     return compareMonthlyBudgetSides(local, remote, currentMonthStart(this.options.now()));
   }
 
