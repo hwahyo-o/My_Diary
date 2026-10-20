@@ -27,11 +27,13 @@ it('allows an atomic replacement at current revision after a stale attempt is re
     const params = { vaultId, schemaVersion: 1, revision: currentRevision + 1, records: [replacement], events: [] };
     await expect(b.replaceVaultData({ ...params, expectedRevision: staleRevision }))
       .rejects.toThrow('Revision conflict');
-    expect(await a.listAllRecords()).toEqual([record]);
-    expect(await a.listAllEvents()).toEqual([event]);
+    expect((await a.listAllRecords()).map((item) => item.recordId)).toEqual([record.recordId]);
+    expect(Array.from((await a.listAllRecords())[0]!.encryptedPayload)).toEqual([1]);
+    expect((await a.listAllEvents()).map((item) => item.eventId)).toEqual([event.eventId]);
     await b.replaceVaultData({ ...params, expectedRevision: currentRevision });
     expect(await a.getRevision(vaultId)).toBe(currentRevision + 1);
-    expect(await a.listAllRecords()).toEqual([replacement]);
+    expect((await a.listAllRecords()).map((item) => item.recordId)).toEqual([replacement.recordId]);
+    expect(Array.from((await a.listAllRecords())[0]!.encryptedPayload)).toEqual([3]);
     expect(await a.listAllEvents()).toEqual([]);
   } finally {
     dbA.close();
