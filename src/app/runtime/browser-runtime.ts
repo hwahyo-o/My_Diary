@@ -544,9 +544,6 @@ export class BrowserRuntime {
         wrappedRecoveryVaultKey: snapshot.recoveryWrap,
         failedAttempts: 0,
       };
-      if (await this.repository.getRevision(bootstrap.vaultId) !== localRevision) {
-        throw new Error('Local Vault changed before cloud replacement; retry synchronization.');
-      }
       await this.repository.replaceVaultData({
         vaultId: snapshot.vaultId,
         schemaVersion: snapshot.schemaVersion,
