@@ -968,10 +968,11 @@ export class BrowserRuntime {
       throw new Error('Unlock the connected Vault before comparing cloud budgets.');
     }
     const epoch = this.cloudSyncEpoch;
-    const [head, download, localRecords] = await Promise.all([
+    const [head, download, localRecords, localRevision] = await Promise.all([
       this.cloudClient.getHead(),
       this.cloudClient.downloadSnapshot(),
       this.repository.listRecordsByType('budget'),
+      this.repository.getRevision(bootstrap.vaultId),
     ]);
     if (!session.isUnlocked || this.cloudSyncEpoch !== epoch || this.cloudKek !== cloudKek) {
       throw new Error('Vault changed during cloud comparison.');
@@ -1005,6 +1006,9 @@ export class BrowserRuntime {
       throw new Error('Vault changed during cloud comparison.');
     }
     assertCloudBudgetRevisionConsistent(head.revision, download.revision, latestHead.revision);
+    if (await this.repository.getRevision(bootstrap.vaultId) !== localRevision) {
+      throw new Error('Local budget data changed during cloud comparison; refresh before comparing.');
+    }
     return compareMonthlyBudgetSides(local, remote, currentMonthStart(this.options.now()));
   }
 
