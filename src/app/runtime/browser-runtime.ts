@@ -1582,6 +1582,7 @@ export class BrowserRuntime {
   }
 
   private async uploadCloudSnapshot(meta: CloudEnrollmentMeta, expectedCloudRevision: number): Promise<void> {
+    if (this.cloudConflict) throw new Error('Cloud conflict must be resolved before uploading.');
     const bootstrap = this.bootstrap;
     if (!bootstrap || !this.session?.isUnlocked) throw new Error('Vault session is locked.');
     const syncEpoch = this.cloudSyncEpoch;
