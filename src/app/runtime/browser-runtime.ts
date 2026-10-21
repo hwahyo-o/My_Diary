@@ -1,3 +1,5 @@
+import { assertSafeCloudResolutionAcknowledgement } from './cloud-resolution-ack-recovery';
+import type { ResolutionRetryDecision } from './cloud-resolution-cas-retry-decision';
 import { buildVerifiedBudgetConflictComparison, type BudgetConflictComparison } from './verified-budget-conflict-comparison';
 import { planEncryptedCloudConflictReview } from './cloud-conflict-review-plan';
 import { toCloudConflictSafeSummary, type CloudConflictSafeSummary } from './cloud-conflict-safe-summary';
@@ -1075,6 +1077,42 @@ export class BrowserRuntime {
       latestCloudRevision: latestHead.revision, localRevisionAtRead: localRevision,
       localRevisionBeforeDisplay: latestLocalRevision, unlocked: session.isUnlocked,
     }, plan, localBudgets, remoteBudgets);
+  }
+
+  /**
+   * Persist independently verified cloud acknowledgement metadata using a local
+   * revision-CAS transaction. Does not release cloudConflict or trigger sync.
+   */
+  async recoverCloudResolutionAcknowledgement(
+    decision: ResolutionRetryDecision,
+    expectedLocalRevision: number,
+  ): Promise<void> {
+    const session = this.session;
+    const bootstrap = this.bootstrap;
+    const meta = this.cloudMeta;
+    if (!session?.isUnlocked || !bootstrap || !meta || !this.cloudConflict) {
+      throw new Error('Connected unlocked Vault with active conflict required.');
+    }
+    const epoch = this.cloudSyncEpoch;
+    const currentLocalRevision = await this.repository.getRevision(bootstrap.vaultId);
+    const cloudRevision = assertSafeCloudResolutionAcknowledgement({
+      upload: decision, expectedLocalRevision, currentLocalRevision,
+      cloudConflictActive: this.cloudConflict, vaultUnlocked: session.isUnlocked,
+    });
+    if (epoch !== this.cloudSyncEpoch || !session.isUnlocked || this.cloudMeta !== meta) {
+      throw new Error('Cloud resolution recovery session changed.');
+    }
+    const nextMeta: CloudEnrollmentMeta = {
+      ...meta, cloudRevision, localRevisionAtSync: expectedLocalRevision,
+    };
+    await this.repository.putSecurityMetaIfVaultRevision(
+      bootstrap.vaultId, expectedLocalRevision, CLOUD_META_KEY, nextMeta,
+    );
+    if (epoch !== this.cloudSyncEpoch || !session.isUnlocked || this.cloudMeta !== meta) {
+      throw new Error('Cloud resolution recovery session changed.');
+    }
+    this.cloudMeta = nextMeta;
+    // Conflict is deliberately sticky until all encrypted differences are resolved.
   }
 
   async listCurrentMonthBudgetCandidates(): Promise<readonly { id: string; updatedAt: ISODateTime; limitMinor: number }[]> {
