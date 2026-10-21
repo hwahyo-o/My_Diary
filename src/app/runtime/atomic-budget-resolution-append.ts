@@ -22,6 +22,6 @@ export async function commitEncryptedBudgetResolutionAppend(
     throw new Error('Budget resolution target record already exists.');
   }
   // commitRecordEvent performs the revision CAS inside the same IndexedDB transaction.
-  // Events.add rejects a duplicate event ID, aborting the whole transaction.
-  return repository.commitRecordEvent(vaultId, record, event, plan.expectedLocalRevision);
+  // records.add and events.add reject duplicate identities inside the transaction.
+  return repository.commitRecordEvent(vaultId, record, event, plan.expectedLocalRevision, true);
 }
