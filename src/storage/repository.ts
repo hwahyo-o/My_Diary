@@ -245,7 +245,7 @@ export class EncryptedRepository {
 
   async clearAllData(): Promise<void> {
     const tx = this.db.transaction(
-      [STORE_NAMES.records, STORE_NAMES.events, STORE_NAMES.vaultMeta, STORE_NAMES.snapshots, STORE_NAMES.securityMeta],
+      [STORE_NAMES.records, STORE_NAMES.events, STORE_NAMES.vaultMeta, STORE_NAMES.snapshots, STORE_NAMES.securityMeta, STORE_NAMES.conflictVariants],
       'readwrite',
     );
     for (const storeName of [
@@ -254,6 +254,7 @@ export class EncryptedRepository {
       STORE_NAMES.vaultMeta,
       STORE_NAMES.snapshots,
       STORE_NAMES.securityMeta,
+      STORE_NAMES.conflictVariants,
     ]) {
       tx.objectStore(storeName).clear();
     }
