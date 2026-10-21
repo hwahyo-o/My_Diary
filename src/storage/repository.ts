@@ -260,6 +260,30 @@ export class EncryptedRepository {
     return requestValue(tx.objectStore(STORE_NAMES.snapshots).get(snapshotId));
   }
 
+  /** Atomically install acknowledged cloud metadata only if Vault data has not changed. */
+  async putSecurityMetaIfVaultRevision<T>(
+    vaultId: string, expectedRevision: number, key: string, value: T,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction([STORE_NAMES.vaultMeta, STORE_NAMES.securityMeta], 'readwrite');
+      let conflict: Error | undefined;
+      const metaRequest = tx.objectStore(STORE_NAMES.vaultMeta).get(vaultId);
+      metaRequest.onerror = () => tx.abort();
+      metaRequest.onsuccess = () => {
+        const current = metaRequest.result as VaultMeta | undefined;
+        if ((current?.revision ?? 0) !== expectedRevision) {
+          conflict = new Error('Vault revision changed during cloud metadata recovery.');
+          tx.abort();
+          return;
+        }
+        tx.objectStore(STORE_NAMES.securityMeta).put({ key, value } satisfies SecurityMetaEntry<T>);
+      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => undefined;
+      tx.onabort = () => reject(conflict ?? tx.error ?? new Error('Cloud metadata recovery transaction failed.'));
+    });
+  }
+
   async putSecurityMeta<T>(key: string, value: T): Promise<void> {
     const tx = this.db.transaction(STORE_NAMES.securityMeta, 'readwrite');
     await requestValue(tx.objectStore(STORE_NAMES.securityMeta).put({ key, value } satisfies SecurityMetaEntry<T>));
