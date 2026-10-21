@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../cloud-sync/snapshot';
 import type { CloudSyncClient } from '../../cloud-sync/http-client';
 import type { ImmutableBudgetResolutionPlan } from './budget-conflict-immutable-resolution-plan';
 import { assertCloudResolutionUploadPreflight, type CloudResolutionUploadPreflight } from './cloud-resolution-upload-preflight';
@@ -22,6 +23,9 @@ export async function executeCloudResolutionCasUpload(
   assertCloudResolutionUploadPreflight(plan, preflight);
   if (!/^[a-f0-9]{64}$/i.test(encrypted.objectSha256) || !encrypted.bytes.length) {
     throw new Error('Invalid encrypted resolution snapshot.');
+  }
+  if ((await sha256Hex(encrypted.bytes)).toLowerCase() !== encrypted.objectSha256.toLowerCase()) {
+    throw new Error('Encrypted resolution snapshot digest mismatch.');
   }
   const before = await client.getHead();
   if (before.revision !== plan.expectedCloudRevision || !await localRevisionUnchanged()) {

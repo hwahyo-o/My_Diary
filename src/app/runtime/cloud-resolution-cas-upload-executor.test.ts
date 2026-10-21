@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import { executeCloudResolutionCasUpload } from './cloud-resolution-cas-upload-executor';
-const digest = 'ab'.repeat(32);
+const digest = 'a12871fee210fb8619291eaea194581cbd2531e4b23759d225f6806923f63222';
 const plan = { sourceRecordId: 'source', month: '2026-10-01', chosenLimitMinor: 120000,
   expectedLocalRevision: 4, expectedCloudRevision: 7, mode: 'append-new-budget' as const };
 const preflight = { expectedCloudRevision: 7, verifiedCloudRevision: 7,
@@ -31,4 +31,14 @@ it('classifies lost upload response without repeating the write', async () => {
   expect((await executeCloudResolutionCasUpload({ getHead, uploadSnapshot },
     plan, preflight, payload, async () => true)).decision.kind).toBe('acknowledged');
   expect(uploadSnapshot).toHaveBeenCalledTimes(1);
+});
+
+it('rejects a mismatched encrypted payload digest before sending any request', async () => {
+  const getHead = vi.fn();
+  const uploadSnapshot = vi.fn();
+  await expect(executeCloudResolutionCasUpload({ getHead, uploadSnapshot },
+    plan, preflight, { bytes: new Uint8Array([9, 8]), objectSha256: digest }, async () => true))
+    .rejects.toThrow('digest mismatch');
+  expect(getHead).not.toHaveBeenCalled();
+  expect(uploadSnapshot).not.toHaveBeenCalled();
 });
