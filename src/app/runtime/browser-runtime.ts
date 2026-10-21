@@ -1475,6 +1475,11 @@ export class BrowserRuntime {
   }
 
   private async syncCloudNow(): Promise<void> {
+    // A known hard conflict must never be bypassed by a later best-effort retry.
+    // A dedicated, verified manual resolution flow is required to clear this flag.
+    if (this.cloudConflict) {
+      throw new Error('Cloud conflict must be resolved before synchronization.');
+    }
     const meta = this.cloudMeta;
     const bootstrap = this.bootstrap;
     if (!meta || !bootstrap || !this.session?.isUnlocked) return;
