@@ -43,3 +43,20 @@ it('rejects an outdated cloud revision without writing to IndexedDB', async () =
     expect(await repo.getRevision(vaultId)).toBe(0);
   } finally { db.close(); }
 });
+
+it('prevents overwriting an existing record identity inside the IndexedDB transaction', async () => {
+  const db = await openVaultDatabase(`append-duplicate-${crypto.randomUUID()}`);
+  const repo = new EncryptedRepository(db);
+  const vaultId = crypto.randomUUID();
+  const oldRecord = { ...record, encryptedPayload: new Uint8Array([7]) };
+  const oldEvent = { ...event, eventId: 'old-event' };
+  try {
+    await repo.commitRecordEvent(vaultId, oldRecord, oldEvent, 0);
+    const currentPlan = { ...plan, expectedLocalRevision: 1 };
+    await expect(commitEncryptedBudgetResolutionAppend(repo, vaultId,
+      currentPlan, record, event, 3)).rejects.toThrow();
+    expect(Array.from((await repo.listAllRecords())[0]!.encryptedPayload)).toEqual([7]);
+    expect((await repo.listAllEvents()).map((e) => e.eventId)).toEqual(['old-event']);
+    expect(await repo.getRevision(vaultId)).toBe(1);
+  } finally { db.close(); }
+});
