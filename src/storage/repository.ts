@@ -62,6 +62,7 @@ export class EncryptedRepository {
     record: StoredEncryptedRecord,
     event: StoredEvent,
     expectedRevision: number,
+    appendOnly = false,
   ): Promise<number> {
     return new Promise((resolve, reject) => {
       const tx = this.db.transaction(
@@ -86,7 +87,8 @@ export class EncryptedRepository {
           return;
         }
 
-        records.put(record);
+        if (appendOnly) records.add(record);
+        else records.put(record);
         events.add(event);
         meta.put({
           vaultId,
