@@ -8,6 +8,16 @@ export interface StoredEncryptedRecord {
   readonly encryptedPayload: Uint8Array;
 }
 
+export interface StoredConflictVariant {
+  readonly variantId: string;
+  readonly recordId: string;
+  readonly recordType: string;
+  readonly recordVersion: number;
+  readonly updatedAt: string;
+  readonly encryptedPayload: Uint8Array;
+  readonly source: 'local' | 'cloud';
+}
+
 export interface StoredEvent {
   readonly eventId: string;
   readonly recordId: string;
@@ -282,6 +292,23 @@ export class EncryptedRepository {
       tx.onerror = () => undefined;
       tx.onabort = () => reject(conflict ?? tx.error ?? new Error('Cloud metadata recovery transaction failed.'));
     });
+  }
+
+  /** Preserve a divergent encrypted record without changing the primary record identity. */
+  async appendConflictVariant(variant: StoredConflictVariant): Promise<void> {
+    if (!variant.variantId || !variant.recordId || !variant.encryptedPayload.length ||
+        (variant.source !== 'local' && variant.source !== 'cloud')) {
+      throw new Error('Invalid encrypted conflict variant.');
+    }
+    const tx = this.db.transaction(STORE_NAMES.conflictVariants, 'readwrite');
+    await requestValue(tx.objectStore(STORE_NAMES.conflictVariants).add(variant));
+  }
+
+  async listConflictVariants(recordId: string): Promise<StoredConflictVariant[]> {
+    const tx = this.db.transaction(STORE_NAMES.conflictVariants, 'readonly');
+    return requestValue<StoredConflictVariant[]>(
+      tx.objectStore(STORE_NAMES.conflictVariants).index('recordId').getAll(recordId),
+    );
   }
 
   async putSecurityMeta<T>(key: string, value: T): Promise<void> {
