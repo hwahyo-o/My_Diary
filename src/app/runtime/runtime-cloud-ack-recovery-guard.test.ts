@@ -12,7 +12,7 @@ it('refuses acknowledgement recovery without a connected hard-conflict Vault', a
     await runtime.saveBudget({ limitMinor: 140000 });
     const before = await runtime.listCurrentMonthBudgetCandidates();
     await expect(runtime.recoverCloudResolutionAcknowledgement(
-      { kind: 'acknowledged', serverRevision: 5 }, 1,
+      { kind: 'acknowledged', serverRevision: 5 }, 1, 'ab'.repeat(32),
     )).rejects.toThrow('Connected unlocked Vault');
     expect(await runtime.listCurrentMonthBudgetCandidates()).toEqual(before);
   } finally { runtime.close(); }
