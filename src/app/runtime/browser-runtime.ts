@@ -1086,6 +1086,7 @@ export class BrowserRuntime {
   async recoverCloudResolutionAcknowledgement(
     decision: ResolutionRetryDecision,
     expectedLocalRevision: number,
+    expectedUploadedDigest: string,
   ): Promise<void> {
     const session = this.session;
     const bootstrap = this.bootstrap;
@@ -1101,6 +1102,15 @@ export class BrowserRuntime {
     });
     if (epoch !== this.cloudSyncEpoch || !session.isUnlocked || this.cloudMeta !== meta) {
       throw new Error('Cloud resolution recovery session changed.');
+    }
+    if (!/^[a-f0-9]{64}$/i.test(expectedUploadedDigest)) {
+      throw new Error('Expected encrypted cloud digest is invalid.');
+    }
+    const head = await this.cloudClient.getHead();
+    if (epoch !== this.cloudSyncEpoch || !session.isUnlocked || this.cloudMeta !== meta ||
+        !this.cloudConflict || head.revision !== cloudRevision ||
+        head.objectSha256?.toLowerCase() !== expectedUploadedDigest.toLowerCase()) {
+      throw new Error('Cloud resolution acknowledgement no longer matches the server.');
     }
     const nextMeta: CloudEnrollmentMeta = {
       ...meta, cloudRevision, localRevisionAtSync: expectedLocalRevision,
