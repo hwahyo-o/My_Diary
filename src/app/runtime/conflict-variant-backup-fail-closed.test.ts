@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { expect, it } from 'vitest';
 import { BrowserRuntime } from './browser-runtime';
 
-it('refuses an incomplete recovery backup while preserved encrypted conflict variants exist', async () => {
+it('preserves encrypted conflict variants when invalid RecoveryKey rejects a backup', async () => {
   const runtime = await BrowserRuntime.open({
     dbName: `conflict-export-guard-${crypto.randomUUID()}`,
     argon2Profile: 'test',
@@ -16,10 +16,9 @@ it('refuses an incomplete recovery backup while preserved encrypted conflict var
       recordVersion: 1, updatedAt: '2026-10-22T04:00:00.000Z',
       source: 'cloud', encryptedPayload: new Uint8Array([1, 2, 3]),
     });
-    // Abort before processing the supplied recovery key, since an incomplete
-    // backup would silently omit the conflict variant.
+    // Invalid RecoveryKey must fail without changing preserved ciphertext.
     await expect(runtime.exportVault({ recoveryKey: 'invalid' }))
-      .rejects.toThrow('Backup blocked');
+      .rejects.toThrow('RecoveryKey has an invalid length');
     expect(await repo.listConflictVariants('budget-test-1')).toHaveLength(1);
     expect(runtime.hasCloudConflict()).toBe(false);
   } finally { runtime.close(); }
