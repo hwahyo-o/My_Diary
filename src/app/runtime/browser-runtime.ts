@@ -1432,6 +1432,7 @@ export class BrowserRuntime {
         revision: verified.manifest.revision,
         records: verified.records,
         events: verified.events,
+        conflictVariants: verified.conflictVariants,
         securityMeta: { key: BOOTSTRAP_KEY, value: bootstrap },
       });
       this.bootstrap = bootstrap;
