@@ -43,6 +43,8 @@ it('migrates existing v1 Vault without losing original encrypted records', async
     expect((await repo.listAllRecords())[0]!.encryptedPayload[0]).toBe(1);
     await expect(repo.replaceVaultData({ vaultId: crypto.randomUUID(), schemaVersion: 1, revision: 0, records: [], events: [] }))
       .rejects.toThrow('conflict variants require full backup support');
+    await repo.replaceVaultData({ vaultId: crypto.randomUUID(), schemaVersion: 1, revision: 0, records: [], events: [], conflictVariants: await repo.listAllConflictVariants() });
+    expect((await repo.listConflictVariants('shared'))[0]!.encryptedPayload[0]).toBe(2);
     await repo.clearAllData();
     expect(await repo.listConflictVariants('shared')).toHaveLength(0);
   } finally { db.close(); }
