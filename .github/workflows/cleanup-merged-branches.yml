@@ -1,0 +1,68 @@
+name: Clean merged work branches
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only report candidates without deletion"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find and optionally delete verified merged PR branches
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const dryRun = core.getInput('dry_run') !== 'false';
+            const { owner, repo } = context.repo;
+            const all = await github.paginate(github.rest.pulls.list, {
+              owner, repo, state: 'all', per_page: 100,
+            });
+            const openHeads = new Set(all.filter(pr => pr.state === 'open')
+              .filter(pr => pr.head.repo?.full_name === context.payload.repository.full_name)
+              .map(pr => pr.head.ref));
+            const keep = name => (
+              name === 'main' || name.startsWith('release/') ||
+              name.startsWith('archive/') || name.startsWith('dependabot/') ||
+              name.startsWith('security/')
+            );
+            const merged = all.filter(pr => pr.merged_at && pr.head.repo?.full_name === context.payload.repository.full_name);
+            const byBranch = new Map();
+            for (const pr of merged) {
+              if (!byBranch.has(pr.head.ref)) byBranch.set(pr.head.ref, []);
+              byBranch.get(pr.head.ref).push(pr);
+            }
+            let candidates = 0, removed = 0, skipped = 0;
+            for (const [name, associated] of byBranch) {
+              if (keep(name) || openHeads.has(name)) { skipped++; continue; }
+              const branch = await github.rest.repos.getBranch({owner, repo, branch: name})
+                .catch(err => { if (err.status === 404) return null; throw err; });
+              if (!branch || branch.data.protected) { skipped++; continue; }
+              const sha = branch.data.commit.sha;
+              if (!associated.some(pr => pr.head.sha === sha)) { skipped++; continue; }
+              candidates++;
+              core.info((dryRun ? 'DRY RUN' : 'DELETE') + ': ' + name + ' @ ' + sha);
+              if (!dryRun) {
+                await github.rest.git.deleteRef({owner, repo, ref: 'heads/' + name});
+                removed++;
+              }
+            }
+            await core.summary.addHeading('Merged branch cleanup')
+              .addTable([
+                [{data:'Metric',header:true},{data:'Count',header:true}],
+                ['Dry run',String(dryRun)],
+                ['Verified candidates',String(candidates)],
+                ['Deleted',String(removed)],
+                ['Skipped',String(skipped)]
+              ]).write();
