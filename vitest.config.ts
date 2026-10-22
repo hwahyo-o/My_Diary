@@ -7,7 +7,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     globals: true,
-    // RecoveryKey derivation and IndexedDB encryption tests exceed 5s on shared CI workers.
-    testTimeout: 15_000,
+    // Crypto-intensive recovery and multi-runtime IndexedDB tests can exceed
+    // 15 seconds under shared CI runner load. Keep an explicit bounded timeout.
+    testTimeout: 45_000,
   },
 });
