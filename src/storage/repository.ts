@@ -201,6 +201,11 @@ export class EncryptedRepository {
     readonly securityMeta?: { readonly key: string; readonly value: unknown };
     readonly expectedRevision?: number;
   }): Promise<void> {
+    // Fail closed until conflict variants are included in authenticated Vault backups
+    // and remote snapshot formats. Do not overwrite or import past local variants.
+    if ((await this.listAllConflictVariants()).length > 0) {
+      throw new Error('Vault replacement blocked: encrypted conflict variants require full backup support.');
+    }
     const stores: string[] = [STORE_NAMES.records, STORE_NAMES.events, STORE_NAMES.vaultMeta];
     if (input.securityMeta) stores.push(STORE_NAMES.securityMeta);
     const tx = this.db.transaction(stores, 'readwrite');
@@ -303,6 +308,11 @@ export class EncryptedRepository {
     }
     const tx = this.db.transaction(STORE_NAMES.conflictVariants, 'readwrite');
     await requestValue(tx.objectStore(STORE_NAMES.conflictVariants).add(variant));
+  }
+
+  async listAllConflictVariants(): Promise<StoredConflictVariant[]> {
+    const tx = this.db.transaction(STORE_NAMES.conflictVariants, 'readonly');
+    return requestValue<StoredConflictVariant[]>(tx.objectStore(STORE_NAMES.conflictVariants).getAll());
   }
 
   async listConflictVariants(recordId: string): Promise<StoredConflictVariant[]> {
