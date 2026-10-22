@@ -1286,9 +1286,6 @@ export class BrowserRuntime {
   }
 
   async exportVault(input: { readonly recoveryKey: string }): Promise<Uint8Array> {
-    if ((await this.repository.listAllConflictVariants()).length > 0) {
-      throw new Error('Backup blocked: encrypted conflict variants are not yet included in the Vault package.');
-    }
     const session = this.session;
     const bootstrap = this.bootstrap;
     if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
@@ -1330,6 +1327,7 @@ export class BrowserRuntime {
         manifest,
         records,
         events,
+        conflictVariants: await this.repository.listAllConflictVariants(),
       }));
     } finally {
       recoveryUnwrapped?.fill(0);
@@ -1384,6 +1382,7 @@ export class BrowserRuntime {
         revision: verified.manifest.revision,
         records: verified.records,
         events: verified.events,
+        conflictVariants: verified.conflictVariants,
         securityMeta: { key: BOOTSTRAP_KEY, value: nextBootstrap },
       });
       this.bootstrap = nextBootstrap;
