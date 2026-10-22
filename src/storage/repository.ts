@@ -8,6 +8,16 @@ export interface StoredEncryptedRecord {
   readonly encryptedPayload: Uint8Array;
 }
 
+export interface StoredConflictVariant {
+  readonly variantId: string;
+  readonly recordId: string;
+  readonly recordType: string;
+  readonly recordVersion: number;
+  readonly updatedAt: string;
+  readonly encryptedPayload: Uint8Array;
+  readonly source: 'local' | 'cloud';
+}
+
 export interface StoredEvent {
   readonly eventId: string;
   readonly recordId: string;
@@ -188,10 +198,11 @@ export class EncryptedRepository {
     readonly revision: number;
     readonly records: readonly StoredEncryptedRecord[];
     readonly events: readonly StoredEvent[];
+    readonly conflictVariants?: readonly StoredConflictVariant[];
     readonly securityMeta?: { readonly key: string; readonly value: unknown };
     readonly expectedRevision?: number;
   }): Promise<void> {
-    const stores: string[] = [STORE_NAMES.records, STORE_NAMES.events, STORE_NAMES.vaultMeta];
+    const stores: string[] = [STORE_NAMES.records, STORE_NAMES.events, STORE_NAMES.vaultMeta, STORE_NAMES.conflictVariants];
     if (input.securityMeta) stores.push(STORE_NAMES.securityMeta);
     const tx = this.db.transaction(stores, 'readwrite');
     const recordsStore = tx.objectStore(STORE_NAMES.records);
@@ -201,6 +212,8 @@ export class EncryptedRepository {
     const write = () => {
       recordsStore.clear();
       eventsStore.clear();
+      tx.objectStore(STORE_NAMES.conflictVariants).clear();
+      for (const variant of input.conflictVariants ?? []) tx.objectStore(STORE_NAMES.conflictVariants).add(variant);
       metaStore.clear();
       for (const record of input.records) recordsStore.put(record);
       for (const event of input.events) eventsStore.put(event);
@@ -211,8 +224,31 @@ export class EncryptedRepository {
         security.put({ key: input.securityMeta.key, value: input.securityMeta.value });
       }
     };
+    const guardedWrite = () => {
+      const existingRequest = tx.objectStore(STORE_NAMES.conflictVariants).getAll();
+      existingRequest.onerror = () => tx.abort();
+      existingRequest.onsuccess = () => {
+        const existing = existingRequest.result as StoredConflictVariant[];
+        const incoming = new Map((input.conflictVariants ?? []).map(v => [v.variantId, v]));
+        const equal = (a: Uint8Array, b: Uint8Array) =>
+          a.length === b.length && a.every((value, i) => value === b[i]);
+        if (existing.some(v => {
+          const matched = incoming.get(v.variantId);
+          return !matched || matched.recordId !== v.recordId ||
+            matched.recordType !== v.recordType ||
+            matched.recordVersion !== v.recordVersion ||
+            matched.updatedAt !== v.updatedAt || matched.source !== v.source ||
+            !equal(matched.encryptedPayload, v.encryptedPayload);
+        })) {
+          conflict = new Error('Vault replacement would discard encrypted conflict variants.');
+          tx.abort();
+          return;
+        }
+        write();
+      };
+    };
     if (input.expectedRevision === undefined) {
-      write();
+      guardedWrite();
     } else {
       const check = metaStore.get(input.vaultId);
       check.onsuccess = () => {
@@ -222,7 +258,7 @@ export class EncryptedRepository {
           tx.abort();
           return;
         }
-        write();
+        guardedWrite();
       };
       check.onerror = () => tx.abort();
     }
@@ -235,7 +271,7 @@ export class EncryptedRepository {
 
   async clearAllData(): Promise<void> {
     const tx = this.db.transaction(
-      [STORE_NAMES.records, STORE_NAMES.events, STORE_NAMES.vaultMeta, STORE_NAMES.snapshots, STORE_NAMES.securityMeta],
+      [STORE_NAMES.records, STORE_NAMES.events, STORE_NAMES.vaultMeta, STORE_NAMES.snapshots, STORE_NAMES.securityMeta, STORE_NAMES.conflictVariants],
       'readwrite',
     );
     for (const storeName of [
@@ -244,6 +280,7 @@ export class EncryptedRepository {
       STORE_NAMES.vaultMeta,
       STORE_NAMES.snapshots,
       STORE_NAMES.securityMeta,
+      STORE_NAMES.conflictVariants,
     ]) {
       tx.objectStore(storeName).clear();
     }
@@ -282,6 +319,28 @@ export class EncryptedRepository {
       tx.onerror = () => undefined;
       tx.onabort = () => reject(conflict ?? tx.error ?? new Error('Cloud metadata recovery transaction failed.'));
     });
+  }
+
+  /** Preserve a divergent encrypted record without changing the primary record identity. */
+  async appendConflictVariant(variant: StoredConflictVariant): Promise<void> {
+    if (!variant.variantId || !variant.recordId || !variant.encryptedPayload.length ||
+        (variant.source !== 'local' && variant.source !== 'cloud')) {
+      throw new Error('Invalid encrypted conflict variant.');
+    }
+    const tx = this.db.transaction(STORE_NAMES.conflictVariants, 'readwrite');
+    await requestValue(tx.objectStore(STORE_NAMES.conflictVariants).add(variant));
+  }
+
+  async listAllConflictVariants(): Promise<StoredConflictVariant[]> {
+    const tx = this.db.transaction(STORE_NAMES.conflictVariants, 'readonly');
+    return requestValue<StoredConflictVariant[]>(tx.objectStore(STORE_NAMES.conflictVariants).getAll());
+  }
+
+  async listConflictVariants(recordId: string): Promise<StoredConflictVariant[]> {
+    const tx = this.db.transaction(STORE_NAMES.conflictVariants, 'readonly');
+    return requestValue<StoredConflictVariant[]>(
+      tx.objectStore(STORE_NAMES.conflictVariants).index('recordId').getAll(recordId),
+    );
   }
 
   async putSecurityMeta<T>(key: string, value: T): Promise<void> {

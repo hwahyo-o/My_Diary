@@ -1317,6 +1317,7 @@ export class BrowserRuntime {
         defaultAccountId: bootstrap.defaultAccountId,
         revision,
       };
+      const conflictVariants = await this.repository.listAllConflictVariants();
       return session.withVaultKey((vaultKey) => createVaultPackage({
         schemaVersion: SCHEMA_VERSION,
         vaultId: bootstrap.vaultId,
@@ -1327,6 +1328,7 @@ export class BrowserRuntime {
         manifest,
         records,
         events,
+        conflictVariants,
       }));
     } finally {
       recoveryUnwrapped?.fill(0);
@@ -1381,6 +1383,7 @@ export class BrowserRuntime {
         revision: verified.manifest.revision,
         records: verified.records,
         events: verified.events,
+        conflictVariants: verified.conflictVariants,
         securityMeta: { key: BOOTSTRAP_KEY, value: nextBootstrap },
       });
       this.bootstrap = nextBootstrap;
@@ -1429,6 +1432,7 @@ export class BrowserRuntime {
         revision: verified.manifest.revision,
         records: verified.records,
         events: verified.events,
+        conflictVariants: verified.conflictVariants,
         securityMeta: { key: BOOTSTRAP_KEY, value: bootstrap },
       });
       this.bootstrap = bootstrap;
@@ -1630,6 +1634,9 @@ export class BrowserRuntime {
   }
 
   private async uploadCloudSnapshot(meta: CloudEnrollmentMeta, expectedCloudRevision: number): Promise<void> {
+    if ((await this.repository.listAllConflictVariants()).length > 0) {
+      throw new Error('Cloud upload blocked: encrypted conflict variants are not yet in snapshot format.');
+    }
     if (this.cloudConflict) throw new Error('Cloud conflict must be resolved before uploading.');
     const bootstrap = this.bootstrap;
     if (!bootstrap || !this.session?.isUnlocked) throw new Error('Vault session is locked.');

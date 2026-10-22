@@ -1,4 +1,4 @@
-import type { StoredEncryptedRecord, StoredEvent } from '../../storage/repository';
+import type { StoredEncryptedRecord, StoredEvent, StoredConflictVariant } from '../../storage/repository';
 import { unwrapVaultKey, type WrappedKeyEnvelope } from '../../vault/key-wrap';
 import { deriveRecoveryKek } from '../../vault/recovery';
 import { decryptRecord, encryptRecord, type EncryptedRecordEnvelope, type RecordAad } from '../../vault/record-crypto';
@@ -29,6 +29,11 @@ interface EncodedRecord {
   readonly encryptedPayload: string;
 }
 
+interface EncodedConflictVariant extends EncodedRecord {
+  readonly variantId: string;
+  readonly source: 'local' | 'cloud';
+}
+
 interface EncodedEvent {
   readonly eventId: string;
   readonly recordId: string;
@@ -56,6 +61,8 @@ interface UnsignedVaultPackage {
   readonly encryptedManifest: EncodedEnvelope;
   readonly records: readonly EncodedRecord[];
   readonly events: readonly EncodedEvent[];
+  /** Optional for authenticated legacy v1 packages. */
+  readonly conflictVariants?: readonly EncodedConflictVariant[];
 }
 
 interface SignedVaultPackage extends UnsignedVaultPackage {
@@ -72,6 +79,7 @@ export interface VerifiedVaultPackage {
   readonly manifest: VaultBackupManifest;
   readonly records: StoredEncryptedRecord[];
   readonly events: StoredEvent[];
+  readonly conflictVariants: StoredConflictVariant[];
   readonly vaultKey: Uint8Array;
   readonly recoveryWrap: WrappedKeyEnvelope;
 }
@@ -167,6 +175,17 @@ function decodeRecord(record: EncodedRecord): StoredEncryptedRecord {
   return { ...record, encryptedPayload: base64UrlToBytes(record.encryptedPayload) };
 }
 
+function encodeVariant(variant: StoredConflictVariant): EncodedConflictVariant {
+  return { ...variant, encryptedPayload: bytesToBase64Url(variant.encryptedPayload) };
+}
+
+function decodeVariant(variant: EncodedConflictVariant): StoredConflictVariant {
+  if (!variant.variantId || !variant.recordId || !['local', 'cloud'].includes(variant.source)) {
+    throw new Error('Invalid authenticated conflict variant.');
+  }
+  return { ...variant, encryptedPayload: base64UrlToBytes(variant.encryptedPayload) };
+}
+
 function encodeEvent(event: StoredEvent): EncodedEvent {
   return { ...event, encryptedPatch: bytesToBase64Url(event.encryptedPatch) };
 }
@@ -194,6 +213,10 @@ function parseSignedPackage(bytes: Uint8Array): SignedVaultPackage {
   if (!Array.isArray(packageValue.records) || !Array.isArray(packageValue.events) || packageValue.records.length > 100_000 || packageValue.events.length > 500_000) {
     throw new Error('Vault package collection limits are invalid.');
   }
+  if (packageValue.conflictVariants !== undefined &&
+      (!Array.isArray(packageValue.conflictVariants) || packageValue.conflictVariants.length > 100_000)) {
+    throw new Error('Vault package conflict variants are invalid.');
+  }
   return packageValue as SignedVaultPackage;
 }
 
@@ -207,6 +230,7 @@ export async function createVaultPackage(input: {
   readonly manifest: VaultBackupManifest;
   readonly records: readonly StoredEncryptedRecord[];
   readonly events: readonly StoredEvent[];
+  readonly conflictVariants?: readonly StoredConflictVariant[];
 }): Promise<Uint8Array> {
   const recoveryKey = input.recoveryKey.slice();
   try {
@@ -221,6 +245,7 @@ export async function createVaultPackage(input: {
       encryptedManifest: encodeEnvelope(encryptedManifest),
       records: input.records.map(encodeRecord),
       events: input.events.map(encodeEvent),
+      conflictVariants: (input.conflictVariants ?? []).map(encodeVariant),
     };
     const unsignedBytes = textEncoder.encode(JSON.stringify(unsigned));
     const macKey = await deriveMacKey(recoveryKey, input.vaultId);
@@ -273,6 +298,7 @@ export async function verifyVaultPackage(bytes: Uint8Array, recoveryKeyText: str
         manifest,
         records: packageValue.records.map(decodeRecord),
         events: packageValue.events.map(decodeEvent),
+        conflictVariants: (packageValue.conflictVariants ?? []).map(decodeVariant),
         vaultKey,
         recoveryWrap,
       };
