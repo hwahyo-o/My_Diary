@@ -244,7 +244,7 @@ export class EncryptedRepository {
           tx.abort();
           return;
         }
-        guardedWrite();
+        write();
       };
     };
     if (input.expectedRevision === undefined) {
@@ -258,7 +258,7 @@ export class EncryptedRepository {
           tx.abort();
           return;
         }
-        write();
+        guardedWrite();
       };
       check.onerror = () => tx.abort();
     }
