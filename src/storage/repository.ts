@@ -202,9 +202,6 @@ export class EncryptedRepository {
     readonly securityMeta?: { readonly key: string; readonly value: unknown };
     readonly expectedRevision?: number;
   }): Promise<void> {
-    if ((await this.listAllConflictVariants()).length > 0 && input.conflictVariants === undefined) {
-      throw new Error('Vault replacement blocked: encrypted conflict variants require full backup support.');
-    }
     const stores: string[] = [STORE_NAMES.records, STORE_NAMES.events, STORE_NAMES.vaultMeta, STORE_NAMES.conflictVariants];
     if (input.securityMeta) stores.push(STORE_NAMES.securityMeta);
     const tx = this.db.transaction(stores, 'readwrite');
@@ -227,8 +224,31 @@ export class EncryptedRepository {
         security.put({ key: input.securityMeta.key, value: input.securityMeta.value });
       }
     };
+    const guardedWrite = () => {
+      const existingRequest = tx.objectStore(STORE_NAMES.conflictVariants).getAll();
+      existingRequest.onerror = () => tx.abort();
+      existingRequest.onsuccess = () => {
+        const existing = existingRequest.result as StoredConflictVariant[];
+        const incoming = new Map((input.conflictVariants ?? []).map(v => [v.variantId, v]));
+        const equal = (a: Uint8Array, b: Uint8Array) =>
+          a.length === b.length && a.every((value, i) => value === b[i]);
+        if (existing.some(v => {
+          const matched = incoming.get(v.variantId);
+          return !matched || matched.recordId !== v.recordId ||
+            matched.recordType !== v.recordType ||
+            matched.recordVersion !== v.recordVersion ||
+            matched.updatedAt !== v.updatedAt || matched.source !== v.source ||
+            !equal(matched.encryptedPayload, v.encryptedPayload);
+        })) {
+          conflict = new Error('Vault replacement would discard encrypted conflict variants.');
+          tx.abort();
+          return;
+        }
+        guardedWrite();
+      };
+    };
     if (input.expectedRevision === undefined) {
-      write();
+      guardedWrite();
     } else {
       const check = metaStore.get(input.vaultId);
       check.onsuccess = () => {
