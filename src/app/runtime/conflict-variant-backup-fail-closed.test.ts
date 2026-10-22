@@ -18,7 +18,7 @@ it('preserves encrypted conflict variants when invalid RecoveryKey rejects a bac
     });
     // Invalid RecoveryKey must fail without changing preserved ciphertext.
     await expect(runtime.exportVault({ recoveryKey: 'invalid' }))
-      .rejects.toThrow('RecoveryKey has an invalid length');
+      .rejects.toThrow('Non-canonical base64url value');
     expect(await repo.listConflictVariants('budget-test-1')).toHaveLength(1);
     expect(runtime.hasCloudConflict()).toBe(false);
   } finally { runtime.close(); }
