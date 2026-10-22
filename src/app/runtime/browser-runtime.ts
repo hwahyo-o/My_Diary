@@ -1317,6 +1317,7 @@ export class BrowserRuntime {
         defaultAccountId: bootstrap.defaultAccountId,
         revision,
       };
+      const conflictVariants = await this.repository.listAllConflictVariants();
       return session.withVaultKey((vaultKey) => createVaultPackage({
         schemaVersion: SCHEMA_VERSION,
         vaultId: bootstrap.vaultId,
@@ -1327,7 +1328,7 @@ export class BrowserRuntime {
         manifest,
         records,
         events,
-        conflictVariants: await this.repository.listAllConflictVariants(),
+        conflictVariants,
       }));
     } finally {
       recoveryUnwrapped?.fill(0);
