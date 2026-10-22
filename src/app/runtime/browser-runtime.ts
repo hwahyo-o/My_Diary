@@ -1286,6 +1286,9 @@ export class BrowserRuntime {
   }
 
   async exportVault(input: { readonly recoveryKey: string }): Promise<Uint8Array> {
+    if ((await this.repository.listAllConflictVariants()).length > 0) {
+      throw new Error('Backup blocked: encrypted conflict variants are not yet included in the Vault package.');
+    }
     const session = this.session;
     const bootstrap = this.bootstrap;
     if (!session?.isUnlocked || !bootstrap) throw new Error('Vault session is locked.');
@@ -1630,6 +1633,9 @@ export class BrowserRuntime {
   }
 
   private async uploadCloudSnapshot(meta: CloudEnrollmentMeta, expectedCloudRevision: number): Promise<void> {
+    if ((await this.repository.listAllConflictVariants()).length > 0) {
+      throw new Error('Cloud upload blocked: encrypted conflict variants are not yet in snapshot format.');
+    }
     if (this.cloudConflict) throw new Error('Cloud conflict must be resolved before uploading.');
     const bootstrap = this.bootstrap;
     if (!bootstrap || !this.session?.isUnlocked) throw new Error('Vault session is locked.');
