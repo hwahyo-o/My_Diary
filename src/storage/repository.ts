@@ -331,6 +331,20 @@ export class EncryptedRepository {
     await requestValue(tx.objectStore(STORE_NAMES.conflictVariants).add(variant));
   }
 
+  /** Atomically append every missing conflict variant or append none. */
+  async appendConflictVariantsAtomically(variants: readonly StoredConflictVariant[]): Promise<void> {
+    if (variants.some(v => !v.variantId || !v.recordId || !v.encryptedPayload.length ||
+      (v.source !== 'local' && v.source !== 'cloud')) ||
+      new Set(variants.map(v => v.variantId)).size !== variants.length) {
+      throw new Error('Invalid encrypted conflict variant batch.');
+    }
+    if (!variants.length) return;
+    const tx = this.db.transaction(STORE_NAMES.conflictVariants, 'readwrite');
+    const store = tx.objectStore(STORE_NAMES.conflictVariants);
+    for (const variant of variants) store.add(variant);
+    await txDone(tx);
+  }
+
   async listAllConflictVariants(): Promise<StoredConflictVariant[]> {
     const tx = this.db.transaction(STORE_NAMES.conflictVariants, 'readonly');
     return requestValue<StoredConflictVariant[]>(tx.objectStore(STORE_NAMES.conflictVariants).getAll());
