@@ -1317,6 +1317,7 @@ export class BrowserRuntime {
         defaultAccountId: bootstrap.defaultAccountId,
         revision,
       };
+      const conflictVariants = await this.repository.listAllConflictVariants();
       return session.withVaultKey((vaultKey) => createVaultPackage({
         schemaVersion: SCHEMA_VERSION,
         vaultId: bootstrap.vaultId,
@@ -1327,6 +1328,7 @@ export class BrowserRuntime {
         manifest,
         records,
         events,
+        conflictVariants,
       }));
     } finally {
       recoveryUnwrapped?.fill(0);
@@ -1381,6 +1383,7 @@ export class BrowserRuntime {
         revision: verified.manifest.revision,
         records: verified.records,
         events: verified.events,
+        conflictVariants: verified.conflictVariants,
         securityMeta: { key: BOOTSTRAP_KEY, value: nextBootstrap },
       });
       this.bootstrap = nextBootstrap;
@@ -1429,6 +1432,7 @@ export class BrowserRuntime {
         revision: verified.manifest.revision,
         records: verified.records,
         events: verified.events,
+        conflictVariants: verified.conflictVariants,
         securityMeta: { key: BOOTSTRAP_KEY, value: bootstrap },
       });
       this.bootstrap = bootstrap;
@@ -1571,7 +1575,27 @@ export class BrowserRuntime {
           snapshot.events,
         );
         if (reconciled.hardConflicts > 0) {
-          this.cloudConflictSummary = toCloudConflictSafeSummary(planEncryptedCloudConflictReview(localRecords, snapshot.records, localEvents, snapshot.events));
+          const review = planEncryptedCloudConflictReview(localRecords, snapshot.records, localEvents, snapshot.events);
+          // Preserve divergent remote ciphertext separately without modifying the
+          // AAD-bound primary record. Event-only conflicts remain fail-closed.
+          const existingVariants = await this.repository.listAllConflictVariants();
+          const existingIds = new Set(existingVariants.map(variant => variant.variantId));
+          const pendingVariants = [];
+          for (const recordId of review.recordIds) {
+            const remote = snapshot.records.find(record => record.recordId === recordId);
+            if (!remote) throw new Error('Conflicting cloud record is missing.');
+            const digest = await sha256Hex(remote.encryptedPayload);
+            const variantId = `cloud-${recordId}-${digest}`;
+            if (existingIds.has(variantId)) continue;
+            pendingVariants.push({
+              variantId, recordId: remote.recordId, recordType: remote.recordType,
+              recordVersion: remote.recordVersion, updatedAt: remote.updatedAt,
+              encryptedPayload: remote.encryptedPayload, source: 'cloud' as const,
+            });
+            existingIds.add(variantId);
+          }
+          await this.repository.appendConflictVariantsAtomically(pendingVariants);
+          this.cloudConflictSummary = toCloudConflictSafeSummary(review);
           this.cloudConflict = true;
           this.setSnapshot({ ...this.snapshot });
         }
@@ -1630,6 +1654,9 @@ export class BrowserRuntime {
   }
 
   private async uploadCloudSnapshot(meta: CloudEnrollmentMeta, expectedCloudRevision: number): Promise<void> {
+    if ((await this.repository.listAllConflictVariants()).length > 0) {
+      throw new Error('Cloud upload blocked: encrypted conflict variants are not yet in snapshot format.');
+    }
     if (this.cloudConflict) throw new Error('Cloud conflict must be resolved before uploading.');
     const bootstrap = this.bootstrap;
     if (!bootstrap || !this.session?.isUnlocked) throw new Error('Vault session is locked.');

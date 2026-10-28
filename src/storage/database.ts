@@ -1,4 +1,4 @@
-export const DATABASE_VERSION = 1;
+export const DATABASE_VERSION = 2;
 
 export const STORE_NAMES = {
   vaultMeta: 'vault_meta',
@@ -6,6 +6,7 @@ export const STORE_NAMES = {
   events: 'events',
   snapshots: 'snapshots',
   securityMeta: 'security_meta',
+  conflictVariants: 'conflict_variants',
 } as const;
 
 export async function openVaultDatabase(name = 'finance-vault'): Promise<IDBDatabase> {
@@ -34,6 +35,11 @@ export async function openVaultDatabase(name = 'finance-vault'): Promise<IDBData
 
       if (!db.objectStoreNames.contains(STORE_NAMES.snapshots)) {
         db.createObjectStore(STORE_NAMES.snapshots, { keyPath: 'snapshotId' });
+      }
+
+      if (!db.objectStoreNames.contains(STORE_NAMES.conflictVariants)) {
+        const variants = db.createObjectStore(STORE_NAMES.conflictVariants, { keyPath: 'variantId' });
+        variants.createIndex('recordId', 'recordId', { unique: false });
       }
 
       if (!db.objectStoreNames.contains(STORE_NAMES.securityMeta)) {
