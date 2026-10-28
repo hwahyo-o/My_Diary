@@ -87,10 +87,28 @@ it('preserves remote ciphertext and local primary record when cloud download con
       tx.onerror = () => reject(tx.error ?? new Error('Transaction failed'));
     });
 
+    // Force an event-only collision as well: the cloud event identity stays the same,
+    // but the local ciphertext differs. Reconciliation must remain fail-closed.
+    const remoteEvent = (await repoA.listAllEvents())[0];
+    expect(remoteEvent).toBeDefined();
+    const txEvent = dbB.transaction(STORE_NAMES.events, 'readwrite');
+    txEvent.objectStore(STORE_NAMES.events).put({
+      ...remoteEvent!, encryptedPatch: new Uint8Array([77, 88, 99]),
+    });
+    await new Promise<void>((resolve, reject) => {
+      txEvent.oncomplete = () => resolve();
+      txEvent.onabort = () => reject(txEvent.error ?? new Error('Event write aborted'));
+      txEvent.onerror = () => reject(txEvent.error ?? new Error('Event write failed'));
+    });
+    const localEventBefore = (await repoB.listAllEvents()).find(e => e.eventId === remoteEvent!.eventId);
+    expect(localEventBefore).toBeDefined();
+
     const beforeUploads = uploads;
     await expect(second.retryCloudSync()).rejects.toThrow('local records are preserved');
     expect(second.getCloudSyncStatus()).toBe('conflict');
     expect(uploads).toBe(beforeUploads);
+    expect(Array.from((await repoB.listAllEvents()).find(e => e.eventId === remoteEvent!.eventId)!.encryptedPatch))
+      .toEqual(Array.from(localEventBefore!.encryptedPatch));
     const variants = await repoB.listConflictVariants(remote!.recordId);
     expect(variants).toHaveLength(1);
     expect(variants[0]!.source).toBe('cloud');
