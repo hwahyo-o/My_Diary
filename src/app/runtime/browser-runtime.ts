@@ -1579,20 +1579,22 @@ export class BrowserRuntime {
           // Preserve divergent remote ciphertext separately without modifying the
           // AAD-bound primary record. Event-only conflicts remain fail-closed.
           const existingVariants = await this.repository.listAllConflictVariants();
-          const existingIds = new Set(existingVariants.map((variant) => variant.variantId));
+          const existingIds = new Set(existingVariants.map(variant => variant.variantId));
+          const pendingVariants = [];
           for (const recordId of review.recordIds) {
-            const remote = snapshot.records.find((record) => record.recordId === recordId);
+            const remote = snapshot.records.find(record => record.recordId === recordId);
             if (!remote) throw new Error('Conflicting cloud record is missing.');
             const digest = await sha256Hex(remote.encryptedPayload);
             const variantId = `cloud-${recordId}-${digest}`;
             if (existingIds.has(variantId)) continue;
-            await this.repository.appendConflictVariant({
+            pendingVariants.push({
               variantId, recordId: remote.recordId, recordType: remote.recordType,
               recordVersion: remote.recordVersion, updatedAt: remote.updatedAt,
-              encryptedPayload: remote.encryptedPayload, source: 'cloud',
+              encryptedPayload: remote.encryptedPayload, source: 'cloud' as const,
             });
             existingIds.add(variantId);
           }
+          await this.repository.appendConflictVariantsAtomically(pendingVariants);
           this.cloudConflictSummary = toCloudConflictSafeSummary(review);
           this.cloudConflict = true;
           this.setSnapshot({ ...this.snapshot });
