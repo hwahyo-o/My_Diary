@@ -20,6 +20,13 @@ export async function onRequestPost({ request, env }) {
   let verifier;
   try {
     if (!hasAllowedOrigin(request)) return json({ error: 'Forbidden origin.' }, { status: 403 });
+    // Preview environments must fail closed without reusing Production credentials.
+    if (!env.DB || typeof env.DB.prepare !== 'function' ||
+        !env.VAULT_BUCKET || typeof env.VAULT_BUCKET.put !== 'function' ||
+        typeof env.AUTH_PEPPER !== 'string' || !env.AUTH_PEPPER ||
+        typeof env.UNLOCK_MASTER_KEY !== 'string' || !env.UNLOCK_MASTER_KEY) {
+      return json({ error: 'Cloud synchronization is not configured for this environment.' }, { status: 503 });
+    }
     const body = await readJsonBody(request);
     const nicknameNorm = normalizeNickname(body?.nickname);
     accountSalt = fromBase64Url(body?.accountSalt);
