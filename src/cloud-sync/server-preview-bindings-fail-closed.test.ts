@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest';
+// @ts-expect-error Cloudflare Pages JavaScript functions intentionally have no TypeScript declarations.
 import { onRequestPost } from '../../functions/api/account/register.js';
 
 it('fails closed without registering accounts when cloud environment bindings or secrets are missing', async () => {
