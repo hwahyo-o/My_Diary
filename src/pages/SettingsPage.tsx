@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { describeCloudEnrollmentError } from './cloud-enrollment-error';
 import { BudgetChoicePanel } from './BudgetChoicePanel';
 import { CloudBudgetPreviewSection } from './CloudBudgetPreviewSection';
 import { VerifiedConflictBudgetSection } from './VerifiedConflictBudgetSection';
@@ -102,8 +103,8 @@ export function SettingsPage({
       await onEnrollCloud({ pin: cloudPin });
       setCloudReady(true);
       setCloudPin('');
-    } catch {
-      setCloudError('클라우드 동기화를 시작하지 못했습니다. PIN 또는 네트워크 상태를 확인해주세요.');
+    } catch (error) {
+      setCloudError(describeCloudEnrollmentError(error));
     } finally {
       setCloudPin('');
       setCloudBusy(false);
