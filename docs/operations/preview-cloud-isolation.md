@@ -1,6 +1,6 @@
 # My_Diary Preview cloud isolation runbook
 
-Status (2026-11-06): **PARTIALLY CONFIGURED — do not test with production accounts**.
+Status (2026-11-09): **PARTIALLY CONFIGURED — do not test with production accounts**.
 
 ## Environment inventory
 
@@ -71,6 +71,21 @@ UNION ALL SELECT 'devices', COUNT(*) FROM devices;
 Expected: four listed tables, all four counts equal to **0** before any test account is registered. If any row already exists, stop and identify the environment rather than deleting data. The web endpoint `/api/sync/health` must return `{"ok":true}` with HTTP 200 **only once** the Preview D1, R2, two independent secrets, and schema are all present. Until then the endpoint returns only `{"ok":false}` and HTTP 503; it contains no secret values or account identifiers.
 
 ## Preview binding and secret safety
+
+## Generate the two Preview secrets locally (Windows PowerShell)
+
+Only do this after the Preview settings page is open and you are ready to paste a value directly into an encrypted secret field. Run the following command once for `AUTH_PEPPER`, paste from the clipboard into that Cloudflare field, then run it again independently for `UNLOCK_MASTER_KEY`. Each run generates a distinct random 32-byte value in the base64url form expected by the app; the value is sent only to the local clipboard, never to GitHub or chat.
+
+```powershell
+$bytes = [byte[]]::new(32)
+[System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+$value = [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+','-').Replace('/','_')
+Set-Clipboard -Value $value
+[Array]::Clear($bytes, 0, $bytes.Length)
+Remove-Variable bytes, value
+```
+
+Paste the first generated value into the encrypted `AUTH_PEPPER` field and the second independently generated value into encrypted `UNLOCK_MASTER_KEY`. Do not paste either value into chat, a GitHub issue/comment, a normal Pages variable, or a terminal transcript. After saving, replace the clipboard with a harmless value or clear it.
 
 Never reuse the Production `AUTH_PEPPER` or `UNLOCK_MASTER_KEY`; both secrets must be randomly generated, separate 32-byte base64url strings. Generate independently using a local cryptographically secure generator and enter each value only into **Cloudflare Pages → my-diary → Settings → Preview → Variables and Secrets** with the encrypted-secret setting. Do not log or check the values into Git. Changes to Pages settings may require a new **Preview-only redeployment** to take effect. Do not switch the Production environment.
 
