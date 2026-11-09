@@ -27,6 +27,31 @@ The Production environment has its D1/R2 bindings and secrets. Do not copy their
 7. On a second disposable browser/device, verify round-trip encrypted Vault recovery and two-way sync. Stop upon a conflict or failed sync; retain local records and test artifacts.
 8. Only after all checks pass, consider whether the Preview integration is ready. This does **not** authorize merging the PR to main or deploying Production.
 
+## Apply the isolated Preview schema from Windows PowerShell
+
+The repository contains `wrangler.preview.toml`, which pins binding `DB` to the dedicated Preview UUID `2891cb9e-08df-404b-bf8a-c75568e84dd7`. It does not contain a Cloudflare token or any Production resource identifiers.
+
+From the repository root, authenticate Wrangler with your Cloudflare account (if it is not already authenticated), then inspect the target before writing:
+
+```powershell
+npx --yes wrangler@4 d1 info DB --config wrangler.preview.toml
+```
+
+Confirm the returned database ID is exactly `2891cb9e-08df-404b-bf8a-c75568e84dd7` and the name is `my-diary-preview-sync`. If either differs, stop. Then apply only the schema file to that pinned remote database:
+
+```powershell
+npx --yes wrangler@4 d1 execute DB --remote --file cloudflare/schema.sql --config wrangler.preview.toml
+```
+
+Do not add `--yes`; review Wrangler's target confirmation. This schema uses `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS` and does not copy or delete account rows. After it completes, run the read-only verification queries below, again with the same `--config wrangler.preview.toml`. These commands use Cloudflare's Wrangler D1 `info` and `execute` interface.
+
+```powershell
+npx --yes wrangler@4 d1 execute DB --remote --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('accounts','sessions','sync_heads','devices') ORDER BY name;" --config wrangler.preview.toml
+npx --yes wrangler@4 d1 execute DB --remote --command "SELECT 'accounts' AS table_name, COUNT(*) AS row_count FROM accounts UNION ALL SELECT 'sessions', COUNT(*) FROM sessions UNION ALL SELECT 'sync_heads', COUNT(*) FROM sync_heads UNION ALL SELECT 'devices', COUNT(*) FROM devices;" --config wrangler.preview.toml
+```
+
+Before creating any Preview test account, expected results are the four table names and all row counts equal to `0`. The command's fixed Preview config makes the target explicit; never substitute `my-diary-sync` or remove `--config`.
+
 ## D1 schema verification (Preview only)
 
 After applying `cloudflare/schema.sql` to the **new Preview D1**, use the following read-only query in that database's console:
