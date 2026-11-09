@@ -484,12 +484,16 @@ export class BrowserRuntime {
     let vaultKey: Uint8Array | null = null;
     let cloudKek: Uint8Array | null = null;
     try {
+      // Verify the local PIN and unwrap the existing VaultKey before creating
+      // a remote account. An incorrect PIN must never leave an orphan account.
+      vaultKey = await unwrapVaultKey(
+        bootstrap.wrappedDeviceVaultKey, deviceKek, wrapAad(bootstrap.vaultId, 'device'),
+      );
       const registration = await this.cloudClient.register({ nickname, accountSalt, authSecret });
       const unlockPepper = CloudSyncClient.decodeBytes(registration.unlockPepper);
       cloudKek = await deriveCloudKek(rootKey, unlockPepper);
       this.cloudKek?.fill(0);
       this.cloudKek = cloudKek.slice();
-      vaultKey = await unwrapVaultKey(bootstrap.wrappedDeviceVaultKey, deviceKek, wrapAad(bootstrap.vaultId, 'device'));
       const cloudWrap = await wrapVaultKey(vaultKey, cloudKek, cloudWrapAad(registration.accountId, bootstrap.vaultId));
       const initialMeta: CloudEnrollmentMeta = {
         accountId: registration.accountId,
@@ -499,9 +503,18 @@ export class BrowserRuntime {
         cloudRevision: registration.revision,
         localRevisionAtSync: -1,
       };
-      this.cloudMeta = initialMeta;
       await this.repository.putSecurityMeta(CLOUD_META_KEY, initialMeta);
-      await this.uploadCloudSnapshot(initialMeta, registration.revision);
+      this.cloudMeta = initialMeta;
+      // Registration may have succeeded while the initial upload later fails.
+      // Keep the encrypted local Vault and expose a retryable pending state.
+      this.reportCloudSyncStatus('pending');
+      try {
+        await this.uploadCloudSnapshot(initialMeta, registration.revision);
+        await this.reportVerifiedSyncStatus();
+      } catch (error) {
+        this.reportCloudSyncStatus('error');
+        throw error;
+      }
     } finally {
       rootKey.fill(0);
       authSecret.fill(0);
