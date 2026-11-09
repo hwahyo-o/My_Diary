@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { RecoveryFlow } from './RecoveryFlow';
+import { describeCloudLoginError } from './cloud-login-error';
 
 interface AccessGateProps {
   readonly mode: 'onboarding' | 'locked';
@@ -69,7 +70,7 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onCloud
       if ((mode === 'onboarding' || cloudLogin) && error instanceof TypeError && error.message === 'PIN is too weak.') {
         setError('PIN이 너무 단순합니다. 반복되거나 연속된 숫자 패턴을 피해주세요.');
       } else {
-        setError(mode === 'locked' ? 'PIN을 확인해주세요.' : cloudLogin ? '닉네임 또는 PIN을 확인해주세요.' : '설정을 완료하지 못했습니다. 다시 시도해주세요.');
+        setError(mode === 'locked' ? 'PIN을 확인해주세요.' : cloudLogin ? describeCloudLoginError(error) : '설정을 완료하지 못했습니다. 다시 시도해주세요.');
       }
     } finally {
       setPin('');
