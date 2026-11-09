@@ -1,8 +1,10 @@
+import { hasCloudEnvironmentBindings } from '../../_shared/cloud-environment.js';
 import { authVerifier, hasAllowedOrigin, isValidNickname, json, normalizeNickname, readJsonBody, toBase64Url, utf8 } from '../../_shared/cloud-sync.js';
 
 export async function onRequestPost({ request, env }) {
   try {
     if (!hasAllowedOrigin(request)) return json({ error: 'Forbidden origin.' }, { status: 403 });
+    if (!hasCloudEnvironmentBindings(env)) return json({ error: 'Cloud sync is not configured.' }, { status: 503 });
     const body = await readJsonBody(request);
     const nicknameNorm = normalizeNickname(body?.nickname);
     if (!isValidNickname(nicknameNorm)) return json({ error: 'Invalid nickname.' }, { status: 400 });
