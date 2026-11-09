@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { describeCloudEnrollmentError } from './cloud-enrollment-error';
 import { BudgetChoicePanel } from './BudgetChoicePanel';
 import { CloudBudgetPreviewSection } from './CloudBudgetPreviewSection';
@@ -82,6 +82,9 @@ export function SettingsPage({
   const [cloudBusy, setCloudBusy] = useState(false);
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [cloudReady, setCloudReady] = useState(cloudEnrolled);
+  // Enrollment may persist locally even when its first cloud upload fails.
+  // Reflect the runtime status so the user can retry rather than registering twice.
+  useEffect(() => setCloudReady(cloudEnrolled), [cloudEnrolled]);
   const [cloudRetryBusy, setCloudRetryBusy] = useState(false);
   const [resetPin, setResetPin] = useState('');
   const [resetPhrase, setResetPhrase] = useState('');
