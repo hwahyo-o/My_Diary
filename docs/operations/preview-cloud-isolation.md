@@ -24,8 +24,9 @@ The Production environment has its D1/R2 bindings and secrets. Do not copy their
 4. **Done:** configured `AUTH_PEPPER` and `UNLOCK_MASTER_KEY` as encrypted Preview Secrets. Secret values are not recorded here.
 5. **Done for deployed HEAD:** deployed Preview commit `b55937179342f7b3f49de24da61bf769c9dd991a`; manifest matched this SHA, and `/api/sync/health` returned HTTP 200 `{"ok":true}`.
 6. **User-confirmed:** bidirectional sync works at `https://cee32e14.my-diary-2mw.pages.dev/`.
-7. **Next:** on disposable Preview data, verify offline conflict preservation, retry after a failed sync, `.vault` export/import recovery, logout, and account deletion. Stop if a conflict or failed sync risks data loss; preserve test artifacts.
-8. Keep the PR Draft and do not merge to main or deploy Production until code review and remaining integrity checks are complete.
+7. **User-tested, reverse direction:** the mobile device was edited while offline; PC edited the same transaction online and completed sync; after mobile reconnect, PC showed sync complete while mobile showed one unresolved conflict and zero events. Mobile status explicitly said the original record was retained and records are not automatically deleted or overwritten. The dashboards still differed, so the account is not reconciled and this does not count as fully consistent sync. Do not resolve or overwrite this conflict; retain the test state.
+8. **Next:** use a separate disposable Preview account for sync-retry validation, then verify `.vault` export/import recovery, logout, and account deletion. Do not continue retry testing on the unresolved-conflict account.
+9. Keep the PR Draft and do not merge to main or deploy Production until code review and remaining integrity checks are complete.
 
 ## Apply the isolated Preview schema from Windows PowerShell
 
@@ -99,9 +100,11 @@ Never reuse the Production `AUTH_PEPPER` or `UNLOCK_MASTER_KEY`; both secrets mu
 - [x] Preview deployment manifest matched PR HEAD `b55937179342f7b3f49de24da61bf769c9dd991a` at `https://cee32e14.my-diary-2mw.pages.dev/`.
 - [x] `/api/sync/health` returned `{"ok":true}`.
 - [x] User confirmed bidirectional Preview sync works at the URL above.
-- [ ] Offline conflict preservation and safe retry.
+- [x] Reverse-direction offline conflict detection: offline mobile edit, online PC edit and sync, then mobile reconnect. Mobile displayed one unresolved conflict and zero events; the local original was retained and no automatic overwrite/delete was reported.
+- [ ] Conflict resolution and reconciliation: not yet possible through the current user flow; the test account remains unresolved and the desktop/mobile views differ.
+- [ ] Safe sync retry on a separate disposable Preview account.
 - [ ] `.vault` export/import recovery.
 - [ ] Logout and account deletion flows.
 - [ ] Code review; PR remains Draft until outstanding checks are complete.
 
-**Last verified Preview state (2026-11-10):** isolated D1 schema, private R2, Preview bindings and encrypted secrets are configured. Deployed manifest matches commit `b55937179342f7b3f49de24da61bf769c9dd991a`; health is green and the user reports two-way sync success. This verifies the reported basic round-trip only; no claim is made yet about offline conflicts, retries, `.vault` recovery, logout or account deletion. Production resources and deployment remain unchanged.
+**Last verified Preview state (2026-11-10):** isolated D1 schema, private R2, Preview bindings and encrypted secrets are configured. Deployed app commit `b55937179342f7b3f49de24da61bf769c9dd991a` has a matching manifest and green health endpoint. The user confirmed ordinary two-way sync and then reverse-direction offline conflict detection. In the conflict test, mobile reports one unresolved conflict and retains the original locally; PC reports cloud sync complete. Because the views still differ and conflict resolution is not available, this is a preservation/detection pass, not a fully reconciled data state. No transaction amounts or account credentials are recorded. Production resources and deployment remain unchanged.
