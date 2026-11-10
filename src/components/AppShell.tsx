@@ -139,7 +139,7 @@ export function AppShell({
           onConfirmBudgetCandidate={onConfirmBudgetCandidate}
           {...(onPreviewCloudBudgetComparison ? { onPreviewCloudBudgetComparison } : {})}
           onLock={onLock}
-          onLogout={onLogout}
+          {...(onLogout ? { onLogout } : {})}
           backup={backup}
           onExportVault={onExportVault}
           onInspectVaultImport={onInspectVaultImport}
