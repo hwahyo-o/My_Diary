@@ -47,7 +47,7 @@ describe('AccessGate', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: '기존 계정으로 로그인' }));
+    fireEvent.click(screen.getByRole('button', { name: '기존 계정 로그인' }));
     fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: '예현' } });
     fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '4829517304' } });
     fireEvent.click(screen.getByRole('button', { name: '기존 계정 로그인' }));

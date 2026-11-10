@@ -74,7 +74,7 @@ describe('App protected shell', () => {
 
     render(<App runtime={runtime} />);
     fireEvent.click(screen.getByRole('button', { name: '설정' }));
-    fireEvent.click(screen.getByRole('button', { name: '지금 잠그기' }));
+    fireEvent.click(screen.getByRole('button', { name: '이 기기 잠그기' }));
     expect(lock).toHaveBeenCalledTimes(1);
 
     act(() => listener?.({ access: 'locked', dashboard: emptyDashboard, assets: emptyAssets, analytics: emptyAnalytics, calendar: emptyCalendar }));
@@ -102,7 +102,7 @@ describe('App protected shell', () => {
     render(<App runtime={runtime} />);
     fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: '예현' } });
     fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '4829517304' } });
-    fireEvent.click(screen.getByRole('button', { name: '새 Vault 만들기' }));
+    fireEvent.click(screen.getByRole('button', { name: '새 가계부 시작하기' }));
     await screen.findByText('RECOVERY_KEY_SAMPLE');
 
     act(() => {
