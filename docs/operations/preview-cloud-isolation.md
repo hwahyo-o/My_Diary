@@ -1,31 +1,31 @@
 # My_Diary Preview cloud isolation runbook
 
-Status (2026-11-09): **PARTIALLY CONFIGURED — do not test with production accounts**.
+Status (2026-11-10): **Preview cloud resources configured; user-reported two-way sync passes; remaining integrity checks are open. Use Preview-only disposable accounts.**
 
 ## Environment inventory
 
 | Resource | Production (keep unchanged) | Preview (isolated) |
 |---|---|---|
 | Pages project | `my-diary` | `my-diary` Preview |
-| D1 | `my-diary-sync` | `my-diary-preview-sync`, UUID `2891cb9e-08df-404b-bf8a-c75568e84dd7` (created, empty) |
-| R2 | `my-diary-vaults` | **NOT CREATED** — create `my-diary-preview-vaults` |
-| D1 binding | `DB` | **MISSING** — bind to Preview D1 ONLY |
-| R2 binding | `VAULT_BUCKET` | **MISSING** — bind to Preview R2 ONLY |
-| Secret | `AUTH_PEPPER` | **MISSING** — new, independent 32-byte base64url random secret |
-| Secret | `UNLOCK_MASTER_KEY` | **MISSING** — new, independent 32-byte base64url random secret |
+| D1 | `my-diary-sync` | `my-diary-preview-sync`, UUID `2891cb9e-08df-404b-bf8a-c75568e84dd7` (schema applied; initially verified empty before Preview test-account use) |
+| R2 | `my-diary-vaults` | `my-diary-preview-vaults` (created, private, Standard) |
+| D1 binding | `DB` | `my-diary-preview-sync` (Preview only) |
+| R2 binding | `VAULT_BUCKET` | `my-diary-preview-vaults` (Preview only) |
+| Secret | `AUTH_PEPPER` | Configured as encrypted Preview Secret |
+| Secret | `UNLOCK_MASTER_KEY` | Configured as encrypted Preview Secret |
 
 The Production environment has its D1/R2 bindings and secrets. Do not copy their values or bind Production storage to Preview. Never paste secrets, PINs, or RecoveryKeys into GitHub, issue comments, build logs, or chat.
 
 ## Safe implementation order
 
-1. Apply **only** the repository's existing [`cloudflare/schema.sql`](../../cloudflare/schema.sql) in the Cloudflare D1 Console for **`my-diary-preview-sync` UUID `2891cb9e-08df-404b-bf8a-c75568e84dd7`**. This schema contains `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS` statements and no Production rows. Verify with the read-only query below. **Never run the command against `my-diary-sync` Production or copy Production table rows.**
-2. Create an empty R2 bucket `my-diary-preview-vaults` on the existing free tier, only if no payment is required.
-3. Under Pages project `my-diary` → Settings → Preview environment → Bindings, set D1 variable `DB` to the exact **Preview** D1 UUID above, and R2 variable `VAULT_BUCKET` to the exact **Preview** R2 bucket. Do not edit Production settings.
-4. Under Preview Variables and Secrets, set `AUTH_PEPPER` and `UNLOCK_MASTER_KEY` as **encrypted secrets**. Generate **distinct** fresh cryptographically random 32-byte values in base64url form for each, without exposing the values.
-5. Redeploy **Preview only** from PR #188. Confirm `/release-manifest.json` commit SHA matches the PR HEAD.
-6. Verify missing-binding requests fail with HTTP 503 (not a misleading wrong-PIN message), then conduct fresh-account signup and login/sync smoke tests **only** using throwaway Preview accounts. Never test with existing production account identities.
-7. On a second disposable browser/device, verify round-trip encrypted Vault recovery and two-way sync. Stop upon a conflict or failed sync; retain local records and test artifacts.
-8. Only after all checks pass, consider whether the Preview integration is ready. This does **not** authorize merging the PR to main or deploying Production.
+1. **Done:** applied the existing [`cloudflare/schema.sql`](../../cloudflare/schema.sql) only to Preview D1 `my-diary-preview-sync` UUID `2891cb9e-08df-404b-bf8a-c75568e84dd7`. Before testing, all four required tables existed and all four row counts were `0`. Production D1 was not touched.
+2. **Done:** created the private Standard R2 bucket `my-diary-preview-vaults`; no Production bucket was used.
+3. **Done:** configured Preview binding `DB` to the Preview D1 and `VAULT_BUCKET` to the Preview R2 bucket. Production settings remain separate.
+4. **Done:** configured `AUTH_PEPPER` and `UNLOCK_MASTER_KEY` as encrypted Preview Secrets. Secret values are not recorded here.
+5. **Done for deployed HEAD:** deployed Preview commit `b55937179342f7b3f49de24da61bf769c9dd991a`; manifest matched this SHA, and `/api/sync/health` returned HTTP 200 `{"ok":true}`.
+6. **User-confirmed:** bidirectional sync works at `https://cee32e14.my-diary-2mw.pages.dev/`.
+7. **Next:** on disposable Preview data, verify offline conflict preservation, retry after a failed sync, `.vault` export/import recovery, logout, and account deletion. Stop if a conflict or failed sync risks data loss; preserve test artifacts.
+8. Keep the PR Draft and do not merge to main or deploy Production until code review and remaining integrity checks are complete.
 
 ## Apply the isolated Preview schema from Windows PowerShell
 
@@ -50,7 +50,7 @@ npx --yes wrangler@4 d1 execute DB --remote --command "SELECT name FROM sqlite_m
 npx --yes wrangler@4 d1 execute DB --remote --command "SELECT 'accounts' AS table_name, COUNT(*) AS row_count FROM accounts UNION ALL SELECT 'sessions', COUNT(*) FROM sessions UNION ALL SELECT 'sync_heads', COUNT(*) FROM sync_heads UNION ALL SELECT 'devices', COUNT(*) FROM devices;" --config wrangler.preview.toml
 ```
 
-Before creating any Preview test account, expected results are the four table names and all row counts equal to `0`. The command's fixed Preview config makes the target explicit; never substitute `my-diary-sync` or remove `--config`.
+Before creating any Preview test account, expected results are the four table names and all row counts equal to `0`. This was verified before test-account use. The command's fixed Preview config makes the target explicit; never substitute `my-diary-sync` or remove `--config`.
 
 ## D1 schema verification (Preview only)
 
@@ -91,15 +91,17 @@ Never reuse the Production `AUTH_PEPPER` or `UNLOCK_MASTER_KEY`; both secrets mu
 
 ## Verification checklist
 
-- [ ] The Preview D1 schema is installed, with no Production rows copied.
-- [ ] An isolated Preview R2 bucket exists.
-- [ ] The Preview DB and VAULT_BUCKET bindings target only Preview resources.
-- [ ] Both Preview secrets exist as independent encrypted values, without exposure.
-- [ ] No extra cost or Production settings change.
-- [ ] Deployed Preview manifest matches PR HEAD.
-- [ ] Cloud registration succeeds with a new test nickname, with no PIN error confusion.
-- [ ] Existing Preview test account login and cloud sync succeed.
-- [ ] Two-device backup/recovery and offline-conflict tests pass.
-- [ ] PR remains Draft until integrity and manual checks complete.
+- [x] The Preview D1 schema is installed; the four tables were confirmed empty before test-account use.
+- [x] An isolated private Preview R2 bucket exists.
+- [x] Preview DB and VAULT_BUCKET bindings target only Preview resources.
+- [x] Preview AUTH_PEPPER and UNLOCK_MASTER_KEY are configured as encrypted Secrets; values are not documented.
+- [x] No Production settings or resources were changed.
+- [x] Preview deployment manifest matched PR HEAD `b55937179342f7b3f49de24da61bf769c9dd991a` at `https://cee32e14.my-diary-2mw.pages.dev/`.
+- [x] `/api/sync/health` returned `{"ok":true}`.
+- [x] User confirmed bidirectional Preview sync works at the URL above.
+- [ ] Offline conflict preservation and safe retry.
+- [ ] `.vault` export/import recovery.
+- [ ] Logout and account deletion flows.
+- [ ] Code review; PR remains Draft until outstanding checks are complete.
 
-**Last verified Cloudflare state:** Preview D1 created; schema, Preview R2, bindings and secrets are not yet confirmed. Runtime now has a safe readiness endpoint and PIN-before-registration guard, but those changes require a matching Preview deployment. No Production resources were changed.
+**Last verified Preview state (2026-11-10):** isolated D1 schema, private R2, Preview bindings and encrypted secrets are configured. Deployed manifest matches commit `b55937179342f7b3f49de24da61bf769c9dd991a`; health is green and the user reports two-way sync success. This verifies the reported basic round-trip only; no claim is made yet about offline conflicts, retries, `.vault` recovery, logout or account deletion. Production resources and deployment remain unchanged.
