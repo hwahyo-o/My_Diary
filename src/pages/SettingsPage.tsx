@@ -94,7 +94,7 @@ export function SettingsPage({
   const [resetError, setResetError] = useState<string | null>(null);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
-  const resetConfirmationPhrase = cloudReady ? '계정 삭제' : '데이터 삭제';
+  const resetConfirmationPhrase = cloudReady ? '계정 삭제' : '초기화';
   const [ruleBusy, setRuleBusy] = useState<string | null>(null);
   const [ruleError, setRuleError] = useState<string | null>(null);
   const [keywordDrafts, setKeywordDrafts] = useState<Record<string, string>>({});
@@ -608,7 +608,7 @@ export function SettingsPage({
             <label className="access-form">
               <span>현재 PIN</span>
               <input
-                aria-label={cloudReady ? '계정 삭제 확인 PIN' : '데이터 삭제 확인 PIN'}
+                aria-label={cloudReady ? '계정 삭제 확인 PIN' : '초기화 확인 PIN'}
                 inputMode="numeric"
                 autoComplete="off"
                 maxLength={12}
@@ -620,7 +620,7 @@ export function SettingsPage({
             <label className="access-form">
               <span>확인을 위해 “{resetConfirmationPhrase}” 입력</span>
               <input
-                aria-label={cloudReady ? '계정 삭제 확인 문구' : '데이터 삭제 확인 문구'}
+                aria-label={cloudReady ? '계정 삭제 확인 문구' : '초기화 확인 문구'}
                 autoComplete="off"
                 value={resetPhrase}
                 onChange={(event) => setResetPhrase(event.currentTarget.value)}
@@ -633,7 +633,7 @@ export function SettingsPage({
               disabled={resetBusy}
               onClick={() => void resetAllData()}
             >
-              {cloudReady ? '계정 삭제' : '이 기기 데이터 삭제'}
+              {cloudReady ? '계정 삭제' : '모든 데이터 초기화'}
             </button>
             <p>PIN 재확인과 위의 확인 문구가 모두 일치해야 실행됩니다.</p>
           </div>
