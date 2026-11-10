@@ -1714,6 +1714,11 @@ export class BrowserRuntime {
     this.cloudMeta = nextMeta;
   }
 
+  async logout(): Promise<void> {
+    await this.cloudClient.logout();
+    this.lock();
+  }
+
   lock(): void {
     if (this.cloudMeta) this.reportCloudSyncStatus('pending');
     this.cloudSyncEpoch += 1;

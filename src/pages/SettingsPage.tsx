@@ -14,6 +14,7 @@ interface SettingsPageProps {
   readonly onListBudgetCandidates?: () => Promise<readonly { id: string; updatedAt: string; limitMinor: number }[]>;
   readonly onConfirmBudgetCandidate?: (id: string, expectedLatestId: string) => Promise<void>;
   readonly onLock: () => void;
+  readonly onLogout?: () => Promise<void>;
   readonly backup: BackupStatusViewModel;
   readonly onExportVault: (input: { readonly recoveryKey: string }) => Promise<Uint8Array>;
   readonly onInspectVaultImport: (bytes: Uint8Array, input: { readonly recoveryKey: string }) => Promise<VaultImportInspectionViewModel>;
@@ -45,6 +46,7 @@ export function SettingsPage({
   onListBudgetCandidates,
   onConfirmBudgetCandidate,
   onLock,
+  onLogout,
   backup,
   onExportVault,
   onInspectVaultImport,
@@ -90,6 +92,9 @@ export function SettingsPage({
   const [resetPhrase, setResetPhrase] = useState('');
   const [resetBusy, setResetBusy] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
+  const [logoutBusy, setLogoutBusy] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+  const resetConfirmationPhrase = cloudReady ? '계정 삭제' : '데이터 삭제';
   const [ruleBusy, setRuleBusy] = useState<string | null>(null);
   const [ruleError, setRuleError] = useState<string | null>(null);
   const [keywordDrafts, setKeywordDrafts] = useState<Record<string, string>>({});
@@ -114,14 +119,27 @@ export function SettingsPage({
     }
   }
 
+  async function logout() {
+    if (!onLogout) return;
+    setLogoutError(null);
+    setLogoutBusy(true);
+    try {
+      await onLogout();
+    } catch {
+      setLogoutError('로그아웃하지 못했습니다. 연결 상태를 확인하거나 “이 기기 잠그기”를 사용해주세요.');
+    } finally {
+      setLogoutBusy(false);
+    }
+  }
+
   async function resetAllData() {
     setResetError(null);
     if (!/^\d{10,12}$/.test(resetPin)) {
       setResetError('현재 사용 중인 10~12자리 PIN을 입력해주세요.');
       return;
     }
-    if (resetPhrase !== '초기화') {
-      setResetError('확인란에 “초기화”를 정확히 입력해주세요.');
+    if (resetPhrase !== resetConfirmationPhrase) {
+      setResetError(`확인란에 “${resetConfirmationPhrase}”를 정확히 입력해주세요.`);
       return;
     }
 
@@ -190,10 +208,17 @@ export function SettingsPage({
             </div>
           </dl>
           <div className="settings-card-actions">
-            <button type="button" className="danger-button" aria-label="지금 잠그기" onClick={onLock}>
-              지금 잠그기
+            {onLogout ? (
+              <button type="button" className="secondary-button" disabled={logoutBusy} onClick={() => void logout()}>
+                {logoutBusy ? '로그아웃 중…' : '로그아웃'}
+              </button>
+            ) : null}
+            <button type="button" className="danger-button" aria-label="이 기기 잠그기" onClick={onLock}>
+              이 기기 잠그기
             </button>
-            <p>복호화된 세션 키를 즉시 메모리에서 제거합니다.</p>
+            {logoutError ? <p role="alert" className="form-error">{logoutError}</p> : null}
+            <p>로그아웃하면 클라우드 세션을 종료하고 PIN 화면으로 이동합니다. Vault와 계정은 유지되며, PIN으로 다시 잠금 해제하면 동기화 세션이 새로 인증됩니다.</p>
+            <p>이 기기 잠그기는 연결 없이 현재 기기의 잠금만 실행합니다.</p>
           </div>
         </article>
 
@@ -558,8 +583,8 @@ export function SettingsPage({
           <div className="settings-card-heading">
             <div>
               <p className="card-kicker">DANGER ZONE</p>
-              <h2 id="reset-settings-title">전체 초기화</h2>
-              <p>현재 My Diary 데이터를 모두 지우고 처음 시작 상태로 되돌립니다.</p>
+              <h2 id="reset-settings-title">{cloudReady ? '클라우드 계정 삭제' : '이 기기 데이터 삭제'}</h2>
+              <p>{cloudReady ? '클라우드 계정과 현재 기기의 Vault 데이터를 삭제합니다.' : '현재 기기에 저장된 Vault와 기록을 삭제합니다.'}</p>
             </div>
             <span className="status-chip warning">되돌릴 수 없음</span>
           </div>
@@ -583,7 +608,7 @@ export function SettingsPage({
             <label className="access-form">
               <span>현재 PIN</span>
               <input
-                aria-label="초기화 확인 PIN"
+                aria-label={cloudReady ? '계정 삭제 확인 PIN' : '데이터 삭제 확인 PIN'}
                 inputMode="numeric"
                 autoComplete="off"
                 maxLength={12}
@@ -593,9 +618,9 @@ export function SettingsPage({
               />
             </label>
             <label className="access-form">
-              <span>확인을 위해 “초기화” 입력</span>
+              <span>확인을 위해 “{resetConfirmationPhrase}” 입력</span>
               <input
-                aria-label="초기화 확인 문구"
+                aria-label={cloudReady ? '계정 삭제 확인 문구' : '데이터 삭제 확인 문구'}
                 autoComplete="off"
                 value={resetPhrase}
                 onChange={(event) => setResetPhrase(event.currentTarget.value)}
@@ -608,9 +633,9 @@ export function SettingsPage({
               disabled={resetBusy}
               onClick={() => void resetAllData()}
             >
-              모든 데이터 초기화
+              {cloudReady ? '계정 삭제' : '이 기기 데이터 삭제'}
             </button>
-            <p>PIN 재확인과 확인 문구가 모두 일치해야 실행됩니다.</p>
+            <p>PIN 재확인과 위의 확인 문구가 모두 일치해야 실행됩니다.</p>
           </div>
         </article>
 

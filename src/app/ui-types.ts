@@ -235,6 +235,7 @@ export interface AppRuntimePorts {
   removeIncomeKeyword?(input: { readonly keyword: string }): Promise<void>;
   restoreIncomeKeywords?(): Promise<void>;
   lock?(): void;
+  logout?(): Promise<void>;
   getSnapshot?(): RuntimeSnapshot;
   subscribe?(listener: (snapshot: RuntimeSnapshot) => void): () => void;
 }

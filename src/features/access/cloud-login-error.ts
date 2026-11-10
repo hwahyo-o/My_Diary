@@ -4,7 +4,7 @@ import { CloudSyncHttpError } from '../../cloud-sync/http-client';
 export function describeCloudLoginError(error: unknown): string {
   if (error instanceof CloudSyncHttpError) {
     if (error.status === 401 || error.status === 403) {
-      return '닉네임 또는 PIN이 올바르지 않거나 계정 인증이 거부되었습니다.';
+      return '닉네임 또는 PIN을 확인해주세요. Preview와 운영 주소의 계정은 분리되어 있으니, 계정을 만든 주소에서 로그인해야 합니다.';
     }
     if (error.status === 429) return '로그인 시도가 제한되었습니다. 잠시 뒤 다시 시도해주세요.';
     if (error.status === 404 || error.status === 405) {

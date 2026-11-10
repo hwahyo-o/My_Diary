@@ -198,6 +198,7 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
         return runtime.restoreIncomeKeywords();
       }}
       onLock={() => runtime.lock?.()}
+      {...(runtime.logout ? { onLogout: () => runtime.logout!() } : {})}
     />
     </>
   );

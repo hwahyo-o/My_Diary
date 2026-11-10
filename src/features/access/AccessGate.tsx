@@ -115,7 +115,7 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onCloud
         <p className="access-copy">
           {mode === 'onboarding'
             ? (cloudLogin
-              ? '기존 닉네임과 PIN으로 로그인하면 암호화된 Vault를 이 기기에 자동으로 복원합니다.'
+              ? '계정을 만든 것과 같은 서비스 주소에서 로그인하면 암호화된 가계부를 이 기기에 복원합니다.'
               : '새 Vault를 만들거나, 기존 계정이 있다면 로그인해서 이어서 사용할 수 있습니다.')
             : '금융 기록을 보려면 이 기기의 PIN을 입력하세요.'}
         </p>
@@ -124,7 +124,7 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onCloud
           {mode === 'onboarding' ? (
             <label>
               <span>닉네임</span>
-              <input aria-label="닉네임" autoComplete="nickname" value={nickname} onChange={(event) => setNickname(event.currentTarget.value)} />
+              <input aria-label="닉네임" autoComplete="nickname" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={nickname} onChange={(event) => setNickname(event.currentTarget.value)} />
             </label>
           ) : null}
 
@@ -134,7 +134,7 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onCloud
           </label>
 
           {error ? <p role="alert" className="form-error">{error}</p> : null}
-          <button className="primary-button" type="submit" disabled={busy}>{mode === 'onboarding' ? (cloudLogin ? '기존 계정 로그인' : '새 Vault 만들기') : '잠금 해제'}</button>
+          <button className="primary-button" type="submit" disabled={busy}>{mode === 'onboarding' ? (cloudLogin ? '기존 계정 로그인' : '새 가계부 시작하기') : '잠금 해제'}</button>
         </form>
 
         {mode === 'onboarding' && onCloudLogin ? (
@@ -147,11 +147,11 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onCloud
               setPin('');
             }}
           >
-            {cloudLogin ? '새 Vault 만들기' : '기존 계정으로 로그인'}
+            {cloudLogin ? '처음 시작하기' : '기존 계정 로그인'}
           </button>
         ) : null}
         {mode === 'onboarding' && onRecover ? (
-          <button type="button" className="text-button" onClick={() => setRecovering(true)}>비상 복구: 기존 .vault 백업 사용</button>
+          <button type="button" className="text-button" onClick={() => setRecovering(true)}>백업 파일로 복구하기</button>
         ) : null}
       </section>
     </main>
