@@ -44,7 +44,7 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onCloud
     const isAccountLogin = mode === 'account-login' || (mode === 'onboarding' && cloudLogin);
     const pinPattern = mode === 'onboarding' || isAccountLogin ? strongPin : supportedPin;
     if (!pinPattern.test(pin)) {
-      setError(isAccountLogin ? 'PIN은 10~12자리 숫자로 입력해주세요.' : 'PIN은 6~12자리 숫자로 입력해주세요.');
+      setError(mode === 'onboarding' ? '새 PIN은 10~12자리 숫자로 입력해주세요.' : isAccountLogin ? 'PIN은 10~12자리 숫자로 입력해주세요.' : 'PIN은 6~12자리 숫자로 입력해주세요.');
       return;
     }
     if ((mode === 'onboarding' || isAccountLogin) && nickname.trim().length === 0) {
@@ -66,7 +66,9 @@ export function AccessGate({ mode, onCreateProfile, onUnlock, onRecover, onCloud
         onAccessGranted();
       }
     } catch (caught) {
-      if (caught instanceof Error && caught.message === 'LOCAL_VAULT_EXISTS') {
+      if ((mode === 'onboarding' || isAccountLogin) && caught instanceof TypeError && caught.message === 'PIN is too weak.') {
+        setError('PIN이 너무 단순합니다. 반복되거나 연속된 숫자 패턴을 피해주세요.');
+      } else if (caught instanceof Error && caught.message === 'LOCAL_VAULT_EXISTS') {
         setError('이 기기에 기존 Vault가 있습니다. 새 계정을 만들려면 아래에서 이 기기의 Vault를 지우는 절차를 진행해주세요.');
       } else if (caught instanceof Error && caught.message === 'LOCAL_ACCOUNT_MISMATCH') {
         setError('이 기기에 저장된 계정과 닉네임이 다릅니다. 기존 계정 닉네임을 확인해주세요.');
