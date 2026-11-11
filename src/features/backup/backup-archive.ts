@@ -10,7 +10,7 @@ export interface LocalBackupSummary {
   readonly sizeBytes: number;
 }
 
-interface BackupMetadata extends LocalBackupSummary {}
+type BackupMetadata = LocalBackupSummary;
 interface BackupPayload {
   readonly id: string;
   readonly bytes: ArrayBuffer;
