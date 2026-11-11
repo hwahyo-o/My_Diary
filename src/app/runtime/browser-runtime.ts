@@ -123,6 +123,18 @@ export interface BrowserRuntimeOptions {
 
 const BOOTSTRAP_KEY = 'device-bootstrap-v1';
 const CLOUD_META_KEY = 'cloud-enrollment-v1';
+const CLOUD_LOGOUT_KEY = 'cloud-logout-v1';
+
+function hasCloudLogout(): boolean {
+  try { return globalThis.localStorage?.getItem(CLOUD_LOGOUT_KEY) === 'true'; } catch { return false; }
+}
+
+function setCloudLogout(value: boolean): void {
+  try {
+    if (value) globalThis.localStorage?.setItem(CLOUD_LOGOUT_KEY, 'true');
+    else globalThis.localStorage?.removeItem(CLOUD_LOGOUT_KEY);
+  } catch { /* Access routing remains available when storage is blocked. */ }
+}
 const CLASSIFICATION_SETTINGS_RECORD_ID = parseUUID('00000000-0000-4000-8000-000000000052');
 const SCHEMA_VERSION = 1;
 const MAX_PIN_FAILURES = 10;
@@ -332,7 +344,7 @@ export class BrowserRuntime {
     runtime.cloudSyncStatus = runtime.cloudMeta ? 'pending' : 'not-connected';
     runtime.snapshot = {
       cloudSyncStatus: runtime.cloudSyncStatus,
-      access: runtime.bootstrap ? 'locked' : 'onboarding',
+      access: runtime.bootstrap ? (hasCloudLogout() ? 'account-login' : 'locked') : 'onboarding',
       dashboard: emptyDashboard,
       assets: emptyAssets,
       analytics: emptyAnalytics,
@@ -421,6 +433,7 @@ export class BrowserRuntime {
       await this.repository.putSecurityMeta(BOOTSTRAP_KEY, bootstrap);
       this.bootstrap = bootstrap;
       this.session = session;
+      setCloudLogout(false);
       await this.hydrate();
       return { recoveryKey: toBase64Url(recoveryKey) };
     } finally {
@@ -448,7 +461,7 @@ export class BrowserRuntime {
       await this.repository.putSecurityMeta(BOOTSTRAP_KEY, resetBootstrap);
       this.bootstrap = resetBootstrap;
       await this.hydrate();
-      if (this.cloudMeta) await this.authenticateAndSyncCloud(pin).catch(() => undefined);
+      if (this.cloudMeta && !hasCloudLogout()) await this.authenticateAndSyncCloud(pin).catch(() => undefined);
     } catch (error) {
       this.session?.lock();
       this.session = null;
@@ -525,11 +538,25 @@ export class BrowserRuntime {
   }
 
   async loginFromCloud(input: { readonly nickname: string; readonly pin: string }): Promise<void> {
-    if (this.bootstrap) throw new Error('Cloud login requires a fresh local device profile.');
-    assertStrongPin(input.pin);
     const nickname = input.nickname.trim();
     if (!nickname) throw new TypeError('Nickname is required.');
-
+    if (this.bootstrap) {
+      const meta = this.cloudMeta;
+      if (!meta) throw new Error('LOCAL_VAULT_EXISTS');
+      if (nickname.toLocaleLowerCase() !== meta.nickname.trim().toLocaleLowerCase()) {
+        throw new Error('LOCAL_ACCOUNT_MISMATCH');
+      }
+      await this.unlock(input.pin);
+      try {
+        await this.authenticateAndSyncCloud(input.pin);
+        setCloudLogout(false);
+      } catch (error) {
+        this.lock();
+        throw error;
+      }
+      return;
+    }
+    assertStrongPin(input.pin);
     const challenge = await this.cloudClient.challenge(nickname);
     const accountSalt = CloudSyncClient.decodeBytes(challenge.accountSalt);
     const params = this.options.argon2Profile === 'test' ? TEST_ARGON2_PARAMS : DEFAULT_ARGON2_PARAMS;
@@ -587,6 +614,7 @@ export class BrowserRuntime {
       this.bootstrap = bootstrap;
       this.cloudMeta = cloudMeta;
       this.session = await VaultSession.unlock(vaultKey.slice());
+      setCloudLogout(false);
       await this.hydrate();
     } finally {
       rootKey.fill(0);
@@ -1715,8 +1743,38 @@ export class BrowserRuntime {
   }
 
   async logout(): Promise<void> {
-    await this.cloudClient.logout();
-    this.lock();
+    setCloudLogout(true);
+    try {
+      await this.cloudClient.logout();
+    } finally {
+      this.lock();
+      this.setSnapshot({ ...this.snapshot, access: this.bootstrap ? 'account-login' : 'onboarding' });
+    }
+  }
+
+  async startNewVaultAfterLogout(): Promise<void> {
+    if (!hasCloudLogout() || this.snapshot.access !== 'account-login') {
+      throw new Error('A logged-out device is required to start a new Vault.');
+    }
+    await this.repository.clearAllData();
+    this.cloudKek?.fill(0);
+    this.cloudKek = null;
+    this.cloudMeta = null;
+    this.bootstrap = null;
+    this.cloudConflict = false;
+    this.cloudConflictSummary = null;
+    this.classificationSettings = DEFAULT_CLASSIFICATION_SETTINGS;
+    this.session?.lock();
+    this.session = null;
+    setCloudLogout(false);
+    this.setSnapshot({
+      access: 'onboarding',
+      dashboard: emptyDashboard,
+      assets: emptyAssets,
+      analytics: emptyAnalytics,
+      calendar: emptyCalendar,
+      classificationSettings: emptyClassificationSettings,
+    });
   }
 
   lock(): void {
@@ -1727,7 +1785,7 @@ export class BrowserRuntime {
     this.session?.lock();
     this.session = null;
     this.setSnapshot({
-      access: this.bootstrap ? 'locked' : 'onboarding',
+      access: this.bootstrap ? (hasCloudLogout() ? 'account-login' : 'locked') : 'onboarding',
       dashboard: emptyDashboard,
       assets: emptyAssets,
       analytics: emptyAnalytics,
