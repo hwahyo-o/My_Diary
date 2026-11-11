@@ -65,6 +65,7 @@ export function App({ initialAccess, dashboard, assets, analytics, calendar, run
         onUnlock={(pin) => runtime.unlock(pin)}
         {...recoveryProps}
         {...cloudLoginProps}
+        {...(runtime.startNewVaultAfterLogout ? { onStartNewVault: () => runtime.startNewVaultAfterLogout!() } : {})}
         onAccessGranted={() => {
           const next = runtime.getSnapshot?.();
           if (next) {
