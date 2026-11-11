@@ -12,6 +12,7 @@ import {
   toBase64Url,
 } from '../../_shared/cloud-sync.js';
 import { encryptWithMasterKey } from '../../_shared/master-key.js';
+import { hasCloudEnvironmentBindings } from '../../_shared/cloud-environment.js';
 
 export async function onRequestPost({ request, env }) {
   let accountSalt;
@@ -20,6 +21,9 @@ export async function onRequestPost({ request, env }) {
   let verifier;
   try {
     if (!hasAllowedOrigin(request)) return json({ error: 'Forbidden origin.' }, { status: 403 });
+    if (!hasCloudEnvironmentBindings(env)) {
+      return json({ error: 'Cloud synchronization is not configured for this environment.' }, { status: 503 });
+    }
     const body = await readJsonBody(request);
     const nicknameNorm = normalizeNickname(body?.nickname);
     accountSalt = fromBase64Url(body?.accountSalt);

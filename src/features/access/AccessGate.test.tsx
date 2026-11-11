@@ -17,13 +17,13 @@ describe('AccessGate', () => {
 
     fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: '예현' } });
     fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '12345' } });
-    fireEvent.click(screen.getByRole('button', { name: '새 Vault 만들기' }));
+    fireEvent.click(screen.getByRole('button', { name: '새 가계부 시작하기' }));
 
     expect(onCreateProfile).not.toHaveBeenCalled();
     expect(screen.getByRole('alert')).toHaveTextContent('10~12자리 숫자');
 
     fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '4829517304' } });
-    fireEvent.click(screen.getByRole('button', { name: '새 Vault 만들기' }));
+    fireEvent.click(screen.getByRole('button', { name: '새 가계부 시작하기' }));
 
     await waitFor(() => expect(onCreateProfile).toHaveBeenCalledWith({ nickname: '예현', pin: '4829517304' }));
     expect(screen.getByText('RECOVERY_KEY_SAMPLE')).toBeInTheDocument();
@@ -47,7 +47,7 @@ describe('AccessGate', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: '기존 계정으로 로그인' }));
+    fireEvent.click(screen.getByRole('button', { name: '기존 계정 로그인' }));
     fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: '예현' } });
     fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '4829517304' } });
     fireEvent.click(screen.getByRole('button', { name: '기존 계정 로그인' }));
@@ -69,7 +69,7 @@ describe('AccessGate', () => {
 
     fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: '예현' } });
     fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '1234567890' } });
-    fireEvent.click(screen.getByRole('button', { name: '새 Vault 만들기' }));
+    fireEvent.click(screen.getByRole('button', { name: '새 가계부 시작하기' }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('너무 단순합니다'));
   });

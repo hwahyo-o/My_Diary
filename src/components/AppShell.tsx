@@ -67,6 +67,7 @@ interface AppShellProps {
   readonly onRemoveIncomeKeyword: (input: { readonly keyword: string }) => Promise<void>;
   readonly onRestoreIncomeKeywords: () => Promise<void>;
   readonly onLock: () => void;
+  readonly onLogout?: () => Promise<void>;
 }
 
 export function AppShell({
@@ -111,6 +112,7 @@ export function AppShell({
   onRemoveIncomeKeyword,
   onRestoreIncomeKeywords,
   onLock,
+  onLogout,
 }: AppShellProps) {
   const [page, setPage] = useState<AppPage>('home');
   const [entryOpen, setEntryOpen] = useState(false);
@@ -137,6 +139,7 @@ export function AppShell({
           onConfirmBudgetCandidate={onConfirmBudgetCandidate}
           {...(onPreviewCloudBudgetComparison ? { onPreviewCloudBudgetComparison } : {})}
           onLock={onLock}
+          {...(onLogout ? { onLogout } : {})}
           backup={backup}
           onExportVault={onExportVault}
           onInspectVaultImport={onInspectVaultImport}

@@ -123,6 +123,18 @@ export interface BrowserRuntimeOptions {
 
 const BOOTSTRAP_KEY = 'device-bootstrap-v1';
 const CLOUD_META_KEY = 'cloud-enrollment-v1';
+const CLOUD_LOGOUT_KEY = 'cloud-logout-v1';
+
+function hasCloudLogout(): boolean {
+  try { return globalThis.localStorage?.getItem(CLOUD_LOGOUT_KEY) === 'true'; } catch { return false; }
+}
+
+function setCloudLogout(value: boolean): void {
+  try {
+    if (value) globalThis.localStorage?.setItem(CLOUD_LOGOUT_KEY, 'true');
+    else globalThis.localStorage?.removeItem(CLOUD_LOGOUT_KEY);
+  } catch { /* Access routing remains available when storage is blocked. */ }
+}
 const CLASSIFICATION_SETTINGS_RECORD_ID = parseUUID('00000000-0000-4000-8000-000000000052');
 const SCHEMA_VERSION = 1;
 const MAX_PIN_FAILURES = 10;
@@ -332,7 +344,7 @@ export class BrowserRuntime {
     runtime.cloudSyncStatus = runtime.cloudMeta ? 'pending' : 'not-connected';
     runtime.snapshot = {
       cloudSyncStatus: runtime.cloudSyncStatus,
-      access: runtime.bootstrap ? 'locked' : 'onboarding',
+      access: runtime.bootstrap ? (hasCloudLogout() ? 'account-login' : 'locked') : 'onboarding',
       dashboard: emptyDashboard,
       assets: emptyAssets,
       analytics: emptyAnalytics,
@@ -421,6 +433,7 @@ export class BrowserRuntime {
       await this.repository.putSecurityMeta(BOOTSTRAP_KEY, bootstrap);
       this.bootstrap = bootstrap;
       this.session = session;
+      setCloudLogout(false);
       await this.hydrate();
       return { recoveryKey: toBase64Url(recoveryKey) };
     } finally {
@@ -448,7 +461,7 @@ export class BrowserRuntime {
       await this.repository.putSecurityMeta(BOOTSTRAP_KEY, resetBootstrap);
       this.bootstrap = resetBootstrap;
       await this.hydrate();
-      if (this.cloudMeta) await this.authenticateAndSyncCloud(pin).catch(() => undefined);
+      if (this.cloudMeta && !hasCloudLogout()) await this.authenticateAndSyncCloud(pin).catch(() => undefined);
     } catch (error) {
       this.session?.lock();
       this.session = null;
@@ -484,12 +497,16 @@ export class BrowserRuntime {
     let vaultKey: Uint8Array | null = null;
     let cloudKek: Uint8Array | null = null;
     try {
+      // Verify the local PIN and unwrap the existing VaultKey before creating
+      // a remote account. An incorrect PIN must never leave an orphan account.
+      vaultKey = await unwrapVaultKey(
+        bootstrap.wrappedDeviceVaultKey, deviceKek, wrapAad(bootstrap.vaultId, 'device'),
+      );
       const registration = await this.cloudClient.register({ nickname, accountSalt, authSecret });
       const unlockPepper = CloudSyncClient.decodeBytes(registration.unlockPepper);
       cloudKek = await deriveCloudKek(rootKey, unlockPepper);
       this.cloudKek?.fill(0);
       this.cloudKek = cloudKek.slice();
-      vaultKey = await unwrapVaultKey(bootstrap.wrappedDeviceVaultKey, deviceKek, wrapAad(bootstrap.vaultId, 'device'));
       const cloudWrap = await wrapVaultKey(vaultKey, cloudKek, cloudWrapAad(registration.accountId, bootstrap.vaultId));
       const initialMeta: CloudEnrollmentMeta = {
         accountId: registration.accountId,
@@ -499,9 +516,18 @@ export class BrowserRuntime {
         cloudRevision: registration.revision,
         localRevisionAtSync: -1,
       };
-      this.cloudMeta = initialMeta;
       await this.repository.putSecurityMeta(CLOUD_META_KEY, initialMeta);
-      await this.uploadCloudSnapshot(initialMeta, registration.revision);
+      this.cloudMeta = initialMeta;
+      // Registration may have succeeded while the initial upload later fails.
+      // Keep the encrypted local Vault and expose a retryable pending state.
+      this.reportCloudSyncStatus('pending');
+      try {
+        await this.uploadCloudSnapshot(initialMeta, registration.revision);
+        await this.reportVerifiedSyncStatus();
+      } catch (error) {
+        this.reportCloudSyncStatus('error');
+        throw error;
+      }
     } finally {
       rootKey.fill(0);
       authSecret.fill(0);
@@ -512,11 +538,25 @@ export class BrowserRuntime {
   }
 
   async loginFromCloud(input: { readonly nickname: string; readonly pin: string }): Promise<void> {
-    if (this.bootstrap) throw new Error('Cloud login requires a fresh local device profile.');
-    assertStrongPin(input.pin);
     const nickname = input.nickname.trim();
     if (!nickname) throw new TypeError('Nickname is required.');
-
+    if (this.bootstrap) {
+      const meta = this.cloudMeta;
+      if (!meta) throw new Error('LOCAL_VAULT_EXISTS');
+      if (nickname.toLocaleLowerCase() !== meta.nickname.trim().toLocaleLowerCase()) {
+        throw new Error('LOCAL_ACCOUNT_MISMATCH');
+      }
+      await this.unlock(input.pin);
+      try {
+        await this.authenticateAndSyncCloud(input.pin);
+        setCloudLogout(false);
+      } catch (error) {
+        this.lock();
+        throw error;
+      }
+      return;
+    }
+    assertStrongPin(input.pin);
     const challenge = await this.cloudClient.challenge(nickname);
     const accountSalt = CloudSyncClient.decodeBytes(challenge.accountSalt);
     const params = this.options.argon2Profile === 'test' ? TEST_ARGON2_PARAMS : DEFAULT_ARGON2_PARAMS;
@@ -574,6 +614,7 @@ export class BrowserRuntime {
       this.bootstrap = bootstrap;
       this.cloudMeta = cloudMeta;
       this.session = await VaultSession.unlock(vaultKey.slice());
+      setCloudLogout(false);
       await this.hydrate();
     } finally {
       rootKey.fill(0);
@@ -1317,6 +1358,7 @@ export class BrowserRuntime {
         defaultAccountId: bootstrap.defaultAccountId,
         revision,
       };
+      const conflictVariants = await this.repository.listAllConflictVariants();
       return session.withVaultKey((vaultKey) => createVaultPackage({
         schemaVersion: SCHEMA_VERSION,
         vaultId: bootstrap.vaultId,
@@ -1327,6 +1369,7 @@ export class BrowserRuntime {
         manifest,
         records,
         events,
+        conflictVariants,
       }));
     } finally {
       recoveryUnwrapped?.fill(0);
@@ -1381,6 +1424,7 @@ export class BrowserRuntime {
         revision: verified.manifest.revision,
         records: verified.records,
         events: verified.events,
+        conflictVariants: verified.conflictVariants,
         securityMeta: { key: BOOTSTRAP_KEY, value: nextBootstrap },
       });
       this.bootstrap = nextBootstrap;
@@ -1429,6 +1473,7 @@ export class BrowserRuntime {
         revision: verified.manifest.revision,
         records: verified.records,
         events: verified.events,
+        conflictVariants: verified.conflictVariants,
         securityMeta: { key: BOOTSTRAP_KEY, value: bootstrap },
       });
       this.bootstrap = bootstrap;
@@ -1571,7 +1616,27 @@ export class BrowserRuntime {
           snapshot.events,
         );
         if (reconciled.hardConflicts > 0) {
-          this.cloudConflictSummary = toCloudConflictSafeSummary(planEncryptedCloudConflictReview(localRecords, snapshot.records, localEvents, snapshot.events));
+          const review = planEncryptedCloudConflictReview(localRecords, snapshot.records, localEvents, snapshot.events);
+          // Preserve divergent remote ciphertext separately without modifying the
+          // AAD-bound primary record. Event-only conflicts remain fail-closed.
+          const existingVariants = await this.repository.listAllConflictVariants();
+          const existingIds = new Set(existingVariants.map(variant => variant.variantId));
+          const pendingVariants = [];
+          for (const recordId of review.recordIds) {
+            const remote = snapshot.records.find(record => record.recordId === recordId);
+            if (!remote) throw new Error('Conflicting cloud record is missing.');
+            const digest = await sha256Hex(remote.encryptedPayload);
+            const variantId = `cloud-${recordId}-${digest}`;
+            if (existingIds.has(variantId)) continue;
+            pendingVariants.push({
+              variantId, recordId: remote.recordId, recordType: remote.recordType,
+              recordVersion: remote.recordVersion, updatedAt: remote.updatedAt,
+              encryptedPayload: remote.encryptedPayload, source: 'cloud' as const,
+            });
+            existingIds.add(variantId);
+          }
+          await this.repository.appendConflictVariantsAtomically(pendingVariants);
+          this.cloudConflictSummary = toCloudConflictSafeSummary(review);
           this.cloudConflict = true;
           this.setSnapshot({ ...this.snapshot });
         }
@@ -1630,6 +1695,9 @@ export class BrowserRuntime {
   }
 
   private async uploadCloudSnapshot(meta: CloudEnrollmentMeta, expectedCloudRevision: number): Promise<void> {
+    if ((await this.repository.listAllConflictVariants()).length > 0) {
+      throw new Error('Cloud upload blocked: encrypted conflict variants are not yet in snapshot format.');
+    }
     if (this.cloudConflict) throw new Error('Cloud conflict must be resolved before uploading.');
     const bootstrap = this.bootstrap;
     if (!bootstrap || !this.session?.isUnlocked) throw new Error('Vault session is locked.');
@@ -1674,6 +1742,41 @@ export class BrowserRuntime {
     this.cloudMeta = nextMeta;
   }
 
+  async logout(): Promise<void> {
+    setCloudLogout(true);
+    try {
+      await this.cloudClient.logout();
+    } finally {
+      this.lock();
+      this.setSnapshot({ ...this.snapshot, access: this.bootstrap ? 'account-login' : 'onboarding' });
+    }
+  }
+
+  async startNewVaultAfterLogout(): Promise<void> {
+    if (!hasCloudLogout() || this.snapshot.access !== 'account-login') {
+      throw new Error('A logged-out device is required to start a new Vault.');
+    }
+    await this.repository.clearAllData();
+    this.cloudKek?.fill(0);
+    this.cloudKek = null;
+    this.cloudMeta = null;
+    this.bootstrap = null;
+    this.cloudConflict = false;
+    this.cloudConflictSummary = null;
+    this.classificationSettings = DEFAULT_CLASSIFICATION_SETTINGS;
+    this.session?.lock();
+    this.session = null;
+    setCloudLogout(false);
+    this.setSnapshot({
+      access: 'onboarding',
+      dashboard: emptyDashboard,
+      assets: emptyAssets,
+      analytics: emptyAnalytics,
+      calendar: emptyCalendar,
+      classificationSettings: emptyClassificationSettings,
+    });
+  }
+
   lock(): void {
     if (this.cloudMeta) this.reportCloudSyncStatus('pending');
     this.cloudSyncEpoch += 1;
@@ -1682,7 +1785,7 @@ export class BrowserRuntime {
     this.session?.lock();
     this.session = null;
     this.setSnapshot({
-      access: this.bootstrap ? 'locked' : 'onboarding',
+      access: this.bootstrap ? (hasCloudLogout() ? 'account-login' : 'locked') : 'onboarding',
       dashboard: emptyDashboard,
       assets: emptyAssets,
       analytics: emptyAnalytics,

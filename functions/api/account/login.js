@@ -1,3 +1,4 @@
+import { hasCloudEnvironmentBindings } from '../../_shared/cloud-environment.js';
 import {
   authVerifier,
   constantTimeEqual,
@@ -23,6 +24,7 @@ export async function onRequestPost({ request, env }) {
   let unlockPepper;
   try {
     if (!hasAllowedOrigin(request)) return json({ error: 'Forbidden origin.' }, { status: 403 });
+    if (!hasCloudEnvironmentBindings(env)) return json({ error: 'Cloud sync is not configured.' }, { status: 503 });
     const body = await readJsonBody(request);
     const nicknameNorm = normalizeNickname(body?.nickname);
     authSecret = fromBase64Url(body?.authSecret);

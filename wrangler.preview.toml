@@ -1,0 +1,7 @@
+name = "my-diary-preview-schema"
+compatibility_date = "2026-11-09"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "my-diary-preview-sync"
+database_id = "2891cb9e-08df-404b-bf8a-c75568e84dd7"

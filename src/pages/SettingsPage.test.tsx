@@ -187,7 +187,7 @@ describe('SettingsPage operational hub', () => {
     const onLock = vi.fn();
     render(<SettingsPage {...baseProps} onLock={onLock} />);
 
-    fireEvent.click(screen.getByRole('button', { name: '지금 잠그기' }));
+    fireEvent.click(screen.getByRole('button', { name: '이 기기 잠그기' }));
     expect(onLock).toHaveBeenCalledTimes(1);
 
     const toggle = screen.getByRole('button', { name: '백업 도구 열기' });
