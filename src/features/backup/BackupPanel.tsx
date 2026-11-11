@@ -74,8 +74,8 @@ export function BackupPanel({ backup, onExport, onInspectImport, onApplyImport, 
       onBackupExported?.(exportedAt);
       await refreshArchives();
       setMessage(archived
-        ? '암호화 백업을 내려받았고, 이 브라우저의 백업 목록에도 저장했습니다.'
-        : '암호화 백업을 내려받았습니다. 브라우저 보관에 실패해 파일을 안전한 위치에 보관해주세요.');
+        ? '최근 내보내기: 방금 생성됨 · 이 브라우저의 백업 목록에도 저장했습니다.'
+        : '최근 내보내기: 방금 생성됨 · 브라우저 보관에 실패해 파일을 안전한 위치에 보관해주세요.');
       setExportKey('');
     } catch {
       setMessage('백업을 내보내지 못했습니다. RecoveryKey를 확인해주세요.');
