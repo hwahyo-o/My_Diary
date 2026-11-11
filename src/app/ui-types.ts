@@ -2,7 +2,7 @@ import type { AccountKind, AccountPurpose } from '../domain/accounts/types';
 import type { ReportType, Confidence } from '../domain/reports/types';
 import type { ClassificationSettingsViewModel, FixedVariableMode } from '../features/transactions/classification-settings';
 
-export type AccessState = 'onboarding' | 'locked' | 'unlocked';
+export type AccessState = 'onboarding' | 'account-login' | 'locked' | 'unlocked';
 export type CloudSyncStatus = 'not-connected' | 'pending' | 'syncing' | 'synced' | 'error' | 'conflict';
 export type AppPage = 'home' | 'calendar' | 'stats' | 'assets' | 'settings';
 
@@ -220,6 +220,7 @@ export interface AppRuntimePorts {
   enrollCloud?(input: { readonly pin: string }): Promise<void>;
   retryCloudSync?(): Promise<void>;
   loginFromCloud?(input: { readonly nickname: string; readonly pin: string }): Promise<void>;
+  startNewVaultAfterLogout?(): Promise<void>;
   isCloudEnrolled?(): boolean;
   hasCloudConflict?(): boolean;
   getCloudConflictSummary?(): import('./runtime/cloud-conflict-safe-summary').CloudConflictSafeSummary | null;
